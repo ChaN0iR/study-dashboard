@@ -1,5 +1,7 @@
 // Frontend config. No secrets here.
 window.CONFIG = {
+  // 追溯已上過的堂數（系列名稱: 堂數）
+  BASE_DONE: {},
   // URL of the deployed Cloudflare Worker, e.g. "https://study-dashboard-api.<subdomain>.workers.dev"
   // PLACEHOLDER: fill in after `wrangler deploy` (or open the app once with ?api=<url> to store it).
   API_BASE: "https://study-dashboard-api.tw-ching.workers.dev",
