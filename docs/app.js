@@ -51,7 +51,7 @@
         { id: "t2", title: "普化先修 第02-1堂＋講義練習題", done: false, skipped: false, source: "今日", order: 2 },
         { id: "t3", title: "生化先修 第01-2堂", done: false, skipped: false, source: "今日", order: 3 },
         { id: "t4", title: "複習物理先修 第01-1堂（約 45 分）", done: false, skipped: false, source: "今日", order: 4 },
-        { id: "t5", title: "健身＋沖涼", done: false, skipped: false, source: "今日", order: 5 },
+        { id: "t5", title: "健身＋洗澡", done: false, skipped: false, source: "今日", order: 5 },
         { id: "t6", title: "英文主課 第02-1堂 前半", done: false, skipped: false, source: "推薦", order: 6 },
         { id: "t7", title: "錯題回顧：普化先修 第01堂", done: false, skipped: false, source: "今日", order: 7 },
         { id: "t8", title: "填 YPT 小時／分鐘＋心得＋重點", done: false, skipped: false, source: "今日", order: 8 },
@@ -103,7 +103,7 @@
     const now = taipeiNow();
     const box = $("now"); box.replaceChildren();
     const rest = ["日", "四"].some((d) => String(now.wd || "").includes(d)) || [0, 4].includes(now.dow);
-    const slots = rest ? C.SCHEDULE.map((x) => x.name === "健身＋沖涼" ? { ...x, name: "輕度運動", keys: ["運動", "步數", "散步"] } : x) : C.SCHEDULE;
+    const slots = rest ? C.SCHEDULE.map((x) => x.name === "健身＋洗澡" ? { ...x, name: "輕度運動", keys: ["運動", "步數", "散步"] } : x) : C.SCHEDULE;
     const idx = slots.findIndex((s) => now.min >= toMin(s.start) && now.min < toMin(s.end));
     box.append(el("h2", {}, "現在"));
     let slot = null, title, meta;
