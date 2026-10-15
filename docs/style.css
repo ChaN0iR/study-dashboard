@@ -55,3 +55,26 @@ a.icon-btn,a.icon-btn:visited,a.icon-btn:active,a.icon-btn:hover{color:inherit}
 .lv-head{list-style:none;padding:14px 2px 6px}.lv-top{display:flex;align-items:baseline;gap:10px;font-size:13px}.lv-name{font-weight:600}.lv-tag{color:var(--mut);font-size:12px;flex:1}.lv-bar{height:3px;border-radius:2px;background:var(--line,rgba(128,128,128,.25));margin-top:6px;overflow:hidden}.lv-bar i{display:block;height:100%;background:var(--acc)}
 
 .countdown{font-size:13px;font-weight:400;color:var(--mut);letter-spacing:0;white-space:nowrap}
+
+/* layout v2: fixed viewport, tabs, two-row buttons */
+html,body{height:100%;overflow:hidden;overscroll-behavior:none;position:fixed;width:100%}
+body{display:flex;flex-direction:column}
+.top{width:100%;flex:none;display:flex;justify-content:space-between;align-items:center;gap:8px;padding:max(12px,env(safe-area-inset-top)) 14px 6px}
+.top h1{white-space:nowrap;display:flex;align-items:baseline;gap:8px;font-size:22px}
+.top h1 .title-link{white-space:nowrap}
+.top-actions{display:grid;grid-template-columns:repeat(3,38px);gap:6px;flex:none}
+.top-actions .icon-btn{min-height:34px;min-width:38px;width:38px;height:34px;padding:0;border-radius:9px}
+.top-actions svg{width:18px;height:18px}
+.banner{width:calc(100% - 28px);flex:none}
+main{flex:1;min-height:0;width:100%;overflow:hidden;display:flex;flex-direction:column;padding:0 12px 6px}
+main>[data-tab]{display:none}
+body[data-tab=today] main>[data-tab=today],body[data-tab=record] main>[data-tab=record],body[data-tab=lessons] main>[data-tab=lessons],body[data-tab=notes] main>[data-tab=notes]{display:block}
+main>.card{margin:6px 0}
+body[data-tab=today] #tasks,body[data-tab=lessons] #lessons{max-height:calc(100dvh - 330px);overflow-y:auto}
+body[data-tab=lessons] main>[data-tab=lessons]{flex:1;min-height:0;overflow:hidden}
+body[data-tab=lessons] #lessons{max-height:calc(100dvh - 240px)}
+textarea{resize:none}
+.tabs{flex:none;display:grid;grid-template-columns:repeat(4,1fr);border-top:1px solid var(--line);background:var(--card);padding-bottom:env(safe-area-inset-bottom)}
+.tabs button{min-height:48px;border:0;background:none;color:var(--mut);font-size:14px}
+.tabs button[aria-selected=true]{color:var(--fg);font-weight:700;box-shadow:inset 0 2px 0 var(--fg)}
+.toast{bottom:calc(64px + env(safe-area-inset-bottom))}
