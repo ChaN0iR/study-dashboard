@@ -2,7 +2,7 @@
 window.CONFIG = {
   // URL of the deployed Cloudflare Worker, e.g. "https://study-dashboard-api.<subdomain>.workers.dev"
   // PLACEHOLDER: fill in after `wrangler deploy` (or open the app once with ?api=<url> to store it).
-  API_BASE: "",
+  API_BASE: "https://study-dashboard-api.tw-ching.workers.dev",
 
   MOODS: ["很好", "不錯", "普通", "疲累", "低落"],
   SUBJECTS: ["化學", "物理", "生物", "生化", "英文"],
