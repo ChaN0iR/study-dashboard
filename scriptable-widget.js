@@ -98,13 +98,14 @@ const left = cur ? tm(cur[1]) - nowMin : 0;
 const mainTitle = cur ? cur[2] : (nxt ? "下一段　" + nxt[2] : (nowMin < 420 ? "尚未開始" : "今天結束"));
 const sub = cur ? `${cur[0]}–${cur[1]}　剩 ${left} 分` : (nxt ? `${nxt[0]} 開始` : "");
 const doNow = fit.length ? fit : (mode === "done" ? [] : rest.slice(0, 2));
-function line(txt, size, color, bold) { const x = w.addText(txt); x.font = bold ? Font.boldSystemFont(size) : Font.systemFont(size); x.textColor = color; x.lineLimit = 1; return x; }
+const GAP = fam === "small" ? 4 : (fam === "medium" ? 6 : 9);
+function line(txt, size, color, bold) { const x = w.addText(txt); x.font = bold ? Font.boldSystemFont(size) : Font.systemFont(size); x.textColor = color; x.lineLimit = 1; w.addSpacer(GAP); return x; }
 
 if (fam === "small") {
   line(sub, 10, muted);
   const m = line(mainTitle, 17, fc, true); m.minimumScaleFactor = 0.6;
   w.addSpacer(6);
-  doNow.slice(0, 3).forEach(t => { const x = line("○ " + t.title, 11, fc); x.lineLimit = 2; w.addSpacer(2); });
+  doNow.slice(0, 3).forEach(t => { const x = line("○ " + t.title, 11, fc); x.lineLimit = 2;  });
   w.addSpacer();
   line(`${Math.round(pct * 100)}%　${done}/${total}`, 10, muted);
 } else if (fam === "large") {
@@ -112,7 +113,7 @@ if (fam === "small") {
   const m = line(mainTitle, 26, fc, true); m.minimumScaleFactor = 0.6;
   w.addSpacer(8);
   line("現在做", 11, muted);
-  doNow.slice(0, 5).forEach(t => { const x = line("○ " + t.title, 15, fc); x.lineLimit = 2; w.addSpacer(3); });
+  doNow.slice(0, 5).forEach(t => { const x = line("○ " + t.title, 15, fc); x.lineLimit = 2;  });
   if (!doNow.length) line(mode === "done" ? "今天的任務都完成了" : "這個時段沒有指定任務", 14, fc);
   w.addSpacer(8);
   if (nxt && cur) line(`接著　${nxt[0]}　${nxt[2]}`, 12, muted);
@@ -125,7 +126,7 @@ if (fam === "small") {
   line(sub, 11, muted);
   const m = line(mainTitle, 22, fc, true); m.minimumScaleFactor = 0.6;
   w.addSpacer(4);
-  doNow.slice(0, 3).forEach(t => line("○ " + t.title, 13, fc));
+  doNow.slice(0, 2).forEach(t => line("○ " + t.title, 13, fc));
   if (!doNow.length) line(mode === "done" ? "今天的任務都完成了" : "這個時段沒有指定任務", 12, fc);
   w.addSpacer();
   line(`${nxt && cur ? "接著 " + nxt[0] + " " + nxt[2] + "　" : ""}${Math.round(pct * 100)}%　${done}/${total}`, 10, muted);
