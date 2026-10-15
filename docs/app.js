@@ -216,7 +216,12 @@
     ["f-hours", "f-minutes"].forEach((id) => $(id).addEventListener("input", updateTotal));
     $("refresh").onclick = () => load();
     $("ypt-link").addEventListener("click", (e) => {
-      if (!/iPhone|iPad|iPod|Android/i.test(navigator.userAgent || "")) { e.preventDefault(); window.open("https://www.yeolpumta.com/", "_blank", "noopener"); }
+      e.preventDefault();
+      if (!/iPhone|iPad|iPod|Android/i.test(navigator.userAgent || "")) { window.open("https://www.yeolpumta.com/", "_blank", "noopener"); return; }
+      let left = false; const onHide = () => { left = true; };
+      document.addEventListener("visibilitychange", onHide, { once: true });
+      location.href = "yeolpumta://link/";
+      setTimeout(() => { document.removeEventListener("visibilitychange", onHide); if (!left && !document.hidden) location.href = "https://link.yeolpumta.com/"; }, 1500);
     });
     $("anki-link").addEventListener("click", (e) => {
       e.preventDefault();
