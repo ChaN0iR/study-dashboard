@@ -49,3 +49,5 @@ a.icon-btn,a.icon-btn:visited,a.icon-btn:active,a.icon-btn:hover{color:inherit}
 .title-link,.title-link:visited,.title-link:active{color:inherit;text-decoration:none}
 .item .t{overflow:hidden;white-space:nowrap;text-overflow:ellipsis;overflow-wrap:normal}
 .item{min-height:48px}
+
+.icon-btn{position:relative}.icon-btn .badge{position:absolute;top:-4px;right:-4px;min-width:16px;height:16px;padding:0 4px;border-radius:8px;background:var(--acc);color:var(--accfg);font-size:10px;line-height:16px;text-align:center;box-sizing:border-box}

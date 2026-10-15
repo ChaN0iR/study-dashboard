@@ -21,6 +21,16 @@
     for (const k of kids.flat()) if (k != null) n.append(k);
     return n;
   }
+  const ankiCall = (action, params) => fetch("http://127.0.0.1:8765", { method: "POST", body: JSON.stringify({ action, version: 6, params: params || {} }) })
+    .then((r) => r.json()).then((j) => { if (j.error) throw new Error(j.error); return j.result; });
+  function ankiBadge() {
+    if (/iPhone|iPad|iPod|Android/i.test(navigator.userAgent || "")) return;
+    ankiCall("findCards", { query: "is:due" }).then((ids) => {
+      const a = $("anki-link"); let b = a.querySelector(".badge");
+      if (!b) { b = document.createElement("span"); b.className = "badge"; a.append(b); }
+      b.textContent = ids.length > 99 ? "99+" : ids.length; b.hidden = !ids.length;
+    }).catch(() => {});
+  }
   function toast(msg) {
     const t = $("toast"); t.textContent = msg; t.hidden = false;
     clearTimeout(toast.t); toast.t = setTimeout(() => (t.hidden = true), 2400);
@@ -214,7 +224,8 @@
     $("n-subject").append(...C.SUBJECTS.map((s) => el("option", { value: s }, s)));
     $("mode").textContent = DEMO ? "示範模式" : "";
     ["f-hours", "f-minutes"].forEach((id) => $(id).addEventListener("input", updateTotal));
-    $("refresh").onclick = () => load();
+    $("refresh").onclick = () => { load(); ankiBadge(); };
+    ankiBadge();
     $("ypt-link").addEventListener("click", (e) => {
       e.preventDefault();
       if (!/iPhone|iPad|iPod|Android/i.test(navigator.userAgent || "")) { window.open("https://www.yeolpumta.com/", "_blank", "noopener"); return; }
@@ -227,10 +238,7 @@
       if (/iPhone|iPad|iPod/i.test(ua)) { location.href = "anki://x-callback-url/sync"; }
       else if (/Android/i.test(ua)) { location.href = "intent://#Intent;package=com.ichi2.anki;S.browser_fallback_url=" + encodeURIComponent(web) + ";end"; }
       else {
-        let left = false; const onHide = () => { left = true; };
-        window.addEventListener("blur", onHide, { once: true });
-        location.href = "anki://";
-        setTimeout(() => { window.removeEventListener("blur", onHide); if (!left) window.open(web, "_blank", "noopener"); }, 1200);
+        ankiCall("guiDeckBrowser").catch(() => window.open(web, "_blank", "noopener"));
       }
     });
     $("reset-key").onclick = (e) => {
