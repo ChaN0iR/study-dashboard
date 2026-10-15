@@ -20,6 +20,7 @@
 </header>
 <div id="banner" class="banner" hidden></div>
 <main>
+<div class="col">
   <section id="now" class="card" data-tab="today"></section>
 
   <section class="card" data-tab="today">
@@ -28,6 +29,8 @@
     <details id="skipped-wrap" hidden><summary>已跳過</summary><ul id="skipped" class="list"></ul></details>
   </section>
 
+</div>
+<div class="col">
   <section class="card" data-tab="record">
     <h2>今日進度 <span id="completion" class="muted"></span></h2>
     <div class="row2">
@@ -41,11 +44,6 @@
     <button id="save-record" class="primary">儲存進度</button>
   </section>
 
-  <section class="card" data-tab="lessons">
-    <h2>課程 <span id="lesson-count" class="muted"></span></h2>
-    <ul id="lessons" class="list"></ul>
-  </section>
-
   <section class="card" data-tab="notes">
     <h2>筆記快速新增</h2>
     <label>標題<input id="n-title" type="text"></label>
@@ -53,6 +51,14 @@
     <label>重點<textarea id="n-points" rows="3"></textarea></label>
     <button id="save-note" class="primary">新增筆記</button>
   </section>
+</div>
+<div class="col">
+  <section class="card" data-tab="lessons">
+    <h2>課程 <span id="lesson-count" class="muted"></span></h2>
+    <ul id="lessons" class="list"></ul>
+  </section>
+
+</div>
   <footer class="muted foot" data-tab="notes"><a href="#" id="reset-key">重設 APP_KEY / API 位址</a><span id="mode"></span></footer>
 </main>
 <nav id="tabs" class="tabs"><button data-t="today" aria-selected="true">今日</button><button data-t="record">進度</button><button data-t="lessons">課程</button><button data-t="notes">筆記</button></nav>
