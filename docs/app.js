@@ -239,7 +239,7 @@
     $("reset-key").onclick = (e) => {
       e.preventDefault();
       const u = prompt("Worker 網址（留空保持不變）", apiBase()); if (u) localStorage.setItem("apiBase", u.trim());
-      localStorage.removeItem("appKey"); toast("APP_KEY 已清除，下次會重新詢問"); load();
+      localStorage.removeItem("appKey"); Promise.resolve(load()).finally(() => toast("重置成功"));
     };
     $("save-record").onclick = () => guarded(async () => {
       const num = (id) => ($(id).value === "" ? null : Number($(id).value));
