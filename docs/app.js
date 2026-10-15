@@ -102,7 +102,8 @@
   function renderNow() {
     const now = taipeiNow();
     const box = $("now"); box.replaceChildren();
-    const slots = C.SCHEDULE;
+    const rest = ["日", "四"].some((d) => String(now.wd || "").includes(d)) || [0, 4].includes(now.dow);
+    const slots = rest ? C.SCHEDULE.map((x) => x.name === "健身＋沖涼" ? { ...x, name: "輕度運動", keys: ["運動", "步數", "散步"] } : x) : C.SCHEDULE;
     const idx = slots.findIndex((s) => now.min >= toMin(s.start) && now.min < toMin(s.end));
     box.append(el("h2", {}, "現在"));
     let slot = null, title, meta;

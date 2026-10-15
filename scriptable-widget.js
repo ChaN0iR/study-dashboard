@@ -49,6 +49,8 @@ const tasks = (st.tasks || []).filter(t => !t.skipped);
 const done = tasks.filter(t => t.done).length, total = tasks.length;
 const pct = total ? done / total : 0;
 const open = tasks.filter(t => !t.done).sort((a, b) => (a.order || 0) - (b.order || 0));
+const isRest = [0, 4].includes(tp.getDay());
+if (isRest) { const k = SCHEDULE.find(x => x[2] === "健身＋沖涼"); if (k) k[2] = "輕度運動"; KEYS["輕度運動"] = ["運動", "步數", "散步"]; }
 const cur = SCHEDULE.find(s => nowMin >= tm(s[0]) && nowMin < tm(s[1]));
 const nxt = SCHEDULE.find(s => tm(s[0]) > nowMin);
 
