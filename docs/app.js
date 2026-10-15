@@ -266,7 +266,7 @@
       const days = Math.round((d - n) / 86400000);
       el2.textContent = days > 0 ? `　倒數 ${days} 天` : days === 0 ? "　今天考試" : "";
     })();
-    $("refresh").onclick = () => { load(); ankiBadge(); };
+    
     ankiBadge();
     $("ypt-link").addEventListener("click", (e) => {
       e.preventDefault();
