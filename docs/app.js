@@ -204,7 +204,7 @@
       items.sort((x, y) => (x.done - y.done) || (ord(x) - ord(y)));
       const done = items.filter((x) => x.done).length, pct = Math.round((done / items.length) * 100);
       const next = items.find((x) => !x.done);
-      return { name, items, done, pct, key: next ? ord(next) : 99999 };
+      return { name, items, done, pct, key: (next ? ord(next) : 99999) + (name.includes("先修") ? 0 : 50000) };
     }).sort((x, y) => x.key - y.key);
     const rows = [];
     list.forEach((g) => {
