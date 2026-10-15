@@ -163,9 +163,9 @@
 
   function renderRecord() {
     const r = state.record || {};
-    if (document.activeElement?.closest?.("#f-hours,#f-minutes,#f-review,#f-points") == null) {
+    if (document.activeElement?.closest?.("#f-hours,#f-minutes,#f-review,#f-workout,#f-points") == null) {
       $("f-hours").value = r.hours ?? ""; $("f-minutes").value = r.minutes ?? "";
-      $("f-review").value = r.review || ""; $("f-points").value = r.points || "";
+      $("f-review").value = r.review || ""; $("f-workout").value = r.workout ?? localStorage.getItem("sd-workout-" + (r.date || "")) ?? ""; $("f-points").value = r.points || "";
     }
     mood = r.mood || null; renderMoods(); updateTotal();
     $("completion").textContent = r.completion || "";
@@ -297,7 +297,7 @@
       const num = (id) => ($(id).value === "" ? null : Number($(id).value));
       state.record = await api("/api/record", {
         hours: num("f-hours"), minutes: num("f-minutes"),
-        "心得": $("f-review").value, "重點": $("f-points").value, "心情": mood || "",
+        "心得": $("f-review").value, "運動": $("f-workout").value, "重點": $("f-points").value, "心情": mood || "",
       });
       renderRecord();
     }, "已儲存");

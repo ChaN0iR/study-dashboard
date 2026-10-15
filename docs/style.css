@@ -120,7 +120,7 @@ button:active,a.icon-btn:active,.chk:active{transform:scale(.92);box-shadow:0 0 
  .primary{min-height:40px;margin-top:8px}
  .total{margin-top:6px}.total b{font-size:22px}
  h2{margin-bottom:8px}
- #f-review,#f-points,#n-points{height:44px}
+ #f-review,#f-workout,#f-points,#n-points{height:40px}
  .col:nth-child(2){overflow-y:auto}
  .col>[data-tab=notes]{flex:none}
 }

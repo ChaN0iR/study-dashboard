@@ -10,7 +10,7 @@
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="apple-touch-icon" href="icons/icon-192.png">
 <link rel="icon" href="icons/icon.svg" type="image/svg+xml">
-<link rel="stylesheet" href="style.css?v=36">
+<link rel="stylesheet" href="style.css?v=37">
 <title>清大後醫</title>
 </head>
 <body>
@@ -40,6 +40,7 @@
     <div class="total">YPT 合計 <b id="ypt">0h00m</b></div>
     <div class="moods" id="moods" role="radiogroup" aria-label="心情"></div>
     <label>心得<textarea id="f-review" rows="3"></textarea></label>
+    <label>運動紀錄<textarea id="f-workout" rows="3"></textarea></label>
     <label>各科重點<textarea id="f-points" rows="3"></textarea></label>
     <button id="save-record" class="primary">儲存進度</button>
   </section>
@@ -63,8 +64,8 @@
 </main>
 <nav id="tabs" class="tabs"><button data-t="today" aria-selected="true">今日</button><button data-t="record">進度</button><button data-t="lessons">課程</button><button data-t="notes">筆記</button></nav>
 <div id="toast" class="toast" hidden></div>
-<script src="config.js?v=36"></script>
-<script src="app.js?v=36"></script>
+<script src="config.js?v=37"></script>
+<script src="app.js?v=37"></script>
 <script>(function(){var b=document.querySelectorAll("#tabs button");function go(t){document.body.dataset.tab=t;b.forEach(function(x){x.setAttribute("aria-selected",x.dataset.t==t)})}b.forEach(function(x){x.onclick=function(){go(x.dataset.t)}});go("today")})()</script>
 </body>
 </html>

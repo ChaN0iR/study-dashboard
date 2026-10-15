@@ -33,6 +33,7 @@ export const P = {
     ypt: "YPT",           // formula, read-only
     review: "心得",
     points: "各科重點",
+    workout: "運動紀錄",
     mood: "心情/狀態",
     completion: "今日完成度", // formula, read-only
   },

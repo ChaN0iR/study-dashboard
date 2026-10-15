@@ -123,6 +123,7 @@ const shapeRecord = (pg) => {
     ypt: rd.formula(p[P.record.ypt]) || fmtYpt(h, m),
     review: rd.text(p[P.record.review]),
     points: rd.text(p[P.record.points]),
+    workout: rd.text(p[P.record.workout]),
     mood: rd.select(p[P.record.mood]),
     completion: rd.formula(p[P.record.completion]),
   };
@@ -213,6 +214,7 @@ async function postRecord(env, body) {
   if ("minutes" in body) props[P.record.minutes] = wr.number(num(body.minutes, "minutes", 1440));
   if ("心得" in body) props[P.record.review] = wr.text(body["心得"]);
   if ("重點" in body) props[P.record.points] = wr.text(body["重點"]);
+  if ("運動" in body) props[P.record.workout] = wr.text(body["運動"]);
   if ("心情" in body) {
     if (body["心情"] && !MOODS.includes(body["心情"])) throw new HttpError(400, "mood invalid");
     props[P.record.mood] = wr.select(body["心情"] || null);
