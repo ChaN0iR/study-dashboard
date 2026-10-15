@@ -214,6 +214,19 @@
     $("mode").textContent = DEMO ? "示範模式" : "";
     ["f-hours", "f-minutes"].forEach((id) => $(id).addEventListener("input", updateTotal));
     $("refresh").onclick = () => load();
+    $("anki-link").addEventListener("click", (e) => {
+      e.preventDefault();
+      const ua = navigator.userAgent || "";
+      const web = "https://ankiweb.net/decks";
+      if (/iPhone|iPad|iPod/i.test(ua)) { location.href = "anki://x-callback-url/sync"; }
+      else if (/Android/i.test(ua)) { location.href = "intent://#Intent;package=com.ichi2.anki;S.browser_fallback_url=" + encodeURIComponent(web) + ";end"; }
+      else {
+        let left = false; const onHide = () => { left = true; };
+        window.addEventListener("blur", onHide, { once: true });
+        location.href = "anki://";
+        setTimeout(() => { window.removeEventListener("blur", onHide); if (!left) window.open(web, "_blank", "noopener"); }, 1200);
+      }
+    });
     $("reset-key").onclick = (e) => {
       e.preventDefault();
       const u = prompt("Worker 網址（留空保持不變）", apiBase()); if (u) localStorage.setItem("apiBase", u.trim());
