@@ -178,7 +178,20 @@
   }
   function updateTotal() { $("ypt").textContent = fmtYpt($("f-hours").value, $("f-minutes").value); }
 
-  const RANKS = ["見習", "進階", "熟練", "精通", "大師"], PER = 10, BASE = (C.BASE_DONE || {});
+  const RANKS = ["見習", "進階", "熟練", "精通"], PER = 10, BASE = (C.BASE_DONE || {});
+  const TOP = {
+    "化學": ["拉瓦節", "道耳吞", "門得列夫", "鮑林", "居禮夫人"],
+    "生物": ["虎克", "孟德爾", "達爾文", "華生與克里克", "巴斯德"],
+    "生化": ["克雷布斯", "桑格", "鮑林", "華生與克里克", "多德納"],
+    "物理": ["伽利略", "牛頓", "馬克士威", "愛因斯坦", "費曼"],
+    "英文": ["莎士比亞", "狄更斯", "喬治歐威爾", "海明威", "牛津大師"],
+  };
+  const titleFor = (name, subject, ri) => {
+    if (ri < RANKS.length) return RANKS[ri];
+    const key = Object.keys(TOP).find((k) => (name + (subject || "")).includes(k));
+    const list = key ? TOP[key] : ["大師", "宗師", "傳奇", "泰斗", "殿堂"];
+    return list[Math.min(ri - RANKS.length, list.length - 1)];
+  };
   function renderLessons() {
     const ls = state.lessons;
     $("lesson-count").textContent = ls.length ? `${ls.filter((l) => l.done).length}/${ls.length}` : "";
@@ -195,9 +208,9 @@
     }).sort((x, y) => x.key - y.key);
     const rows = [];
     list.forEach((g) => {
-      const n = g.done + (BASE[g.name] || 0), lv = n + 1, ri = Math.min(Math.floor((lv - 1) / PER), RANKS.length - 1);
+      const n = g.done + (BASE[g.name] || 0), lv = n + 1, ri = Math.floor((lv - 1) / PER);
       rows.push(el("li", { class: "lv-head" },
-        el("div", { class: "lv-top" }, el("span", { class: "lv-name" }, g.name), el("span", { class: "lv-tag" }, `${RANKS[ri]}　Lv.${lv}`), el("span", { class: "muted" }, `${g.done}/${g.items.length}`)),
+        el("div", { class: "lv-top" }, el("span", { class: "lv-name" }, g.name), el("span", { class: "lv-tag" }, `${titleFor(g.name, g.items[0].subject, ri)}　Lv.${lv}`), el("span", { class: "muted" }, `${g.done}/${g.items.length}`)),
         el("div", { class: "lv-bar" }, el("i", { style: `width:${g.pct}%` }))));
       g.items.forEach((l) => rows.push(
         el("li", { class: "item lesson" + (l.done ? " done" : "") },
