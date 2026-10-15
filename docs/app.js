@@ -178,7 +178,7 @@
   }
   function updateTotal() { $("ypt").textContent = fmtYpt($("f-hours").value, $("f-minutes").value); }
 
-  const RANKS = ["見習", "進階", "熟練", "精通", "大師"], PER = 5, BASE = (C.BASE_DONE || {});
+  const RANKS = ["見習", "進階", "熟練", "精通", "大師"], PER = 10, BASE = (C.BASE_DONE || {});
   function renderLessons() {
     const ls = state.lessons;
     $("lesson-count").textContent = ls.length ? `${ls.filter((l) => l.done).length}/${ls.length}` : "";
@@ -195,7 +195,7 @@
     }).sort((x, y) => x.key - y.key);
     const rows = [];
     list.forEach((g) => {
-      const n = g.done + (BASE[g.name] || 0), ri = Math.min(Math.floor(n / PER), RANKS.length - 1), lv = ri === RANKS.length - 1 ? n - PER * ri + 1 : (n % PER) + 1;
+      const n = g.done + (BASE[g.name] || 0), lv = n + 1, ri = Math.min(Math.floor((lv - 1) / PER), RANKS.length - 1);
       rows.push(el("li", { class: "lv-head" },
         el("div", { class: "lv-top" }, el("span", { class: "lv-name" }, g.name), el("span", { class: "lv-tag" }, `${RANKS[ri]}　Lv.${lv}`), el("span", { class: "muted" }, `${g.done}/${g.items.length}`)),
         el("div", { class: "lv-bar" }, el("i", { style: `width:${g.pct}%` }))));
