@@ -178,16 +178,35 @@
   }
   function updateTotal() { $("ypt").textContent = fmtYpt($("f-hours").value, $("f-minutes").value); }
 
+  const RANKS = [[100, "滿級"], [75, "精通"], [50, "熟練"], [25, "進階"], [0, "見習"]];
   function renderLessons() {
     const ls = state.lessons;
     $("lesson-count").textContent = ls.length ? `${ls.filter((l) => l.done).length}/${ls.length}` : "";
-    $("lessons").replaceChildren(...(ls.length ? ls.map((l) =>
-      el("li", { class: "item lesson" + (l.done ? " done" : "") },
-        el("button", { class: "chk", role: "checkbox", "aria-checked": String(l.done), "aria-label": "完成", onclick: () => toggleLesson(l) }),
-        el("div", { class: "t" }, l.title,
-          el("div", { class: "meta" }, [l.subject, l.minutes ? `${l.minutes} 分` : null, l.due ? "該複習" : null].filter(Boolean).join("　"))),
-        null)
-    ) : [el("li", { class: "empty" }, "本週沒有課程")]));
+    if (!ls.length) { $("lessons").replaceChildren(el("li", { class: "empty" }, "本週沒有課程")); return; }
+    const seriesOf = (l) => (l.title || "").replace(/\s*第?\s*\d+[-－]\d+\s*堂?.*$/, "").trim() || l.subject || "課程";
+    const groups = new Map();
+    ls.forEach((l) => { const k = seriesOf(l); if (!groups.has(k)) groups.set(k, []); groups.get(k).push(l); });
+    const ord = (l) => (l.order == null ? 9999 : l.order);
+    const list = [...groups.entries()].map(([name, items]) => {
+      items.sort((x, y) => (x.done - y.done) || (ord(x) - ord(y)));
+      const done = items.filter((x) => x.done).length, pct = Math.round((done / items.length) * 100);
+      const next = items.find((x) => !x.done);
+      return { name, items, done, pct, key: next ? ord(next) : 99999 };
+    }).sort((x, y) => x.key - y.key);
+    const rows = [];
+    list.forEach((g) => {
+      const rank = RANKS.find(([t]) => g.pct >= t)[1];
+      rows.push(el("li", { class: "lv-head" },
+        el("div", { class: "lv-top" }, el("span", { class: "lv-name" }, g.name), el("span", { class: "lv-tag" }, `Lv.${g.done + 1}　${rank}`), el("span", { class: "muted" }, `${g.done}/${g.items.length}`)),
+        el("div", { class: "lv-bar" }, el("i", { style: `width:${g.pct}%` }))));
+      g.items.forEach((l) => rows.push(
+        el("li", { class: "item lesson" + (l.done ? " done" : "") },
+          el("button", { class: "chk", role: "checkbox", "aria-checked": String(l.done), "aria-label": "完成", onclick: () => toggleLesson(l) }),
+          el("div", { class: "t" }, l.title,
+            el("div", { class: "meta" }, [l.subject, l.minutes ? `${l.minutes} 分` : null, l.due ? "該複習" : null].filter(Boolean).join("　"))),
+          null)));
+    });
+    $("lessons").replaceChildren(...rows);
   }
 
   function renderAll() {
