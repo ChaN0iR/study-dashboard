@@ -208,7 +208,8 @@
     }).sort((x, y) => x.key - y.key);
     const rows = [];
     list.forEach((g) => {
-      const n = g.done + (BASE[g.name] || 0), lv = n + 1, ri = Math.floor((lv - 1) / PER);
+      const sk = "lvmax:" + g.name, n = Math.max(g.done + (BASE[g.name] || 0), Number(localStorage.getItem(sk) || 0)), lv = n + 1, ri = Math.floor((lv - 1) / PER);
+      localStorage.setItem(sk, String(n));
       rows.push(el("li", { class: "lv-head" },
         el("div", { class: "lv-top" }, el("span", { class: "lv-name" }, g.name), el("span", { class: "lv-tag" }, `${titleFor(g.name, g.items[0].subject, ri)}　Lv.${lv}`), el("span", { class: "muted" }, `${g.done}/${g.items.length}`)),
         el("div", { class: "lv-bar" }, el("i", { style: `width:${g.pct}%` }))));
