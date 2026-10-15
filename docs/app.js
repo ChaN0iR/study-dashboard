@@ -257,6 +257,12 @@
     $("n-subject").append(...C.SUBJECTS.map((s) => el("option", { value: s }, s)));
     $("mode").textContent = DEMO ? "示範模式" : "";
     ["f-hours", "f-minutes"].forEach((id) => $(id).addEventListener("input", updateTotal));
+    (function () {
+      const el2 = $("countdown"); if (!el2 || !C.EXAM_DATE) return;
+      const d = new Date(C.EXAM_DATE + "T00:00:00"), n = new Date(); n.setHours(0, 0, 0, 0);
+      const days = Math.round((d - n) / 86400000);
+      el2.textContent = days > 0 ? `　倒數 ${days} 天` : days === 0 ? "　今天考試" : "";
+    })();
     $("refresh").onclick = () => { load(); ankiBadge(); };
     ankiBadge();
     $("ypt-link").addEventListener("click", (e) => {

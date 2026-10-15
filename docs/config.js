@@ -1,5 +1,6 @@
 // Frontend config. No secrets here.
 window.CONFIG = {
+  EXAM_DATE: "2027-03-20",
   // 追溯已上過的堂數（系列名稱: 堂數）
   BASE_DONE: {},
   // URL of the deployed Cloudflare Worker, e.g. "https://study-dashboard-api.<subdomain>.workers.dev"

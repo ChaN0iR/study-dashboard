@@ -53,3 +53,5 @@ a.icon-btn,a.icon-btn:visited,a.icon-btn:active,a.icon-btn:hover{color:inherit}
 .icon-btn{position:relative}.icon-btn .badge{position:absolute;top:-4px;right:-4px;min-width:16px;height:16px;padding:0 4px;border-radius:8px;background:var(--acc);color:var(--accfg);font-size:10px;line-height:16px;text-align:center;box-sizing:border-box}
 
 .lv-head{list-style:none;padding:14px 2px 6px}.lv-top{display:flex;align-items:baseline;gap:10px;font-size:13px}.lv-name{font-weight:600}.lv-tag{color:var(--mut);font-size:12px;flex:1}.lv-bar{height:3px;border-radius:2px;background:var(--line,rgba(128,128,128,.25));margin-top:6px;overflow:hidden}.lv-bar i{display:block;height:100%;background:var(--acc)}
+
+.countdown{font-size:13px;font-weight:400;color:var(--mut);letter-spacing:0;white-space:nowrap}
