@@ -1,0 +1,30 @@
+// Offline smoke test: mocks Notion and exercises every endpoint.
+import worker from "./index.js";
+import assert from "node:assert/strict";
+const calls = [];
+globalThis.fetch = async (url, init) => {
+  const body = init.body ? JSON.parse(init.body) : null;
+  calls.push({ url, method: init.method, body });
+  const page = (props = {}) => ({ id: "11111111-1111-1111-1111-111111111111", properties: props });
+  if (url.endsWith("/query")) return Response.json({ results: [page({ "任務": { title: [{ plain_text: "Anki" }] }, "　": { checkbox: true }, "數": {} })], has_more: false });
+  return Response.json(page());
+};
+const env = { NOTION_TOKEN: "t", APP_KEY: "k", ALLOWED_ORIGIN: "*" };
+const call = (m, p, b, key = "k") => worker.fetch(new Request("https://x" + p, { method: m, headers: { "x-app-key": key, "content-type": "application/json" }, body: b ? JSON.stringify(b) : undefined }), env);
+assert.equal((await call("GET", "/api/state", null, "bad")).status, 401);
+const st = await (await call("GET", "/api/state")).json();
+assert.equal(st.tasks[0].title, "Anki"); assert.equal(st.tasks[0].done, true);
+const id = "11111111-1111-1111-1111-111111111111";
+assert.equal((await call("POST", `/api/task/${id}`, { done: true })).status, 200);
+assert.equal((await call("POST", `/api/task/${id}`, { skip: true })).status, 200);
+assert.equal((await call("POST", `/api/task/${id}`, {})).status, 400);
+assert.equal((await call("POST", `/api/task/zzz`, { done: true })).status, 400);
+assert.equal((await call("POST", `/api/record`, { hours: 1, minutes: 40, "心得": "x", "心情": "普通" })).status, 200);
+assert.equal((await call("POST", `/api/record`, { "心情": "bad" })).status, 400);
+assert.equal((await call("POST", `/api/lesson/${id}`, { done: true })).status, 200);
+assert.equal((await call("POST", `/api/lesson/${id}`, { review: true })).status, 200);
+assert.equal((await call("POST", `/api/note`, { title: "n", subject: "化學" })).status, 200);
+assert.equal((await call("POST", `/api/note`, {})).status, 400);
+const patch = calls.find((c) => c.method === "PATCH" && c.body.properties["　"]);
+assert.deepEqual(patch.body.properties["　"], { checkbox: true });
+console.log("worker ok,", calls.length, "mock notion calls");

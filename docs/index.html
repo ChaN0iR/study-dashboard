@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#111111" media="(prefers-color-scheme: dark)">
+<meta name="theme-color" content="#f6f6f4" media="(prefers-color-scheme: light)">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="讀書">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icons/icon-192.png">
+<link rel="icon" href="icons/icon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="style.css">
+<title>讀書儀表板</title>
+</head>
+<body>
+<header class="top">
+  <div><h1>讀書儀表板</h1><div id="date" class="muted"></div></div>
+  <button id="refresh" class="icon-btn" aria-label="重新整理">重整</button>
+</header>
+<div id="banner" class="banner" hidden></div>
+<main>
+  <section id="now" class="card"></section>
+
+  <section class="card">
+    <h2>今日任務 <span id="task-count" class="muted"></span></h2>
+    <ul id="tasks" class="list"></ul>
+    <details id="skipped-wrap" hidden><summary>已跳過</summary><ul id="skipped" class="list"></ul></details>
+  </section>
+
+  <section class="card">
+    <h2>今日進度 <span id="completion" class="muted"></span></h2>
+    <div class="row2">
+      <label>小時<input id="f-hours" type="number" inputmode="decimal" min="0" max="24" step="0.25" placeholder="1.5"></label>
+      <label>分鐘<input id="f-minutes" type="number" inputmode="numeric" min="0" max="1440" step="1" placeholder="40"></label>
+    </div>
+    <div class="total">YPT 合計 <b id="ypt">0h00m</b></div>
+    <div class="moods" id="moods" role="radiogroup" aria-label="心情"></div>
+    <label>心得<textarea id="f-review" rows="3"></textarea></label>
+    <label>各科重點<textarea id="f-points" rows="3"></textarea></label>
+    <button id="save-record" class="primary">儲存進度</button>
+  </section>
+
+  <section class="card">
+    <h2>課程 <span id="lesson-count" class="muted"></span></h2>
+    <ul id="lessons" class="list"></ul>
+  </section>
+
+  <section class="card">
+    <h2>筆記快速新增</h2>
+    <label>標題<input id="n-title" type="text"></label>
+    <label>科目<select id="n-subject"><option value="">不指定</option></select></label>
+    <label>重點<textarea id="n-points" rows="3"></textarea></label>
+    <button id="save-note" class="primary">新增筆記</button>
+  </section>
+  <footer class="muted foot"><a href="#" id="reset-key">重設 APP_KEY / API 位址</a><span id="mode"></span></footer>
+</main>
+<div id="toast" class="toast" hidden></div>
+<script src="config.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

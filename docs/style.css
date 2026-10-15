@@ -1,0 +1,43 @@
+:root{--bg:#f6f6f4;--fg:#161616;--mut:#707070;--card:#fff;--line:#dcdcd8;--acc:#161616;--accfg:#fff}
+@media(prefers-color-scheme:dark){:root{--bg:#111;--fg:#ececea;--mut:#8d8d8a;--card:#1b1b1b;--line:#2f2f2e;--acc:#ececea;--accfg:#111}}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+body{margin:0;background:var(--bg);color:var(--fg);font:16px/1.5 -apple-system,"Noto Sans TC","PingFang TC",system-ui,sans-serif;padding-bottom:env(safe-area-inset-bottom)}
+.top{display:flex;justify-content:space-between;align-items:flex-end;padding:max(16px,env(safe-area-inset-top)) 16px 8px;max-width:640px;margin:auto}
+h1{font-size:22px;margin:0;letter-spacing:.02em}h2{font-size:15px;margin:0 0 12px;letter-spacing:.08em}
+main{max-width:640px;margin:auto;padding:0 12px 40px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:16px;margin:12px 0}
+.muted{color:var(--mut);font-size:13px;font-weight:400}
+.banner{max-width:616px;margin:8px auto;padding:10px 14px;border:1px solid var(--fg);border-radius:10px;font-size:14px}
+.list{list-style:none;margin:0;padding:0}
+.item{display:flex;align-items:center;gap:12px;min-height:52px;border-top:1px solid var(--line);padding:6px 0}
+.item:first-child{border-top:0}
+.item .t{flex:1;min-width:0;overflow-wrap:anywhere}
+.item.done .t{color:var(--mut);text-decoration:line-through}
+.chk{flex:none;width:32px;height:32px;border:2px solid var(--fg);border-radius:8px;background:none;color:var(--accfg);padding:0;font-size:20px;line-height:1}
+.chk[aria-checked=true]{background:var(--acc)}
+.chk[aria-checked=true]::after{content:"";display:block;width:8px;height:15px;margin:2px auto 0;border:solid var(--accfg);border-width:0 3px 3px 0;transform:rotate(45deg)}
+.tag{font-size:11px;border:1px solid var(--line);border-radius:6px;padding:0 6px;color:var(--mut);margin-left:6px;white-space:nowrap}
+button{font:inherit;color:var(--fg)}
+.ghost{min-height:44px;min-width:56px;border:1px solid var(--line);background:none;border-radius:10px;padding:0 12px;font-size:14px}
+.primary{width:100%;min-height:52px;border:0;border-radius:12px;background:var(--acc);color:var(--accfg);font-weight:600;margin-top:12px}
+.icon-btn{min-height:44px;padding:0 14px;border:1px solid var(--line);background:var(--card);border-radius:10px}
+label{display:block;font-size:13px;color:var(--mut);margin-top:10px}
+input,textarea,select{display:block;width:100%;margin-top:4px;min-height:48px;padding:10px 12px;font:inherit;font-size:16px;color:var(--fg);background:var(--bg);border:1px solid var(--line);border-radius:10px}
+textarea{resize:vertical}
+input:focus,textarea:focus,select:focus{outline:2px solid var(--fg);outline-offset:1px}
+.row2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.total{margin-top:12px;font-size:15px}.total b{font-size:26px;margin-left:8px;font-variant-numeric:tabular-nums}
+.moods{display:grid;grid-template-columns:repeat(5,1fr);gap:6px;margin-top:12px}
+.moods button{min-height:48px;border:1px solid var(--line);background:none;border-radius:10px;font-size:14px}
+.moods button[aria-checked=true]{background:var(--acc);color:var(--accfg);border-color:var(--acc)}
+.now-name{font-size:26px;font-weight:700;margin:2px 0}
+.now-meta{color:var(--mut);font-size:14px}
+.bar{height:6px;background:var(--line);border-radius:3px;margin:10px 0;overflow:hidden}.bar i{display:block;height:100%;background:var(--acc)}
+.now h3,.sub{font-size:13px;color:var(--mut);margin:14px 0 4px;font-weight:600}
+.lesson .meta{font-size:12px;color:var(--mut)}
+.lesson .acts{display:flex;gap:6px;flex:none}
+details summary{min-height:44px;display:flex;align-items:center;color:var(--mut);font-size:14px}
+.foot{display:flex;justify-content:space-between;padding:8px 4px}.foot a{color:var(--mut)}
+.toast{position:fixed;left:50%;bottom:max(20px,env(safe-area-inset-bottom));transform:translateX(-50%);background:var(--acc);color:var(--accfg);padding:12px 18px;border-radius:12px;font-size:14px;z-index:9;max-width:90vw}
+.empty{color:var(--mut);padding:10px 0;font-size:14px}
+[hidden]{display:none!important}
