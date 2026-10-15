@@ -132,10 +132,11 @@
     }
   }
 
+  const shortTitle = (s) => String(s || "").replace(/[\u{1F000}-\u{1FAFF}\u2600-\u27BF\uFE0F]/gu, "").replace(/[（(][^）)]*[）)]/g, "").replace(/｜.*$/, "").replace(/\s+/g, " ").trim();
   function taskItem(t) {
     return el("li", { class: "item" + (t.done ? " done" : "") },
       el("button", { class: "chk", role: "checkbox", "aria-checked": String(t.done), "aria-label": "完成", onclick: () => toggleTask(t) }),
-      el("div", { class: "t" }, t.title, t.source !== "今日" ? el("span", { class: "tag" }, t.source) : null),
+      el("div", { class: "t", title: t.title }, shortTitle(t.title), t.source !== "今日" ? el("span", { class: "tag" }, t.source) : null),
       t.skipped ? el("button", { class: "ghost", onclick: () => skipTask(t, false) }, "恢復")
         : t.done ? null : el("button", { class: "ghost", onclick: () => skipTask(t, true) }, "跳過"));
   }

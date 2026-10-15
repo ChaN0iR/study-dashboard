@@ -43,3 +43,9 @@ details summary{min-height:44px;display:flex;align-items:center;color:var(--mut)
 [hidden]{display:none!important}
 
 .top-actions{display:flex;gap:8px;align-items:center}a.icon-btn{text-decoration:none;display:inline-flex;align-items:center}
+
+.icon-btn{color:var(--fg,inherit);display:inline-flex;align-items:center;justify-content:center;min-width:44px;padding:0 10px}
+a.icon-btn,a.icon-btn:visited,a.icon-btn:active,a.icon-btn:hover{color:inherit}
+.title-link,.title-link:visited,.title-link:active{color:inherit;text-decoration:none}
+.item .t{overflow:hidden;white-space:nowrap;text-overflow:ellipsis;overflow-wrap:normal}
+.item{min-height:48px}
