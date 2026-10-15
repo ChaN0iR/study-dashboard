@@ -3,6 +3,8 @@ window.CONFIG = {
   EXAM_DATE: "2027-03-20",
   // 追溯已上過的堂數（系列名稱: 堂數）
   BASE_DONE: {},
+  // 2026-10-15 從 Notion 我的課程取得的已完成堂（等級累計起點）
+  DONE_TITLES: {"普化先修": ["普化先修 第01-1堂", "普化先修 第01-2堂"], "物理先修": ["物理先修 第01-1堂"], "生化先修": ["生化先修 第01-1堂(06/10)"], "生物學": ["生物學 第01-1堂", "生物學 第01-2堂", "生物學 第02-1堂", "生物學 第02-2堂", "生物學 第03-1堂", "生物學 第03-2堂", "生物學 第04-1堂", "生物學 第04-2堂"], "英文主課": ["英文主課 第01-1堂", "英文主課 第01-2堂"]},
   // URL of the deployed Cloudflare Worker, e.g. "https://study-dashboard-api.<subdomain>.workers.dev"
   // PLACEHOLDER: fill in after `wrangler deploy` (or open the app once with ?api=<url> to store it).
   API_BASE: "https://study-dashboard-api.tw-ching.workers.dev",

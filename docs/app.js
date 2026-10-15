@@ -210,7 +210,7 @@
     list.forEach((g) => {
       const sk = "lvdone:" + g.name; let seen = [];
       try { seen = JSON.parse(localStorage.getItem(sk) || "[]"); } catch (e) { seen = []; }
-      const set = new Set(seen); g.items.forEach((l) => { if (l.done) set.add(l.title); });
+      const set = new Set([...seen, ...((C.DONE_TITLES || {})[g.name] || [])]); g.items.forEach((l) => { if (l.done) set.add(l.title); });
       localStorage.setItem(sk, JSON.stringify([...set]));
       const n = (BASE[g.name] || 0) + set.size, lv = n + 1, ri = Math.floor((lv - 1) / PER), inRank = (lv - 1) % PER;
       rows.push(el("li", { class: "lv-head" },
