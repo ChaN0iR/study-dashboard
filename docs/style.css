@@ -67,11 +67,11 @@ body{display:flex;flex-direction:column}
 .top-actions svg{width:18px;height:18px}
 .banner{width:calc(100% - 28px);flex:none}
 main{flex:1;min-height:0;width:100%;overflow:hidden;display:flex;flex-direction:column;padding:0 12px 6px}
-main>[data-tab]{display:none}
-body[data-tab=today] main>[data-tab=today],body[data-tab=record] main>[data-tab=record],body[data-tab=lessons] main>[data-tab=lessons],body[data-tab=notes] main>[data-tab=notes]{display:block}
-main>.card{margin:6px 0}
+main [data-tab]{display:none}
+body[data-tab=today] main [data-tab=today],body[data-tab=record] main [data-tab=record],body[data-tab=lessons] main [data-tab=lessons],body[data-tab=notes] main [data-tab=notes]{display:block}
+main .card{margin:6px 0}
 body[data-tab=today] #tasks,body[data-tab=lessons] #lessons{max-height:calc(100dvh - 330px);overflow-y:auto}
-body[data-tab=lessons] main>[data-tab=lessons]{flex:1;min-height:0;overflow:hidden}
+
 body[data-tab=lessons] #lessons{max-height:calc(100dvh - 240px)}
 textarea{resize:none}
 .tabs{flex:none;display:grid;grid-template-columns:repeat(4,1fr);border-top:1px solid var(--line);background:var(--card);padding-bottom:env(safe-area-inset-bottom)}
@@ -128,3 +128,13 @@ button:active,a.icon-btn:active,.chk:active{transform:scale(.92);box-shadow:0 0 
 html,body,*{scrollbar-width:none!important;-ms-overflow-style:none!important}
 *::-webkit-scrollbar{display:none;width:0;height:0}
 html::-webkit-scrollbar,body::-webkit-scrollbar,*::-webkit-scrollbar{display:none!important;width:0!important;height:0!important;background:transparent!important}
+
+@media(max-width:899px),(max-height:559px){
+ main>.col>.card,main .card{flex:none}
+ body[data-tab=today] [data-tab=today]:not(#now){flex:1 1 auto;min-height:0;display:flex;flex-direction:column;overflow:hidden}
+ body[data-tab=today] #tasks{flex:1 1 auto;min-height:0;max-height:none;overflow-y:auto}
+ body[data-tab=lessons] [data-tab=lessons]{flex:1 1 auto;min-height:0;display:flex;flex-direction:column;overflow:hidden}
+ body[data-tab=lessons] #lessons{flex:1 1 auto;min-height:0;max-height:none;overflow-y:auto}
+ body[data-tab=record] [data-tab=record],body[data-tab=notes] [data-tab=notes]{overflow-y:auto;max-height:100%}
+ main{padding-bottom:10px}
+}
