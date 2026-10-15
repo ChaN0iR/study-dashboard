@@ -238,7 +238,12 @@
       if (/iPhone|iPad|iPod/i.test(ua)) { location.href = "anki://x-callback-url/sync"; }
       else if (/Android/i.test(ua)) { location.href = "intent://#Intent;package=com.ichi2.anki;S.browser_fallback_url=" + encodeURIComponent(web) + ";end"; }
       else {
-        ankiCall("guiDeckBrowser").catch(() => window.open(web, "_blank", "noopener"));
+        ankiCall("guiDeckBrowser").catch(() => {
+          let left = false; const onHide = () => { left = true; };
+          window.addEventListener("blur", onHide, { once: true });
+          location.href = "anki://";
+          setTimeout(() => { window.removeEventListener("blur", onHide); if (!left && !document.hidden) window.open(web, "_blank", "noopener"); }, 2500);
+        });
       }
     });
     $("reset-key").onclick = (e) => {
