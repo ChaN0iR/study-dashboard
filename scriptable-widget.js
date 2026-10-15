@@ -1,6 +1,7 @@
 // 讀書儀表板 Widget (Scriptable)
 const API = "https://study-dashboard-api.tw-ching.workers.dev";
 const APP = "https://chan0ir.github.io/study-dashboard/";
+const KEYS = {"Anki＋單字":["anki","單字","生字"],"早餐整理":["早餐"],"化學":["化學","普化","有機"],"午餐":["午餐"],"生物／生化":["生物","生化"],"練前餐＋肌酸":["練前","肌酸"],"物理":["物理"],"健身＋沖涼":["健身","重訓","沖涼","步數"],"晚餐":["晚餐"],"英文文章＋錯題":["英文","錯題"],"洗澡":["洗澡"],"錯題":["錯題"],"填 YPT／心得／重點":["ypt","心得","重點"],"收尾＋甘胺酸鎂":["收尾","甘胺酸","睡前","回顧"]};
 const SCHEDULE = [
 ["07:00","07:45","Anki＋單字"],["07:45","08:30","早餐整理"],["08:30","12:00","化學"],["12:00","13:30","午餐"],
 ["13:30","15:30","生物／生化"],["15:30","15:45","練前餐＋肌酸"],["15:45","16:30","物理"],["16:30","17:30","健身＋沖涼"],
@@ -88,34 +89,44 @@ function bar(p, width) {
 
 const fam = config.widgetFamily || "medium";
 w.setPadding(14, 14, 14, 14);
+const keys = cur ? (KEYS[cur[2]] || []) : [];
+const fit = cur ? open.filter(t => keys.some(k => t.title.toLowerCase().includes(k.toLowerCase()))) : [];
+const rest = open.filter(t => !fit.includes(t));
+const left = cur ? tm(cur[1]) - nowMin : 0;
+const mainTitle = cur ? cur[2] : (nxt ? "下一段　" + nxt[2] : (nowMin < 420 ? "尚未開始" : "今天結束"));
+const sub = cur ? `${cur[0]}–${cur[1]}　剩 ${left} 分` : (nxt ? `${nxt[0]} 開始` : "");
+const doNow = fit.length ? fit : (mode === "done" ? [] : rest.slice(0, 2));
+function line(txt, size, color, bold) { const x = w.addText(txt); x.font = bold ? Font.boldSystemFont(size) : Font.systemFont(size); x.textColor = color; x.lineLimit = 1; return x; }
 
 if (fam === "small") {
-  const img = w.addImage(ring(pct, 90)); img.imageSize = new Size(90, 90); img.centerAlignImage();
+  line(sub, 10, muted);
+  const m = line(mainTitle, 17, fc, true); m.minimumScaleFactor = 0.6;
   w.addSpacer(6);
-  const t = w.addText(`${done}/${total}　${label}`); t.font = Font.semiboldSystemFont(12); t.textColor = fc; t.centerAlignText();
-} else if (fam === "large") {
-  const h = w.addStack(); h.centerAlignContent();
-  const img = h.addImage(ring(pct, 70)); img.imageSize = new Size(70, 70);
-  h.addSpacer(12);
-  const v = h.addStack(); v.layoutVertically();
-  const a = v.addText(label); a.font = Font.boldSystemFont(18); a.textColor = fc;
-  const b = v.addText(`${done}/${total} 項　${bar(pct)}`); b.font = Font.systemFont(11); b.textColor = muted;
-  const c = v.addText(cur ? `${cur[0]}　${cur[2]}` : (nxt ? `下一段 ${nxt[0]} ${nxt[2]}` : "今天結束")); c.font = Font.systemFont(12); c.textColor = muted;
-  w.addSpacer(10);
-  if (mode === "done") { const d = w.addText("今天的任務都完成了"); d.font = Font.systemFont(14); d.textColor = fc; }
-  open.slice(0, 10).forEach(t => { const x = w.addText("○ " + t.title); x.font = Font.systemFont(13); x.textColor = fc; x.lineLimit = 1; w.addSpacer(3); });
-  if (open.length > 10) { const m = w.addText(`… 還有 ${open.length - 10} 項`); m.font = Font.systemFont(11); m.textColor = muted; }
+  doNow.slice(0, 3).forEach(t => { const x = line("○ " + t.title, 11, fc); x.lineLimit = 2; w.addSpacer(2); });
   w.addSpacer();
+  line(`${Math.round(pct * 100)}%　${done}/${total}`, 10, muted);
+} else if (fam === "large") {
+  line(sub, 12, muted);
+  const m = line(mainTitle, 26, fc, true); m.minimumScaleFactor = 0.6;
+  w.addSpacer(8);
+  line("現在做", 11, muted);
+  doNow.slice(0, 5).forEach(t => { const x = line("○ " + t.title, 15, fc); x.lineLimit = 2; w.addSpacer(3); });
+  if (!doNow.length) line(mode === "done" ? "今天的任務都完成了" : "這個時段沒有指定任務", 14, fc);
+  w.addSpacer(8);
+  if (nxt && cur) line(`接著　${nxt[0]}　${nxt[2]}`, 12, muted);
+  w.addSpacer(6);
+  line("其他未完成", 11, muted);
+  rest.slice(0, 5).forEach(t => line("○ " + t.title, 12, muted));
+  w.addSpacer();
+  line(`${label}　${bar(pct)}　${done}/${total}`, 11, muted);
 } else {
-  const row = w.addStack(); row.centerAlignContent();
-  const img = row.addImage(ring(pct, 84)); img.imageSize = new Size(84, 84);
-  row.addSpacer(14);
-  const v = row.addStack(); v.layoutVertically();
-  const a = v.addText(`${label}　${done}/${total}`); a.font = Font.boldSystemFont(16); a.textColor = fc;
-  const b = v.addText(cur ? `${cur[0]}–${cur[1]}　${cur[2]}` : (nxt ? `下一段 ${nxt[0]} ${nxt[2]}` : "今天結束")); b.font = Font.systemFont(11); b.textColor = muted; b.lineLimit = 1;
-  v.addSpacer(6);
-  if (mode === "done") { const d = v.addText("全部完成"); d.font = Font.systemFont(13); d.textColor = fc; }
-  else open.slice(0, 3).forEach(t => { const x = v.addText("○ " + t.title); x.font = Font.systemFont(12); x.textColor = fc; x.lineLimit = 1; });
+  line(sub, 11, muted);
+  const m = line(mainTitle, 22, fc, true); m.minimumScaleFactor = 0.6;
+  w.addSpacer(4);
+  doNow.slice(0, 3).forEach(t => line("○ " + t.title, 13, fc));
+  if (!doNow.length) line(mode === "done" ? "今天的任務都完成了" : "這個時段沒有指定任務", 12, fc);
+  w.addSpacer();
+  line(`${nxt && cur ? "接著 " + nxt[0] + " " + nxt[2] + "　" : ""}${Math.round(pct * 100)}%　${done}/${total}`, 10, muted);
 }
 if (err) { const e = w.addText("離線資料"); e.font = Font.systemFont(9); e.textColor = muted; }
 
