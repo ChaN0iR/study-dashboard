@@ -208,11 +208,14 @@
     }).sort((x, y) => x.key - y.key);
     const rows = [];
     list.forEach((g) => {
-      const sk = "lvmax:" + g.name, n = Math.max(g.done + (BASE[g.name] || 0), Number(localStorage.getItem(sk) || 0)), lv = n + 1, ri = Math.floor((lv - 1) / PER);
-      localStorage.setItem(sk, String(n));
+      const sk = "lvdone:" + g.name; let seen = [];
+      try { seen = JSON.parse(localStorage.getItem(sk) || "[]"); } catch (e) { seen = []; }
+      const set = new Set(seen); g.items.forEach((l) => { if (l.done) set.add(l.title); });
+      localStorage.setItem(sk, JSON.stringify([...set]));
+      const n = (BASE[g.name] || 0) + set.size, lv = n + 1, ri = Math.floor((lv - 1) / PER), inRank = (lv - 1) % PER;
       rows.push(el("li", { class: "lv-head" },
         el("div", { class: "lv-top" }, el("span", { class: "lv-name" }, g.name), el("span", { class: "lv-tag" }, `${titleFor(g.name, g.items[0].subject, ri)}　Lv.${lv}`), el("span", { class: "muted" }, `${g.done}/${g.items.length}`)),
-        el("div", { class: "lv-bar" }, el("i", { style: `width:${g.pct}%` }))));
+        el("div", { class: "lv-bar" }, el("i", { style: `width:${inRank * 10}%` }))));
       g.items.forEach((l) => rows.push(
         el("li", { class: "item lesson" + (l.done ? " done" : "") },
           el("button", { class: "chk", role: "checkbox", "aria-checked": String(l.done), "aria-label": "完成", onclick: () => toggleLesson(l) }),
