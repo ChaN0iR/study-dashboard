@@ -173,8 +173,8 @@
       el("li", { class: "item lesson" + (l.done ? " done" : "") },
         el("button", { class: "chk", role: "checkbox", "aria-checked": String(l.done), "aria-label": "完成", onclick: () => toggleLesson(l) }),
         el("div", { class: "t" }, l.title,
-          el("div", { class: "meta" }, [l.subject, l.minutes ? `${l.minutes} 分` : null, `複習 ${l.reviews} 次`, l.due ? "該複習" : null].filter(Boolean).join("　"))),
-        el("div", { class: "acts" }, l.done ? el("button", { class: "ghost", onclick: () => reviewLesson(l) }, "複習+1") : null))
+          el("div", { class: "meta" }, [l.subject, l.minutes ? `${l.minutes} 分` : null, l.due ? "該複習" : null].filter(Boolean).join("　"))),
+        null)
     ) : [el("li", { class: "empty" }, "本週沒有課程")]));
   }
 
