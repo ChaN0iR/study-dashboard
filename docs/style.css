@@ -41,3 +41,5 @@ details summary{min-height:44px;display:flex;align-items:center;color:var(--mut)
 .toast{position:fixed;left:50%;bottom:max(20px,env(safe-area-inset-bottom));transform:translateX(-50%);background:var(--acc);color:var(--accfg);padding:12px 18px;border-radius:12px;font-size:14px;z-index:9;max-width:90vw}
 .empty{color:var(--mut);padding:10px 0;font-size:14px}
 [hidden]{display:none!important}
+
+.top-actions{display:flex;gap:8px;align-items:center}a.icon-btn{text-decoration:none;display:inline-flex;align-items:center}
