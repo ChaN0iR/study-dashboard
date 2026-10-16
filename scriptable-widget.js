@@ -122,7 +122,7 @@ const doNow = fit.length ? fit : (mode === "done" ? [] : rest.slice(0, 2));
 const GAP = fam === "small" ? 4 : (fam === "medium" ? 6 : 9);
 let T = w, R = null;
 if (fam !== "small") { const H = w.addStack(); H.layoutHorizontally(); T = H.addStack(); T.layoutVertically(); H.addSpacer(); R = H.addStack(); R.layoutVertically(); }
-function line(txt, size, color, bold) { const x = T.addText(txt); x.font = bold ? Font.boldSystemFont(size) : Font.systemFont(size); x.textColor = color; x.lineLimit = 1; T.addSpacer(GAP); return x; }
+function line(txt, size, color, bold) { const x = T.addText(txt); x.font = bold ? Font.boldSystemFont(size) : Font.systemFont(size); x.textColor = color; x.lineLimit = 1; x.minimumScaleFactor = 0.7; T.addSpacer(GAP); return x; }
 
 if (fam === "small") {
   line(sub, 10, muted);
@@ -158,20 +158,20 @@ try {
   const fr = new Request(API + "/api/focus"); fr.headers = { "x-app-key": key };
   const f = await fr.loadJSON();
   const a = f.active, running = a && a.status === "進行中";
-  const hms = x => { x = Math.floor(x); const h = Math.floor(x / 3600), m = Math.floor(x / 60) % 60, s2 = x % 60; return (h ? h + ":" + String(m).padStart(2, "0") : m) + ":" + String(s2).padStart(2, "0"); };
+  const hms = x => { x = Math.floor(x); const h = Math.floor(x / 3600), m = Math.floor(x / 60) % 60, s2 = x % 60; if (!h && !m) return s2 + "秒"; return (h ? h + ":" + String(m).padStart(2, "0") : m) + ":" + String(s2).padStart(2, "0"); };
   const segS = a ? Math.max(0, a.acc + (running ? (f.now - a.start) / 1000 : 0)) : 0;
   const todayS = f.todayDoneSec + segS;
   // 有科目在計時：大字顯示該科目本段；沒有則顯示今日總計
   const bigSec = a ? segS : todayS, label = a ? (a.subject || "專注") + (running ? "" : "　暫停") : "今日";
-  const big = fam === "small" ? 20 : 30;
+  const big = fam === "small" ? 20 : 26;
   let box = w;
-  if (R) { box = R; R.size = fam === "large" ? new Size(150, 280) : new Size(128, 125); R.addSpacer(); }
+  if (R) { box = R; R.size = fam === "large" ? new Size(120, 280) : new Size(104, 125); R.addSpacer(); }
   else { box = w.addStack(); box.layoutVertically(); }
   const al = x => { if (R) x.rightAlignText(); };
   const lb = box.addText(label); lb.font = Font.boldSystemFont(13); lb.textColor = muted; lb.lineLimit = 1; al(lb);
   if (R) R.addSpacer();
-  if (running) { const t = box.addDate(new Date(Date.now() - bigSec * 1000)); t.applyTimerStyle(); t.font = Font.boldMonospacedSystemFont(big); t.textColor = fc; t.minimumScaleFactor = 0.6; al(t); }
-  else { const t = box.addText(hms(bigSec)); t.font = Font.boldMonospacedSystemFont(big); t.textColor = a ? muted : fc; t.minimumScaleFactor = 0.6; al(t); }
+  if (running) { const t = box.addDate(new Date(Date.now() - bigSec * 1000)); t.applyTimerStyle(); t.font = Font.boldMonospacedSystemFont(big); t.textColor = fc; t.minimumScaleFactor = 0.4; t.lineLimit = 1; al(t); }
+  else { const t = box.addText(hms(bigSec)); t.font = Font.boldMonospacedSystemFont(big); t.textColor = a ? muted : fc; t.minimumScaleFactor = 0.4; t.lineLimit = 1; al(t); }
   if (R) R.addSpacer();
   if (a) { const d = box.addText("今日 " + hms(todayS)); d.font = Font.systemFont(12); d.textColor = muted; al(d); }
   else { const d = box.addText("尚未計時"); d.font = Font.systemFont(12); d.textColor = muted; al(d); }
