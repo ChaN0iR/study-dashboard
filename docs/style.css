@@ -363,3 +363,4 @@ body[data-tab=record] .fields .fld{align-items:stretch}
 .fc-add .primary:disabled{opacity:.4}
 .fc-del{transition:none}
 .fc-per-row input{width:136px!important}
+@media(max-width:899px){.fc-head h2{flex:none!important}.fc-head .fc-tog{margin-left:2px}.fc-head .fc-hist{margin-left:auto}}

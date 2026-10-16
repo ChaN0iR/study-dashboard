@@ -37,7 +37,7 @@
   }
   const fmtYpt = (h, m) => {
     const total = Math.round((Number(h) || 0) * 60 + (Number(m) || 0));
-    return `${Math.floor(total / 60)}h${String(total % 60).padStart(2, "0")}m`;
+    return `${Math.floor(total / 60)}時${String(total % 60).padStart(2, "0")}分`;
   };
   function taipeiNow() {
     const p = Object.fromEntries(new Intl.DateTimeFormat("en-GB", {
@@ -396,7 +396,7 @@
       const assigned = (state.tasks || []).filter((x) => x.source === "今日" && !x.skipped).length;
       const goalH = Math.min(10, Math.max(3, 3 + assigned * 0.5)), pct = Math.round(totalSec() / (goalH * 3600) * 100);
       $("fc-prog-i").style.width = Math.min(100, pct) + "%"; $("fc-prog-i").parentNode.classList.toggle("over", pct > 100);
-      $("fc-goal-t").textContent = `目標 ${goalH}h　${pct}%`;
+      $("fc-goal-t").textContent = `目標 ${goalH} 時　${pct}%`;
       document.title = running ? `${fmtHMS(t)} 열품타 ${a.subject || "其他"}` : "清大後醫";
     }
     async function fcLoad() {
