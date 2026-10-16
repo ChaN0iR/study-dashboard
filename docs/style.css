@@ -262,3 +262,5 @@ html::-webkit-scrollbar,body::-webkit-scrollbar,*::-webkit-scrollbar{display:non
 .lesson .meta{margin-top:3px}
 #lessons{padding:0 2px 18px}
 [data-tab=lessons]{padding-bottom:20px}
+/* iOS: inputs under 16px trigger auto-zoom */
+@media(max-width:899px){input,select,textarea,.fld textarea,.note-row input,.note-row select,.note-row textarea,.n-it textarea,.num input{font-size:16px!important}}
