@@ -121,7 +121,7 @@ const sub = cur ? `${cur[0]}–${cur[1]}　剩 ${left} 分` : (nxt ? `${nxt[0]} 
 const doNow = fit.length ? fit : (mode === "done" ? [] : rest.slice(0, 2));
 const GAP = fam === "small" ? 4 : (fam === "medium" ? 6 : 9);
 let T = w, R = null;
-if (fam !== "small") { const H = w.addStack(); H.layoutHorizontally(); T = H.addStack(); T.layoutVertically(); H.addSpacer(); R = H.addStack(); R.layoutVertically(); R.bottomAlignContent(); }
+if (fam !== "small") { const H = w.addStack(); H.layoutHorizontally(); T = H.addStack(); T.layoutVertically(); H.addSpacer(); R = H.addStack(); R.layoutVertically(); }
 function line(txt, size, color, bold) { const x = T.addText(txt); x.font = bold ? Font.boldSystemFont(size) : Font.systemFont(size); x.textColor = color; x.lineLimit = 1; T.addSpacer(GAP); return x; }
 
 if (fam === "small") {
@@ -157,18 +157,25 @@ if (fam === "small") {
 try {
   const fr = new Request(API + "/api/focus"); fr.headers = { "x-app-key": key };
   const f = await fr.loadJSON();
-  const a = f.active, hms = x => { x = Math.floor(x); return Math.floor(x / 3600) + ":" + String(Math.floor(x / 60) % 60).padStart(2, "0") + ":" + String(x % 60).padStart(2, "0"); };
-  const running = a && a.status === "進行中";
-  const seg = a ? a.acc + (running ? (f.now - a.start) / 1000 : 0) : 0;
-  const total = f.todayDoneSec + seg;
-  const big = fam === "small" ? 18 : 26;
-  let row = w;
-  if (R) { row = R; }
-  else { row = w.addStack(); row.layoutHorizontally(); row.centerAlignContent(); }
-  const lbT = (a ? (a.subject || "專注") + (running ? "" : "　暫停") : "今日專注");
-  const lb = row.addText(lbT); lb.font = Font.systemFont(11); lb.textColor = muted; if (R) lb.rightAlignText();
-  if (running) { const t = row.addDate(new Date(Date.now() - total * 1000)); t.applyTimerStyle(); t.font = Font.boldMonospacedSystemFont(big); t.textColor = fc; if (R) t.rightAlignText(); }
-  else { const t = row.addText(hms(total)); t.font = Font.boldMonospacedSystemFont(big); t.textColor = a ? muted : fc; if (R) t.rightAlignText(); }
+  const a = f.active, running = a && a.status === "進行中";
+  const hms = x => { x = Math.floor(x); const h = Math.floor(x / 3600), m = Math.floor(x / 60) % 60, s2 = x % 60; return (h ? h + ":" + String(m).padStart(2, "0") : m) + ":" + String(s2).padStart(2, "0"); };
+  const segS = a ? Math.max(0, a.acc + (running ? (f.now - a.start) / 1000 : 0)) : 0;
+  const todayS = f.todayDoneSec + segS;
+  // 有科目在計時：大字顯示該科目本段；沒有則顯示今日總計
+  const bigSec = a ? segS : todayS, label = a ? (a.subject || "專注") + (running ? "" : "　暫停") : "今日";
+  const big = fam === "small" ? 20 : 30;
+  let box = w;
+  if (R) { box = R; R.size = new Size(fam === "large" ? 150 : 128, 0); R.addSpacer(); }
+  else { box = w.addStack(); box.layoutVertically(); }
+  const al = x => { if (R) x.rightAlignText(); };
+  const lb = box.addText(label); lb.font = Font.boldSystemFont(13); lb.textColor = muted; lb.lineLimit = 1; al(lb);
+  if (R) R.addSpacer();
+  if (running) { const t = box.addDate(new Date(Date.now() - bigSec * 1000)); t.applyTimerStyle(); t.font = Font.boldMonospacedSystemFont(big); t.textColor = fc; t.minimumScaleFactor = 0.6; al(t); }
+  else { const t = box.addText(hms(bigSec)); t.font = Font.boldMonospacedSystemFont(big); t.textColor = a ? muted : fc; t.minimumScaleFactor = 0.6; al(t); }
+  if (R) R.addSpacer();
+  if (a) { const d = box.addText("今日 " + hms(todayS)); d.font = Font.systemFont(12); d.textColor = muted; al(d); }
+  else { const d = box.addText("尚未計時"); d.font = Font.systemFont(12); d.textColor = muted; al(d); }
+  if (R) R.addSpacer();
 } catch (e) {}
 if (err) { const e = w.addText("離線資料"); e.font = Font.systemFont(9); e.textColor = muted; }
 
