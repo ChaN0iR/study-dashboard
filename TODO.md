@@ -6,4 +6,4 @@
 - [x] 更新色彩、卡片、進度條、按鈕與手機版間距，提升核心操作辨識度。
 - [x] 更新 Service Worker 快取版本，避免已部署使用者持續讀到舊版前端。
 - [x] 執行 Worker 現有測試、JavaScript 語法檢查與 demo 頁面 smoke test。
-- [ ] 將修改提交至 `phase1-core-ux`，推送後部署 GitHub Pages。
+- [x] 將修改提交至 `phase1-core-ux`，推送後部署 GitHub Pages。
