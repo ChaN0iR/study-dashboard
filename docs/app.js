@@ -313,22 +313,34 @@
     ["main", ".col", ".card"].forEach((sel) => document.querySelectorAll(sel).forEach((n) => n.addEventListener("scroll", () => { if (n.scrollTop) n.scrollTop = 0; }, { passive: true })));
     // ---------- note draft ----------
     const nd = (() => { try { return JSON.parse(localStorage.getItem("sd-note-draft") || "null") || {}; } catch (e) { return {}; } })();
-    nd.items = nd.items || [];
-    const ndSave = () => { try { localStorage.setItem("sd-note-draft", JSON.stringify({ title: $("n-title").value, subject: $("n-subject").value, items: nd.items })); } catch (e) { toast("草稿太大，請減少照片"); } };
+    // pages: [{v, imgs:[dataurl]}]; cur = photos for the page currently in the input; sel = chosen page index or -1
+    (() => { // migrate old flat items
+      if (nd.pages) return; nd.pages = []; nd.cur = [];
+      (nd.items || []).forEach((it) => { if (it.t === "text") nd.pages.push({ v: it.v, imgs: [] }); else if (nd.pages.length) nd.pages[nd.pages.length - 1].imgs.push(it.d); else nd.cur.push(it.d); });
+      delete nd.items;
+    })();
+    nd.cur = nd.cur || []; nd.sel = -1;
+    const ndSave = () => { try { localStorage.setItem("sd-note-draft", JSON.stringify({ title: $("n-title").value, subject: $("n-subject").value, pages: nd.pages, cur: nd.cur })); } catch (e) { toast("草稿太大，請減少照片"); } };
+    const fit = (t) => { t.style.height = "auto"; t.style.height = t.scrollHeight + "px"; };
     function ndRender() {
-      $("n-draft").replaceChildren(...nd.items.map((it, i) => el("li", { class: "n-it" + (it.t === "img" ? " img" : "") },
-        it.t === "img" ? el("img", { src: it.d, alt: "" })
-          : el("textarea", { rows: "1", value: it.v, oninput: (e) => { it.v = e.target.value; e.target.style.height = "auto"; e.target.style.height = e.target.scrollHeight + "px"; ndSave(); } }),
-        el("button", { class: "n-x", type: "button", "aria-label": "移除", onclick: () => { nd.items.splice(i, 1); ndSave(); ndRender(); } }, "×"))));
-      document.querySelectorAll("#n-draft textarea").forEach((t, k) => { t.value = nd.items.filter((x) => x.t === "text")[k].v; t.style.height = "auto"; t.style.height = t.scrollHeight + "px"; });
+      const thumbs = (imgs, rm) => imgs.length ? el("div", { class: "n-th" }, ...imgs.map((d, k) => el("span", { class: "n-ti" }, el("img", { src: d, alt: "" }), el("button", { type: "button", class: "n-x2", "aria-label": "移除照片", onclick: (ev) => { ev.stopPropagation(); rm(k); } }, "×")))) : "";
+      const lis = nd.pages.map((pg, i) => el("li", { class: "n-it" + (nd.sel === i ? " sel" : ""), onclick: () => { nd.sel = nd.sel === i ? -1 : i; ndRender(); } },
+        el("div", { class: "n-pn" }, `第 ${i + 1} 頁`, nd.sel === i ? "　照片將加入此頁" : ""),
+        el("textarea", { rows: "1", onclick: (ev) => ev.stopPropagation(), oninput: (ev) => { pg.v = ev.target.value; fit(ev.target); ndSave(); } }),
+        thumbs(pg.imgs, (k) => { pg.imgs.splice(k, 1); ndSave(); ndRender(); }),
+        el("button", { class: "n-x", type: "button", "aria-label": "移除此頁", onclick: (ev) => { ev.stopPropagation(); if (pg.v || pg.imgs.length) if (!confirm("移除此頁？")) return; nd.pages.splice(i, 1); nd.sel = -1; ndSave(); ndRender(); } }, "×")));
+      if (nd.cur.length) lis.push(el("li", { class: "n-it cur" }, el("div", { class: "n-pn" }, `第 ${nd.pages.length + 1} 頁（輸入中）照片`), thumbs(nd.cur, (k) => { nd.cur.splice(k, 1); ndSave(); ndRender(); })));
+      $("n-draft").replaceChildren(...lis);
+      document.querySelectorAll("#n-draft textarea").forEach((t, k) => { t.value = nd.pages[k].v; fit(t); });
+      $("n-photo").textContent = nd.sel >= 0 ? `照片→第${nd.sel + 1}頁` : "照片";
     }
     if (nd.title) $("n-title").value = nd.title; if (nd.subject) $("n-subject").value = nd.subject;
     ["n-title", "n-subject"].forEach((id) => $(id).addEventListener("input", ndSave));
     ndRender();
-    const ndAddText = () => { const v = $("n-points").value.trim(); if (!v) return false; nd.items.push({ t: "text", v }); $("n-points").value = ""; $("n-points").style.height = "auto"; ndSave(); ndRender(); return true; };
-    const grow = () => { const t = $("n-points"); t.style.height = "auto"; t.style.height = Math.min(t.scrollHeight, 220) + "px"; };
+    const grow = () => { const t = $("n-points"); t.style.height = "auto"; t.style.height = Math.min(t.scrollHeight, Math.round(innerHeight * 0.6)) + "px"; };
+    const ndAddText = () => { const v = $("n-points").value.trim(); if (!v && !nd.cur.length) return false; nd.pages.push({ v, imgs: nd.cur }); nd.cur = []; $("n-points").value = ""; grow(); ndSave(); ndRender(); return true; };
     $("n-points").addEventListener("input", grow);
-    $("n-add").onclick = () => { ndAddText(); grow(); };
+    $("n-add").onclick = () => { ndAddText(); };
     $("n-points").addEventListener("keydown", (e) => { if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) { e.preventDefault(); ndAddText(); } });
     $("n-photo").onclick = () => $("n-file").click();
     const shrink = (file) => new Promise((res, rej) => {
@@ -337,18 +349,21 @@
       img.onerror = () => rej(new Error("無法讀取圖片")); img.src = u;
     });
     $("n-file").onchange = async (e) => {
-      for (const f of [...e.target.files]) { try { nd.items.push({ t: "img", d: await shrink(f) }); } catch (er) { toast(er.message); } }
+      const target = nd.sel >= 0 && nd.pages[nd.sel] ? nd.pages[nd.sel].imgs : nd.cur;
+      for (const f of [...e.target.files]) { try { target.push(await shrink(f)); } catch (er) { toast(er.message); } }
       e.target.value = ""; ndSave(); ndRender();
     };
-    $("n-clear").onclick = () => { if (!nd.items.length && !$("n-title").value && !$("n-points").value) return; if (!confirm("清除目前草稿？")) return; nd.items = []; $("n-title").value = ""; $("n-points").value = ""; ndSave(); ndRender(); };
+    $("n-clear").onclick = () => { if (!nd.pages.length && !nd.cur.length && !$("n-title").value && !$("n-points").value) return; if (!confirm("清除目前草稿？")) return; nd.pages = []; nd.cur = []; nd.sel = -1; $("n-title").value = ""; $("n-points").value = ""; grow(); ndSave(); ndRender(); };
     $("save-note").onclick = () => guarded(async () => {
       ndAddText();
-      if (!nd.items.length) return toast("請先輸入內容或照片");
-      const texts = nd.items.filter((x) => x.t === "text").map((x) => x.v);
-      const photos = nd.items.filter((x) => x.t === "img").map((x, k) => ({ name: `note-${Date.now()}-${k}.jpg`, type: "image/jpeg", data: x.d.split(",")[1] }));
+      if (!nd.pages.length) return toast("請先輸入內容或照片");
+      const texts = nd.pages.map((x) => x.v).filter(Boolean);
+      const pages = nd.pages.map((p, i) => ({ photos: p.imgs.map((d, k) => ({ name: `note-${Date.now()}-${i}-${k}.jpg`, type: "image/jpeg", data: d.split(",")[1] })) }));
+      const total = pages.reduce((n, p) => n + p.photos.length, 0);
+      if (total > 8) return toast("照片最多 8 張");
       const title = $("n-title").value.trim() || (texts[0] || "照片筆記").split("\n")[0].slice(0, 30);
-      await api("/api/note", { title, subject: $("n-subject").value, points: texts.join("\n"), photos });
-      nd.items = []; $("n-title").value = ""; ndSave(); ndRender();
+      await api("/api/note", { title, subject: $("n-subject").value, points: texts.join("\n"), pages });
+      nd.pages = []; nd.cur = []; nd.sel = -1; $("n-title").value = ""; ndSave(); ndRender();
     }, "筆記已送出");
 
     // ---------- focus timer ----------

@@ -258,9 +258,15 @@ async function postNote(env, body) {
     props[P.note.lesson] = { relation: [{ id: body.lessonId }] };
   }
   const pg = await notion(env, "/pages", "POST", { parent: { database_id: DB.notes }, properties: props });
-  const photos = Array.isArray(body.photos) ? body.photos.slice(0, 8) : [];
+  const pagesIn = Array.isArray(body.pages) ? body.pages : [{ photos: body.photos }];
   const blocks = [];
-  for (const ph of photos) {
+  let count = 0;
+  for (let pi = 0; pi < pagesIn.length; pi++) {
+    const phs = (Array.isArray(pagesIn[pi] && pagesIn[pi].photos) ? pagesIn[pi].photos : []).slice(0, 8);
+    if (!phs.length) continue;
+    if (pagesIn.length > 1) blocks.push({ object: "block", type: "paragraph", paragraph: { rich_text: [{ type: "text", text: { content: `第 ${pi + 1} 頁` } }] } });
+    for (const ph of phs) {
+    if (++count > 8) break;
     if (!/^image\/(jpeg|png|webp|gif)$/.test(ph.type || "") || typeof ph.data !== "string" || ph.data.length > 4_000_000) continue;
     const up = await notion(env, "/file_uploads", "POST", { filename: String(ph.name || "photo.jpg").slice(0, 80), content_type: ph.type });
     const bin = Uint8Array.from(atob(ph.data), (c) => c.charCodeAt(0));
@@ -269,9 +275,10 @@ async function postNote(env, body) {
     const r = await fetch(`${NOTION}/file_uploads/${up.id}/send`, { method: "POST", headers: { authorization: `Bearer ${env.NOTION_TOKEN}`, "notion-version": NOTION_VERSION }, body: form });
     if (!r.ok) throw new HttpError(502, `Notion upload ${r.status}`);
     blocks.push({ object: "block", type: "image", image: { type: "file_upload", file_upload: { id: up.id } } });
+    }
   }
   if (blocks.length) await notion(env, `/blocks/${pg.id}/children`, "PATCH", { children: blocks });
-  return { id: pg.id, title, photos: blocks.length };
+  return { id: pg.id, title, photos: count };
 }
 
 
