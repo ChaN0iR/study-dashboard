@@ -287,10 +287,15 @@ const F = { title: "紀錄", date: "日期", start: "開始", end: "結束", acc
 const tpIso = (ms = Date.now()) => new Date(ms + 8 * 3600e3).toISOString().slice(0, 19) + "+08:00";
 const shapeFocus = (pg) => {
   const p = pg.properties;
+  let start = rd.date(p[F.start]) ? Date.parse(rd.date(p[F.start])) : null;
+  // Notion keeps dates to the minute; the exact seconds ride in the title as HH:MM:SS
+  const ti = ((p[F.title] && p[F.title].title) || []).map((x) => x.plain_text || "").join("");
+  const tm = ti.match(/(\d{2}):(\d{2}):(\d{2})$/);
+  if (start !== null && tm && Math.floor((start + 8 * 3600e3) / 60000) % 60 === +tm[2]) start += +tm[3] * 1000;
   return {
     id: pg.id,
     status: rd.select(p[F.status]),
-    start: rd.date(p[F.start]) ? Date.parse(rd.date(p[F.start])) : null,
+    start,
     end: rd.date(p[F.end]) ? Date.parse(rd.date(p[F.end])) : null,
     acc: rd.number(p[F.acc]) || 0,
     subject: rd.select(p[F.subject]),
@@ -329,7 +334,7 @@ async function getFocus(env, exclude = [], hint = {}) {
 async function startFocus(env, body, now, justDone) {
   const subject = body.subject && SUBJECTS.includes(body.subject) ? body.subject : null;
   const pg = await notion(env, "/pages", "POST", { parent: { database_id: DB.focus }, properties: {
-    [F.title]: wr.title("專注 " + tpIso(now).slice(11, 16)),
+    [F.title]: wr.title("專注 " + tpIso(now).slice(11, 19)),
     [F.date]: wr.date(taipeiDate()),
     [F.start]: wr.date(tpIso(now)),
     [F.acc]: wr.number(0),
@@ -385,7 +390,7 @@ async function postFocus(env, body) {
   const acc = cur.acc + (running && cur.start ? Math.max(0, Math.round((now - cur.start) / 1000)) : 0);
   let props;
   if (action === "pause") { if (!running) return getFocus(env); props = { [F.acc]: wr.number(acc), [F.status]: wr.select("暫停") }; }
-  else if (action === "resume") { if (running) return getFocus(env); props = { [F.start]: wr.date(tpIso(now)), [F.status]: wr.select("進行中") }; }
+  else if (action === "resume") { if (running) return getFocus(env); props = { [F.title]: wr.title("專注 " + tpIso(now).slice(11, 19)), [F.start]: wr.date(tpIso(now)), [F.status]: wr.select("進行中") }; }
   else if (action === "stop") props = { [F.acc]: wr.number(acc), [F.end]: wr.date(tpIso(now)), [F.status]: wr.select("完成") };
   else if (action === "subject") props = { [F.subject]: wr.select(SUBJECTS.includes(body.subject) ? body.subject : null) };
   else throw new HttpError(400, "bad action");
