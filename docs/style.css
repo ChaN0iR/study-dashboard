@@ -250,3 +250,4 @@ html::-webkit-scrollbar,body::-webkit-scrollbar,*::-webkit-scrollbar{display:non
 .top>.focus .fc-goal{position:absolute;left:14px;right:14px;bottom:2px;margin:0}.top>.focus{position:relative;padding-bottom:12px}
 .top>.focus .fc-goal span{display:none}.top>.focus .fc-goal .prog{height:3px}
 }
+.primary:disabled{background:var(--line)!important;color:var(--mut)!important;border-color:transparent!important;box-shadow:none!important;transform:none!important;cursor:not-allowed;opacity:1}

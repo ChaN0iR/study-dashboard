@@ -169,7 +169,7 @@
       $("f-review").value = r.review || ""; $("f-workout").value = r.workout ?? localStorage.getItem("sd-workout-" + (r.date || "")) ?? ""; $("f-points").value = r.points || "";
     }
     mood = r.mood || null; renderMoods(); updateTotal();
-    updateProg();
+    updateProg(); recBtn();
   }
   function updateProg() {
     const t = (state.tasks || []).filter((x) => !x.skipped), d = t.filter((x) => x.done).length, p = t.length ? Math.round(d / t.length * 100) : 0;
@@ -179,8 +179,14 @@
   function renderMoods() {
     $("moods").replaceChildren(...C.MOODS.map((m) => el("button", {
       role: "radio", "aria-checked": String(mood === m), type: "button",
-      onclick: () => { mood = mood === m ? null : m; renderMoods(); },
+      onclick: () => { mood = mood === m ? null : m; renderMoods(); recBtn(); },
     }, m)));
+  }
+  function recBtn() {
+    const r = state.record || {}, b = $("save-record");
+    const cur = [$("f-review").value, $("f-workout").value, $("f-points").value, mood || ""];
+    const sav = [r.review || "", r.workout ?? "", r.points || "", r.mood || ""];
+    b.disabled = cur.every((v, i) => v === sav[i]);
   }
   function updateTotal() { $("ypt").textContent = fmtYpt($("f-hours").value, $("f-minutes").value); }
 
@@ -294,6 +300,7 @@
       const u = prompt("Worker 網址（留空保持不變）", apiBase()); if (u) localStorage.setItem("apiBase", u.trim());
       localStorage.removeItem("appKey"); Promise.resolve(load()).finally(() => toast("重置成功"));
     };
+    ["f-review", "f-workout", "f-points"].forEach((id) => $(id).addEventListener("input", recBtn));
     $("save-record").onclick = () => guarded(async () => {
       const num = (id) => ($(id).value === "" ? null : Number($(id).value));
       state.record = await api("/api/record", {
