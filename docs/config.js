@@ -9,7 +9,7 @@ window.CONFIG = {
   // PLACEHOLDER: fill in after `wrangler deploy` (or open the app once with ?api=<url> to store it).
   API_BASE: "https://study-dashboard-api.tw-ching.workers.dev",
 
-  MOODS: ["很好", "不錯", "普通", "疲累", "低落"],
+  MOODS: ["很好", "普通", "低落"],
   SUBJECTS: ["化學", "物理", "生物", "生化", "英文"],
 
   // Fixed daily timetable (Asia/Taipei). start/end are "HH:MM". `keys` match task titles (case-insensitive).

@@ -88,7 +88,7 @@
       if (kind === "record") {
         const r = db.record || (db.record = { id: "r1" });
         if ("hours" in body) r.hours = body.hours; if ("minutes" in body) r.minutes = body.minutes;
-        if ("心得" in body) r.review = body["心得"]; if ("重點" in body) r.points = body["重點"]; if ("心情" in body) r.mood = body["心情"];
+        if ("心得" in body) r.review = body["心得"]; if ("運動" in body) r.workout = body["運動"]; if ("重點" in body) r.points = body["重點"]; if ("心情" in body) r.mood = body["心情"];
         r.ypt = fmtYpt(r.hours, r.minutes); return r;
       }
       if (kind === "note") return { id: "n1", title: body.title };
@@ -162,13 +162,15 @@
     $("skipped").replaceChildren(...skipped.map(taskItem));
   }
 
+  const diaryOf = (r) => { const w = r.workout ?? localStorage.getItem("sd-workout-" + (r.date || "")) ?? ""; return (r.review || "") + (w ? ((r.review ? "\n" : "") + "運動：" + w) : ""); };
+  const moodUi = (m) => (m ? ({ "不錯": "很好", "疲累": "低落" }[m] || m) : null);
   function renderRecord() {
     const r = state.record || {};
     if (document.activeElement?.closest?.("#f-hours,#f-minutes,#f-review,#f-workout,#f-points") == null) {
       $("f-hours").value = r.hours ?? ""; $("f-minutes").value = r.minutes ?? "";
-      $("f-review").value = r.review || ""; $("f-workout").value = r.workout ?? localStorage.getItem("sd-workout-" + (r.date || "")) ?? ""; $("f-points").value = r.points || "";
+      $("f-review").value = diaryOf(r); $("f-workout").value = ""; $("f-points").value = r.points || "";
     }
-    mood = r.mood || null; renderMoods(); updateTotal();
+    mood = moodUi(r.mood); renderMoods(); updateTotal();
     updateProg(); recBtn();
   }
   function updateProg() {
@@ -184,8 +186,8 @@
   }
   function recBtn() {
     const r = state.record || {}, b = $("save-record");
-    const cur = [$("f-review").value, $("f-workout").value, $("f-points").value, mood || ""];
-    const sav = [r.review || "", r.workout ?? "", r.points || "", r.mood || ""];
+    const cur = [$("f-review").value, $("f-points").value, mood || ""];
+    const sav = [diaryOf(r), r.points || "", moodUi(r.mood) || ""];
     b.disabled = cur.every((v, i) => v === sav[i]);
   }
   function updateTotal() { $("ypt").textContent = fmtYpt($("f-hours").value, $("f-minutes").value); }
@@ -305,7 +307,7 @@
       const num = (id) => ($(id).value === "" ? null : Number($(id).value));
       state.record = await api("/api/record", {
         hours: num("f-hours"), minutes: num("f-minutes"),
-        "心得": $("f-review").value, "運動": $("f-workout").value, "重點": $("f-points").value, "心情": mood || "",
+        "心得": $("f-review").value, "運動": "", "重點": $("f-points").value, "心情": mood || "",
       });
       renderRecord();
     }, "已儲存");

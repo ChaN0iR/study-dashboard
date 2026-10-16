@@ -348,3 +348,12 @@ body[data-tab=notes] .note-row .ghost{flex:1 1 0;min-height:42px}
 body[data-tab=notes] .note-row #save-note{min-height:46px}
 body[data-tab=notes] .note-row #n-title,body[data-tab=notes] .note-row #n-subject{min-height:44px}
 }
+@media(max-width:899px){
+body[data-tab=record] main [data-tab=record].rec{display:flex!important;flex-direction:column;min-height:100%;max-height:100%}
+body[data-tab=record] .rec .fields{flex:1 1 auto;display:flex;flex-direction:column;justify-content:flex-start}
+body[data-tab=record] .rec #f-review{min-height:96px}
+body[data-tab=record] #save-record{margin-top:auto}
+body[data-tab=record] .fields .fld{align-items:stretch}
+}
+.moods.seg{grid-template-columns:repeat(3,1fr)}
+@media(max-width:899px){body[data-tab=record] .rec #f-review{height:96px!important;min-height:96px!important}}
