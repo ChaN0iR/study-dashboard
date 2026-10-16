@@ -320,7 +320,7 @@ body{padding-bottom:calc(49px + env(safe-area-inset-bottom))}
 .top-actions{grid-template-columns:repeat(5,48px)!important}
 @media(max-width:899px){.top-actions{grid-template-columns:repeat(5,34px)!important;gap:6px!important}}
 @media(min-width:900px) and (min-height:560px){.top>.focus{margin-left:auto!important;margin-right:auto!important}}
-@media(max-width:899px){.top{gap:6px}.top h1{white-space:nowrap}.top-actions{grid-template-columns:repeat(5,30px)!important;gap:5px!important}.top-actions .icon-btn{width:30px!important;min-width:30px!important;height:30px!important;min-height:30px!important;border-radius:9px!important}.top-actions svg{width:17px!important;height:17px!important}.countdown{font-size:11px}}
+@media(max-width:899px){.top{gap:6px}.top h1{white-space:nowrap}.top-actions{grid-template-columns:repeat(5,36px)!important;gap:4px!important}.top-actions .icon-btn{width:36px!important;min-width:36px!important;height:36px!important;min-height:36px!important;border-radius:9px!important}.top-actions svg{width:21px!important;height:21px!important}.countdown{font-size:11px}}
 @media(max-width:899px) and (max-height:760px){
 body[data-tab=record] .rec{padding:10px 14px}
 body[data-tab=record] .fc-time{font-size:40px;line-height:1.1}
