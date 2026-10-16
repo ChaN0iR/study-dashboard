@@ -375,3 +375,4 @@ body[data-tab=record] .fields .fld{align-items:stretch}
 .top-actions{grid-template-columns:repeat(5,35px)!important;gap:3px!important}
 .top-actions .icon-btn{width:35px!important;min-width:35px!important;height:35px!important;min-height:35px!important}
 }
+@media(max-width:899px){.top-actions{gap:8px!important;grid-template-columns:repeat(5,33px)!important}.top-actions .icon-btn{width:33px!important;min-width:33px!important;height:33px!important;min-height:33px!important}.top{gap:4px;padding-right:12px}.top .countdown{padding:1px 6px}.top>div:first-child h1{gap:5px}}
