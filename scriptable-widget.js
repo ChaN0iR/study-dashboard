@@ -16,11 +16,23 @@ if (!Keychain.contains(KEY_NAME)) {
 }
 const key = Keychain.get(KEY_NAME);
 
+// 點鎖定畫面小工具或由捷徑呼叫：act = toggle / pause / resume / stop / 科目名稱（切換）
+const ACT = (args.queryParameters && args.queryParameters.act) || (typeof args.shortcutParameter === "string" ? args.shortcutParameter : "");
+if (ACT) {
+  const call = async (body) => { const r = new Request(API + "/api/focus"); r.method = "POST"; r.headers = { "x-app-key": key, "content-type": "application/json" }; r.body = JSON.stringify(body); return await r.loadJSON(); };
+  const g = new Request(API + "/api/focus"); g.headers = { "x-app-key": key }; const cur0 = (await g.loadJSON()).active;
+  let act = ACT;
+  if (act === "toggle") act = cur0 ? (cur0.status === "進行中" ? "pause" : "resume") : "";
+  if (act === "pause" || act === "resume" || act === "stop") await call({ action: act });
+  else if (act) await call({ action: "switch", subject: act });
+  Script.complete(); return;
+}
+
 const FAM = config.widgetFamily || "";
 if (FAM.startsWith("accessory")) {
   let f = null;
   try { const r = new Request(API + "/api/focus"); r.headers = { "x-app-key": key }; r.timeoutInterval = 8; f = await r.loadJSON(); } catch (e) {}
-  const lw = new ListWidget(); lw.url = APP; lw.refreshAfterDate = new Date(Date.now() + 60 * 1000);
+  const lw = new ListWidget(); lw.url = "scriptable:///run/" + encodeURIComponent(Script.name()) + "?act=toggle"; lw.refreshAfterDate = new Date(Date.now() + 60 * 1000);
   const la = f && f.active, lrun = !!la && la.status === "進行中";
   const sec = la ? Math.max(0, la.acc + (lrun ? (f.now - la.start) / 1000 : 0)) : 0;
   const hms = x => { x = Math.floor(x); const h = Math.floor(x / 3600), m = Math.floor(x / 60) % 60, s2 = x % 60; return (h ? h + ":" + String(m).padStart(2, "0") : m) + ":" + String(s2).padStart(2, "0"); };
