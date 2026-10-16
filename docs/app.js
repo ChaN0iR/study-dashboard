@@ -158,6 +158,7 @@
     $("task-count").textContent = assigned.length ? `${assigned.filter((t) => t.done).length}/${assigned.length}` : "";
     $("tasks").replaceChildren(...(real.length ? real.map(taskItem) : [el("li", { class: "empty" }, "今天沒有任務")]));
     $("skipped-wrap").hidden = !skipped.length;
+    updateProg();
     $("skipped").replaceChildren(...skipped.map(taskItem));
   }
 
@@ -168,7 +169,12 @@
       $("f-review").value = r.review || ""; $("f-workout").value = r.workout ?? localStorage.getItem("sd-workout-" + (r.date || "")) ?? ""; $("f-points").value = r.points || "";
     }
     mood = r.mood || null; renderMoods(); updateTotal();
-    $("completion").textContent = r.completion || "";
+    updateProg();
+  }
+  function updateProg() {
+    const t = (state.tasks || []).filter((x) => !x.skipped), d = t.filter((x) => x.done).length, p = t.length ? Math.round(d / t.length * 100) : 0;
+    $("completion").textContent = t.length ? `${d}/${t.length}　${p}%` : "";
+    $("prog-i").style.width = p + "%";
   }
   function renderMoods() {
     $("moods").replaceChildren(...C.MOODS.map((m) => el("button", {

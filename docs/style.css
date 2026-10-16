@@ -211,3 +211,14 @@ html::-webkit-scrollbar,body::-webkit-scrollbar,*::-webkit-scrollbar{display:non
 .top>.focus .fc-subj button{min-height:32px;min-width:40px;padding:0 8px;font-size:13px}.top>.focus .fc-subj button i{display:none}
 .top>.focus .fc-btns{margin:0}.top>.focus .fc-btns .ghost{flex:none}
 }
+.prog{height:8px;border-radius:4px;background:var(--line);overflow:hidden;margin:2px 0 12px}
+.prog i{display:block;height:100%;width:0;border-radius:4px;background:linear-gradient(90deg,#8296ff,#5ad1b0);transition:width .6s cubic-bezier(.2,.8,.2,1)}
+.rec-head #completion{font-variant-numeric:tabular-nums;font-size:13px}
+@media(min-width:900px) and (min-height:560px){
+.col:nth-child(2){overflow:visible}
+.col>.rec{flex:1;display:flex!important;flex-direction:column}
+.rec .fields{flex:1;display:flex;flex-direction:column;gap:8px}
+.rec .fld{flex:1}.rec .fld textarea{height:100%}
+.rec .moods{margin:0 0 10px}.rec #save-record{margin-top:10px}
+.col>.note-card{flex:none}
+}
