@@ -17,7 +17,7 @@ window.CONFIG = {
     { start: "07:00", end: "07:45", name: "Anki＋單字", keys: ["anki", "單字", "生字"] },
     { start: "07:45", end: "08:30", name: "早餐整理", keys: ["早餐"] },
     { start: "08:30", end: "12:00", name: "化學", keys: ["化學", "普化", "有機"] },
-    { start: "12:00", end: "13:30", name: "午餐", keys: ["午餐"] },
+    { start: "12:00", end: "13:30", name: "午餐", keys: ["午餐"], tips: ["飯後走路或騎車，湊步數"] },
     { start: "13:30", end: "15:30", name: "生物／生化", keys: ["生物", "生化"] },
     { start: "15:30", end: "15:45", name: "肌酸", keys: ["肌酸"] },
     { start: "15:45", end: "16:30", name: "物理", keys: ["物理"] },

@@ -138,7 +138,8 @@
       const fit = open.filter((t) => slot.keys.some((k) => t.title.toLowerCase().includes(k.toLowerCase())));
       box.append(el("div", { class: "sub" }, "可搭配任務"));
       if (fit.length) box.append(el("ul", { class: "list" }, fit.map((t) => taskItem(t))));
-      else box.append(el("div", { class: "empty" }, "這個時段沒有對應任務"));
+      else if (!(slot.tips || []).length) box.append(el("div", { class: "empty" }, "這個時段沒有對應任務"));
+      if ((slot.tips || []).length) box.append(el("ul", { class: "list" }, slot.tips.map((x) => el("li", { class: "item" }, el("div", { class: "t" }, x)))));
     }
   }
 
