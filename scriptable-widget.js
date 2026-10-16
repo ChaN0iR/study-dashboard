@@ -37,7 +37,7 @@ if (FAM.startsWith("accessory")) {
   const sec = la ? Math.max(0, la.acc + (lrun ? (f.now - la.start) / 1000 : 0)) : 0;
   const hms = x => { x = Math.floor(x); const h = Math.floor(x / 3600), m = Math.floor(x / 60) % 60, s2 = x % 60; return (h ? h + ":" + String(m).padStart(2, "0") : m) + ":" + String(s2).padStart(2, "0"); };
   const put = (parent, size) => {
-    if (false) { const t = parent.addDate(new Date(Date.now() - sec * 1000)); t.applyTimerStyle(); t.font = Font.boldMonospacedSystemFont(size); t.minimumScaleFactor = 0.5; t.lineLimit = 1; return t; }
+    if (lrun) { const t = parent.addDate(new Date(Date.now() - sec * 1000)); t.applyTimerStyle(); t.font = Font.boldMonospacedSystemFont(size); t.minimumScaleFactor = 0.5; t.lineLimit = 1; return t; }
     const t = parent.addText(la ? hms(sec) : "--:--"); t.font = Font.boldMonospacedSystemFont(size); t.minimumScaleFactor = 0.5; t.lineLimit = 1; return t;
   };
   // 沒在計時：顯示今日專注合計＋目前時段與剩餘時間
@@ -50,7 +50,7 @@ if (FAM.startsWith("accessory")) {
   if (lrun || la) {
     if (FAM === "accessoryInline") put(lw, 14);
     else if (FAM === "accessoryCircular") { const st2 = lw.addStack(); st2.layoutVertically(); st2.centerAlignContent(); const t = put(st2, 14); t.centerAlignText(); }
-    else { if (la.subject) { const h = lw.addText(la.subject + (lrun ? "" : "　暫停") + "　" + new Date().toTimeString().slice(0, 5)); h.font = Font.systemFont(12); } put(lw, 30); const dr = lw.addStack(); dr.centerAlignContent(); const dl = dr.addText("열품타 "); dl.font = Font.systemFont(11); if (false) { const d = dr.addDate(new Date(Date.now() - todayS * 1000)); d.applyTimerStyle(); d.font = Font.systemFont(11); } else { const d = dr.addText(hm(todayS)); d.font = Font.systemFont(11); } }
+    else { if (la.subject) { const h = lw.addText(la.subject + (lrun ? "" : "　暫停")); h.font = Font.systemFont(12); } put(lw, 30); const dr = lw.addStack(); dr.centerAlignContent(); const dl = dr.addText("열품타 "); dl.font = Font.systemFont(11); if (lrun) { const d = dr.addDate(new Date(Date.now() - todayS * 1000)); d.applyTimerStyle(); d.font = Font.systemFont(11); } else { const d = dr.addText(hm(todayS)); d.font = Font.systemFont(11); } }
   } else if (FAM === "accessoryInline") { lw.addText("열품타 " + (f ? hm(todayS) : "--") + "　" + slotTxt); }
   else if (FAM === "accessoryCircular") { const st2 = lw.addStack(); st2.layoutVertically(); st2.centerAlignContent(); const a1 = st2.addText("열품타"); a1.font = Font.systemFont(9); a1.centerAlignText(); const t = st2.addText(f ? hm(todayS) : "--"); t.font = Font.boldMonospacedSystemFont(13); t.minimumScaleFactor = 0.5; t.lineLimit = 1; t.centerAlignText(); }
   else {
@@ -197,7 +197,7 @@ try {
   const upd = new Date(); const updTxt = "更新 " + String(upd.getHours()).padStart(2, "0") + ":" + String(upd.getMinutes()).padStart(2, "0");
   const lb = box.addText(label); lb.font = Font.boldSystemFont(12); lb.textColor = muted; lb.lineLimit = 1; al(lb);
   if (R) R.addSpacer();
-  if (false) { const t = box.addDate(new Date(Date.now() - bigSec * 1000)); t.applyTimerStyle(); t.font = Font.boldMonospacedSystemFont(big); t.textColor = fc; t.minimumScaleFactor = 0.4; t.lineLimit = 1; al(t); }
+  if (running) { const t = box.addDate(new Date(Date.now() - bigSec * 1000)); t.applyTimerStyle(); t.font = Font.boldMonospacedSystemFont(big); t.textColor = fc; t.minimumScaleFactor = 0.4; t.lineLimit = 1; al(t); }
   else { const t = box.addText(hms(bigSec)); t.font = Font.boldMonospacedSystemFont(big); t.textColor = a ? muted : fc; t.minimumScaleFactor = 0.4; t.lineLimit = 1; al(t); }
   if (R) R.addSpacer();
   if (a) { const d = box.addText("열품타 " + hms(todayS)); d.font = Font.systemFont(11); d.textColor = muted; al(d); }
