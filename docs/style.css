@@ -138,3 +138,35 @@ html::-webkit-scrollbar,body::-webkit-scrollbar,*::-webkit-scrollbar{display:non
  body[data-tab=record] [data-tab=record],body[data-tab=notes] [data-tab=notes]{overflow-y:auto;max-height:100%}
  main{padding-bottom:10px}
 }
+
+/* middle column redesign */
+.rec-head{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:6px}.rec-head h2{margin:0}
+.ypt-hero{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 14px;margin:6px 0 10px;border-radius:12px;background:linear-gradient(135deg,rgba(130,150,255,.14),rgba(130,130,130,.06));border:1px solid var(--line)}
+.ypt-big{display:flex;flex-direction:column;line-height:1.1}
+.ypt-cap{font-size:11px;color:var(--mut);letter-spacing:.08em}
+.ypt-big b{font-size:34px;font-variant-numeric:tabular-nums;letter-spacing:-.01em;margin-top:2px}
+.ypt-in{display:flex;gap:8px}
+.num{display:flex;align-items:center;gap:4px;margin:0;font-size:12px;color:var(--mut)}
+.num input{width:58px;min-height:36px;margin:0;text-align:center;font-size:16px;font-variant-numeric:tabular-nums;padding:4px}
+.seg{display:grid;grid-template-columns:repeat(5,1fr);gap:0;border:1px solid var(--line);border-radius:10px;overflow:hidden;margin:0 0 10px}
+.seg button{min-height:34px!important;border:0!important;border-radius:0!important;border-right:1px solid var(--line)!important;font-size:13px}
+.seg button:last-child{border-right:0!important}
+.seg button[aria-checked=true]{background:var(--acc);color:var(--accfg)}
+.fields{display:flex;flex-direction:column;gap:6px}
+.fld{display:flex;align-items:stretch;gap:0;margin:0;border:1px solid var(--line);border-radius:10px;overflow:hidden;background:var(--bg)}
+.fld>span{flex:none;width:44px;display:flex;align-items:center;justify-content:center;font-size:12px;color:var(--mut);border-right:1px solid var(--line);letter-spacing:.1em}
+.fld textarea{border:0;border-radius:0;margin:0;min-height:44px;height:auto;background:transparent;padding:8px 10px;font-size:14px;resize:none}
+.fld:focus-within{border-color:var(--fg);box-shadow:0 0 0 1px var(--fg)}
+.fld textarea:focus{outline:0}
+.note-card h2{margin-bottom:8px}
+.note-row{display:flex;gap:8px;margin-top:6px}
+.note-row input,.note-row select,.note-row textarea{margin:0;min-height:38px;flex:1;min-width:0;font-size:14px;padding:6px 10px}
+.note-row select{flex:none;width:96px}
+.note-row textarea{height:38px;resize:none}
+.note-row .primary{width:72px;flex:none;margin:0;min-height:38px}
+@media(min-width:900px) and (min-height:560px){
+ #f-review,#f-workout,#f-points{height:auto}
+ .fld textarea{min-height:42px}
+}
+.num span{white-space:nowrap}
+.num input{width:50px}

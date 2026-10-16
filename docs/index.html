@@ -10,7 +10,7 @@
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="apple-touch-icon" href="icons/icon-192.png">
 <link rel="icon" href="icons/icon.svg" type="image/svg+xml">
-<link rel="stylesheet" href="style.css?v=37">
+<link rel="stylesheet" href="style.css?v=38">
 <title>清大後醫</title>
 </head>
 <body>
@@ -31,26 +31,34 @@
 
 </div>
 <div class="col">
-  <section class="card" data-tab="record">
-    <h2>今日進度 <span id="completion" class="muted"></span></h2>
-    <div class="row2">
-      <label>小時<input id="f-hours" type="number" inputmode="decimal" min="0" max="24" step="0.25" placeholder="1.5"></label>
-      <label>分鐘<input id="f-minutes" type="number" inputmode="numeric" min="0" max="1440" step="1" placeholder="40"></label>
+  <section class="card rec" data-tab="record">
+    <div class="rec-head"><h2>今日進度</h2><span id="completion" class="muted"></span></div>
+    <div class="ypt-hero">
+      <div class="ypt-big"><span class="ypt-cap">YPT 今日合計</span><b id="ypt">0h00m</b></div>
+      <div class="ypt-in">
+        <label class="num"><input id="f-hours" type="number" inputmode="decimal" min="0" max="24" step="0.25" placeholder="0"><span>小時</span></label>
+        <label class="num"><input id="f-minutes" type="number" inputmode="numeric" min="0" max="1440" step="1" placeholder="0"><span>分鐘</span></label>
+      </div>
     </div>
-    <div class="total">YPT 合計 <b id="ypt">0h00m</b></div>
-    <div class="moods" id="moods" role="radiogroup" aria-label="心情"></div>
-    <label>心得<textarea id="f-review" rows="3"></textarea></label>
-    <label>運動紀錄<textarea id="f-workout" rows="3"></textarea></label>
-    <label>各科重點<textarea id="f-points" rows="3"></textarea></label>
+    <div class="moods seg" id="moods" role="radiogroup" aria-label="心情"></div>
+    <div class="fields">
+      <label class="fld"><span>心得</span><textarea id="f-review" rows="2" placeholder="今天的狀態與感想"></textarea></label>
+      <label class="fld"><span>運動</span><textarea id="f-workout" rows="2" placeholder="訓練內容、步數、單車"></textarea></label>
+      <label class="fld"><span>重點</span><textarea id="f-points" rows="2" placeholder="各科重點與需記憶處"></textarea></label>
+    </div>
     <button id="save-record" class="primary">儲存進度</button>
   </section>
 
-  <section class="card" data-tab="notes">
-    <h2>筆記快速新增</h2>
-    <label>標題<input id="n-title" type="text"></label>
-    <label>科目<select id="n-subject"><option value="">不指定</option></select></label>
-    <label>重點<textarea id="n-points" rows="3"></textarea></label>
-    <button id="save-note" class="primary">新增筆記</button>
+  <section class="card note-card" data-tab="notes">
+    <h2>快速筆記</h2>
+    <div class="note-row">
+      <input id="n-title" type="text" placeholder="標題">
+      <select id="n-subject" aria-label="科目"><option value="">科目</option></select>
+    </div>
+    <div class="note-row">
+      <textarea id="n-points" rows="1" placeholder="重點"></textarea>
+      <button id="save-note" class="primary">新增</button>
+    </div>
   </section>
 </div>
 <div class="col">
@@ -64,8 +72,8 @@
 </main>
 <nav id="tabs" class="tabs"><button data-t="today" aria-selected="true">今日</button><button data-t="record">進度</button><button data-t="lessons">課程</button><button data-t="notes">筆記</button></nav>
 <div id="toast" class="toast" hidden></div>
-<script src="config.js?v=37"></script>
-<script src="app.js?v=37"></script>
+<script src="config.js?v=38"></script>
+<script src="app.js?v=38"></script>
 <script>(function(){var b=document.querySelectorAll("#tabs button");function go(t){document.body.dataset.tab=t;b.forEach(function(x){x.setAttribute("aria-selected",x.dataset.t==t)})}b.forEach(function(x){x.onclick=function(){go(x.dataset.t)}});go("today")})()</script>
 </body>
 </html>
