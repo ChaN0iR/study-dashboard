@@ -32,7 +32,7 @@ const FAM = config.widgetFamily || "";
 if (FAM.startsWith("accessory")) {
   let f = null;
   try { const r = new Request(API + "/api/focus"); r.headers = { "x-app-key": key }; r.timeoutInterval = 8; f = await r.loadJSON(); } catch (e) {}
-  const lw = new ListWidget(); lw.url = "scriptable:///run/" + encodeURIComponent(Script.name()) + "?act=toggle"; lw.refreshAfterDate = new Date(Date.now() + 60 * 1000);
+  const lw = new ListWidget(); lw.url = APP; lw.refreshAfterDate = new Date(Date.now() + 60 * 1000);
   const la = f && f.active, lrun = !!la && la.status === "進行中";
   const sec = la ? Math.max(0, la.acc + (lrun ? (f.now - la.start) / 1000 : 0)) : 0;
   const hms = x => { x = Math.floor(x); const h = Math.floor(x / 3600), m = Math.floor(x / 60) % 60, s2 = x % 60; return (h ? h + ":" + String(m).padStart(2, "0") : m) + ":" + String(s2).padStart(2, "0"); };

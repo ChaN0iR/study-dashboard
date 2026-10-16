@@ -481,9 +481,10 @@
           el("div", { class: "t" }, `${hm(x.start)}–${x.end ? hm(x.end) : ""}　${x.subject || "其他"}`),
           el("b", {}, fmtHM(x.acc)),
           el("button", { class: "ghost fc-del", onclick: async (ev) => {
-            const li = ev.target.closest("li"), dg = $("fc-dialog"), sc = dg.scrollTop; li.style.display = "none";
-            try { fc.st = await api("/api/focus", { action: "delete", id: x.id }); fc.off = fc.st.now - Date.now(); fcRender(); fcSyncYpt(true); fcHistory(); dg.scrollTop = sc; }
-            catch (e) { li.style.display = ""; toast("刪除失敗：" + (e.message || "")); }
+            const li = ev.target.closest("li"), ul = li.parentNode, hd = ul.previousSibling; li.remove();
+            if (!ul.children.length) { ul.remove(); if (hd) hd.remove(); }
+            try { const r = await api("/api/focus", { action: "delete", id: x.id }); fc.st = r; fc.off = r.now - Date.now(); fcRender(); fcSyncYpt(true); }
+            catch (e) { toast("刪除失敗：" + (e.message || "")); fcHistory(); }
           } }, "刪除"))));
         body.append(ul);
       });
