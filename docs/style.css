@@ -199,3 +199,15 @@ html::-webkit-scrollbar,body::-webkit-scrollbar,*::-webkit-scrollbar{display:non
 @media(min-width:900px) and (min-height:560px){.top>.focus .fc-btns .primary{flex:none;width:auto;min-width:72px}.top>.focus .fc-btns{min-width:0;width:max-content}.top>.focus .fc-hist,.top>.focus .fc-btns .ghost{position:static;width:auto;min-width:52px;margin:0}}
 .rec .focus{border:0;box-shadow:none;background:transparent;padding:6px 0 10px}
 @media(min-width:900px) and (min-height:560px){.top>.focus{border:1px solid var(--line);background:var(--card);padding:6px 14px}}
+.fc-subj{display:grid;grid-template-columns:repeat(5,1fr);gap:6px;margin-top:8px}
+.fc-subj button{display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:46px;padding:4px 0;border-radius:10px;border:1px solid var(--line);background:var(--card);color:var(--fg);font-size:14px;font-weight:600;line-height:1.2;transition:transform .12s,box-shadow .2s,background .2s}
+.fc-subj button i{font-style:normal;font-size:10px;font-weight:400;opacity:.65;min-height:12px}
+.fc-subj button:hover{box-shadow:0 0 0 3px rgba(130,150,255,.25)}.fc-subj button:active{transform:scale(.95)}
+.fc-subj button.on{background:var(--fg);color:var(--card)}.fc-subj button.run{animation:fcpulse 2s ease-in-out infinite}
+.fc-btns{margin-top:6px}.fc-btns .ghost{flex:1}
+@media(min-width:900px) and (min-height:560px){
+.top>.focus{grid-template-columns:auto auto auto auto auto;grid-template-areas:"time seg subj btns hist"}
+.top>.focus .fc-subj{grid-area:subj;margin:0;display:flex;gap:4px}
+.top>.focus .fc-subj button{min-height:32px;min-width:40px;padding:0 8px;font-size:13px}.top>.focus .fc-subj button i{display:none}
+.top>.focus .fc-btns{margin:0}.top>.focus .fc-btns .ghost{flex:none}
+}

@@ -318,8 +318,18 @@
       const t = fc.mode === "total" ? totalSec() : segSec();
       $("fc-time").textContent = fmtHMS(t);
       $("fc-time").classList.toggle("run", !!running);
-      $("fc-main").textContent = !a ? "開始專注" : running ? "暫停" : "繼續";
-      $("fc-stop").hidden = !a;
+      $("fc-main").textContent = running ? "暫停" : "繼續";
+      $("fc-main").hidden = !a; $("fc-stop").hidden = !a;
+      const by = {};
+      (fc.st?.sessions || []).forEach((x) => { const k = x.subject || "其他"; by[k] = (by[k] || 0) + x.acc; });
+      if (a) { const k = a.subject || "其他"; by[k] = (by[k] || 0) + segSec(); }
+      document.querySelectorAll("#fc-subj button").forEach((b) => {
+        const k = b.dataset.s;
+        b.classList.toggle("on", !!a && (a.subject || "其他") === k);
+        b.classList.toggle("run", !!running && (a.subject || "其他") === k);
+        b.querySelector("i").textContent = by[k] ? fmtHM(by[k]) : "";
+        b.title = by[k] ? `${k} ${fmtHM(by[k])}` : k;
+      });
       const n = (fc.st?.sessions?.length || 0) + (a ? 1 : 0);
       $("fc-sub").textContent = fc.mode === "total" ? (n ? `今日 ${n} 段` : "今日尚未開始") : (a ? (running ? "進行中" : "已暫停") + `　今日合計 ${fmtHM(totalSec())}` : `今日合計 ${fmtHM(totalSec())}`);
       document.querySelectorAll("#fc-mode button").forEach((b) => b.setAttribute("aria-checked", String(b.dataset.m === fc.mode)));
@@ -333,7 +343,13 @@
       try { const d = await api("/api/focus", body); fc.st = d; fc.off = d.now - Date.now(); fcRender(); }
       catch (e) { toast("無法連線：" + (e.message || "")); } finally { fc.busy = false; }
     }
-    $("fc-main").onclick = () => { const a = fc.st?.active; fcAct({ action: !a ? "start" : a.status === "進行中" ? "pause" : "resume" }); };
+    $("fc-main").onclick = () => { const a = fc.st?.active; if (a) fcAct({ action: a.status === "進行中" ? "pause" : "resume" }); };
+    $("fc-subj").onclick = async (e) => {
+      const b = e.target.closest("button"); if (!b) return; const s = b.dataset.s, a = fc.st?.active;
+      if (!a) return fcAct({ action: "start", subject: s });
+      if ((a.subject || "其他") === s) return fcAct({ action: a.status === "進行中" ? "pause" : "resume" });
+      await fcAct({ action: "stop" }); await fcAct({ action: "start", subject: s });
+    };
     async function fcSyncYpt() {
       const t = fc.st?.todayDoneSec || 0; if (fc.st?.active || !t) return;
       const h = Math.floor(t / 3600), m = Math.round((t % 3600) / 60);
