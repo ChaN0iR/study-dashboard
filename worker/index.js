@@ -336,6 +336,24 @@ async function postFocus(env, body) {
   const action = body.action;
   const cur = (await getFocus(env)).active;
   const now = Date.now();
+  if (action === "add") {
+    const date = String(body.date || ""), time = /^\d{2}:\d{2}$/.test(body.time || "") ? body.time : "12:00";
+    const mins = Math.round(Number(body.minutes));
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || !(mins >= 1 && mins <= 1440)) throw new HttpError(400, "date/minutes invalid");
+    const st = Date.parse(`${date}T${time}:00+08:00`);
+    if (!Number.isFinite(st)) throw new HttpError(400, "date invalid");
+    const subject = body.subject && SUBJECTS.includes(body.subject) ? body.subject : null;
+    const pg = await notion(env, "/pages", "POST", { parent: { database_id: DB.focus }, properties: {
+      [F.title]: wr.title("補登 " + date.slice(5) + " " + time),
+      [F.date]: wr.date(date),
+      [F.start]: wr.date(tpIso(st)),
+      [F.end]: wr.date(tpIso(st + mins * 60000)),
+      [F.acc]: wr.number(mins * 60),
+      [F.status]: wr.select("完成"),
+      ...(subject ? { [F.subject]: wr.select(subject) } : {}),
+    } });
+    return getFocus(env, [], { justDone: shapeFocus(pg) });
+  }
   if (action === "delete") {
     if (!ID_RE.test(body.id || "")) throw new HttpError(400, "id invalid");
     const pg = await notion(env, `/pages/${body.id}`);

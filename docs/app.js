@@ -409,6 +409,19 @@
       const st = fc.st || { days: [], history: [] };
       const hm = (ms) => new Date(ms + 8 * 3600e3).toISOString().slice(11, 16);
       const body = $("fc-body"); body.replaceChildren();
+      const subs = ["英文", "化學", "生物", "物理", "生化"];
+      const dI = el("input", { type: "date", value: st.today || new Date().toISOString().slice(0, 10) });
+      const tI = el("input", { type: "time", value: "09:00" });
+      const mI = el("input", { type: "number", inputmode: "numeric", min: "1", max: "1440", placeholder: "分鐘" });
+      const sI = el("select", {}, ...subs.map((x) => el("option", { value: x }, x)));
+      body.append(el("div", { class: "fc-add" },
+        el("div", { class: "sub" }, "新增紀錄"),
+        el("div", { class: "fc-add-row" }, dI, tI),
+        el("div", { class: "fc-add-row" }, sI, mI, el("button", { class: "primary", type: "button", onclick: async () => {
+          const m = Number(mI.value); if (!(m >= 1)) return toast("請輸入分鐘數");
+          try { fc.st = await api("/api/focus", { action: "add", date: dI.value, time: tI.value, minutes: m, subject: sI.value }); fc.off = fc.st.now - Date.now(); fcRender(); fcSyncYpt(true); fcHistory(); toast("已新增"); }
+          catch (e) { toast("新增失敗：" + (e.message || "")); }
+        } }, "新增"))));
       const groups = {};
       (st.history || []).forEach((x) => (groups[x.date] ||= []).push(x));
       const dates = Object.keys(groups).sort().reverse();

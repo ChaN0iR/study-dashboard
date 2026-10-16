@@ -267,3 +267,6 @@ html::-webkit-scrollbar,body::-webkit-scrollbar,*::-webkit-scrollbar{display:non
 .chk{position:relative}
 .chk[aria-checked=true]::after{position:absolute;left:50%;top:46%;width:7px;height:14px;margin:0;transform:translate(-50%,-50%) rotate(45deg);animation:tickc .22s ease}
 @keyframes tickc{from{opacity:0;transform:translate(-50%,-50%) rotate(45deg) scale(.5)}to{opacity:1;transform:translate(-50%,-50%) rotate(45deg) scale(1)}}
+.fc-hist{width:32px;height:32px;min-height:32px!important;min-width:32px!important;padding:0!important;display:inline-flex;align-items:center;justify-content:center;border-radius:50%;border:1px solid var(--line);background:var(--card);color:var(--fg);cursor:pointer;transition:transform .12s,box-shadow .2s}
+.fc-hist:hover{box-shadow:0 0 0 3px rgba(130,150,255,.25)}.fc-hist:active{transform:scale(.92)}
+.fc-add{margin-bottom:6px}.fc-add-row{display:flex;gap:8px;margin-top:6px}.fc-add-row>*{flex:1;min-width:0;margin:0;min-height:40px}.fc-add-row .primary{flex:none;width:72px}
