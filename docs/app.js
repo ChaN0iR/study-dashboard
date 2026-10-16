@@ -399,11 +399,11 @@
       document.title = running ? `${fmtHMS(t)} 專注中` : "清大後醫";
     }
     async function fcLoad() {
-      try { const d = await api("/api/focus"); fc.st = d; fc.off = d.now - Date.now(); fcRender(); fcSyncYpt(); } catch (e) { /* offline or not deployed */ }
+      try { const d = await api("/api/focus"); const pn = fc.pin; if (pn && Date.now() < pn.until && ((d.active ? d.active.id : null) !== pn.id || (d.active ? d.active.status : null) !== pn.status)) return; fc.st = d; fc.off = d.now - Date.now(); fcRender(); fcSyncYpt(); } catch (e) { /* offline or not deployed */ }
     }
     async function fcAct(body) {
       if (fc.busy) return; fc.busy = true;
-      try { const d = await api("/api/focus", body); fc.st = d; fc.off = d.now - Date.now(); fcRender(); }
+      try { const d = await api("/api/focus", body); fc.st = d; fc.off = d.now - Date.now(); fc.pin = { id: d.active ? d.active.id : null, status: d.active ? d.active.status : null, until: Date.now() + 40000 }; fcRender(); }
       catch (e) { toast("無法連線：" + (e.message || "")); } finally { fc.busy = false; }
     }
     $("fc-main").onclick = () => { const a = fc.st?.active; if (a) fcAct({ action: a.status === "進行中" ? "pause" : "resume" }); };
