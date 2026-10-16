@@ -309,6 +309,8 @@
       });
       renderRecord();
     }, "已儲存");
+    // keep fixed layout from drifting when focus scrolls hidden containers
+    ["main", ".col", ".card"].forEach((sel) => document.querySelectorAll(sel).forEach((n) => n.addEventListener("scroll", () => { if (n.scrollTop) n.scrollTop = 0; }, { passive: true })));
     // ---------- note draft ----------
     const nd = (() => { try { return JSON.parse(localStorage.getItem("sd-note-draft") || "null") || {}; } catch (e) { return {}; } })();
     nd.items = nd.items || [];

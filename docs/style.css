@@ -270,3 +270,10 @@ html::-webkit-scrollbar,body::-webkit-scrollbar,*::-webkit-scrollbar{display:non
 .fc-hist{width:32px;height:32px;min-height:32px!important;min-width:32px!important;padding:0!important;display:inline-flex;align-items:center;justify-content:center;border-radius:50%;border:1px solid var(--line);background:var(--card);color:var(--fg);cursor:pointer;transition:transform .12s,box-shadow .2s}
 .fc-hist:hover{box-shadow:0 0 0 3px rgba(130,150,255,.25)}.fc-hist:active{transform:scale(.92)}
 .fc-add{margin-bottom:6px}.fc-add-row{display:flex;gap:8px;margin-top:6px}.fc-add-row>*{flex:1;min-width:0;margin:0;min-height:40px}.fc-add-row .primary{flex:none;width:72px}
+/* prevent focus/tap from scrolling fixed containers upward */
+html,body{height:100dvh;inset:0}
+body{padding-bottom:0}
+@media(max-width:899px),(max-height:559px){
+main,main>.col,main .card{overflow:clip!important}
+main #tasks,main #lessons{overflow-y:auto!important}
+}
