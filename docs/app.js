@@ -366,6 +366,10 @@
       const n = (fc.st?.sessions?.length || 0) + (a ? 1 : 0);
       $("fc-sub").textContent = fc.mode === "total" ? (n ? `今日 ${n} 段` : "今日尚未開始") : (a ? (running ? "進行中" : "已暫停") + `　今日合計 ${fmtHM(totalSec())}` : `今日合計 ${fmtHM(totalSec())}`);
       document.querySelectorAll("#fc-mode button").forEach((b) => b.setAttribute("aria-checked", String(b.dataset.m === fc.mode)));
+      const assigned = (state.tasks || []).filter((x) => x.source === "今日" && !x.skipped).length;
+      const goalH = Math.min(10, Math.max(3, 3 + assigned * 0.5)), pct = Math.round(totalSec() / (goalH * 3600) * 100);
+      $("fc-prog-i").style.width = Math.min(100, pct) + "%"; $("fc-prog-i").parentNode.classList.toggle("over", pct > 100);
+      $("fc-goal-t").textContent = `目標 ${goalH}h　${pct}%`;
       document.title = running ? `${fmtHMS(t)} 專注中` : "清大後醫";
     }
     async function fcLoad() {
@@ -419,7 +423,7 @@
     $("fc-close").onclick = () => $("fc-dialog").close();
     $("fc-dialog").addEventListener("click", (e) => { if (e.target === $("fc-dialog")) $("fc-dialog").close(); });
     const fcMq = matchMedia("(min-width:900px) and (min-height:560px)");
-    const fcPlace = () => { const f = $("focus"); if (fcMq.matches) document.querySelector(".top > div").after(f); else { const r = document.querySelector(".rec"); r.querySelector(".rec-head").after(f); } };
+    const fcPlace = () => { const f = $("focus"); if (fcMq.matches) document.querySelector(".top > div").after(f); else { const r = document.querySelector(".rec"); r.querySelector(".prog").after(f); } };
     fcPlace(); fcMq.addEventListener("change", fcPlace);
     fcLoad(); setInterval(fcRender, 1000); setInterval(fcLoad, 8000);
     document.addEventListener("visibilitychange", () => { if (!document.hidden) fcLoad(); });

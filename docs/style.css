@@ -240,3 +240,13 @@ html::-webkit-scrollbar,body::-webkit-scrollbar,*::-webkit-scrollbar{display:non
 .n-x:hover{background:var(--line);color:var(--fg)}
 .note-row .ghost{flex:none;min-height:38px;padding:0 12px;margin:0}
 .note-row #save-note{width:auto;flex:1}
+.fc-goal{display:flex;align-items:center;gap:10px;margin-top:2px}.fc-goal .prog{flex:1;margin:0;height:6px}.fc-goal span{font-size:12px;font-variant-numeric:tabular-nums;white-space:nowrap}
+.fc-prog.over i{background:linear-gradient(90deg,#5ad1b0,#f0b84a)}
+.rec .focus{padding-top:0}
+.top-actions{grid-template-columns:repeat(4,34px)!important;gap:8px!important}
+.top-actions .icon-btn{width:34px;min-width:34px;height:34px}
+@media(min-width:900px) and (min-height:560px){
+.top-actions{grid-template-columns:repeat(4,52px)!important;gap:18px!important}
+.top>.focus .fc-goal{position:absolute;left:14px;right:14px;bottom:2px;margin:0}.top>.focus{position:relative;padding-bottom:12px}
+.top>.focus .fc-goal span{display:none}.top>.focus .fc-goal .prog{height:3px}
+}
