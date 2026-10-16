@@ -370,7 +370,7 @@
     const fc = { st: null, off: 0, mode: localStorage.getItem("fcMode") || "total", busy: false };
     const fmtHMS = (s) => { s = Math.max(0, Math.floor(s)); return `${Math.floor(s / 3600)}:${String(Math.floor(s / 60) % 60).padStart(2, "0")}:${String(s % 60).padStart(2, "0")}`; };
     const fmtHM = (s) => `${Math.floor(s / 3600)}h${String(Math.floor(s / 60) % 60).padStart(2, "0")}m`;
-    const segSec = () => { const a = fc.st?.active; if (!a) return 0; return a.acc + (a.status === "進行中" && a.start ? (Date.now() + fc.off - a.start) / 1000 : 0); };
+    const segSec = () => { const a = fc.st?.active; if (!a) return 0; const st0 = fc.anchor && fc.anchor.id === a.id && a.acc < 5 ? fc.anchor.start : a.start; return Math.max(0, a.acc + (a.status === "進行中" && st0 ? (Date.now() + fc.off - st0) / 1000 : 0)); };
     const totalSec = () => (fc.st?.todayDoneSec || 0) + segSec();
     function fcRender() {
       const a = fc.st?.active, running = a?.status === "進行中";
@@ -399,12 +399,18 @@
       document.title = running ? `${fmtHMS(t)} 專注中` : "清大後醫";
     }
     async function fcLoad() {
-      try { const d = await api("/api/focus"); const pn = fc.pin; if (pn && Date.now() < pn.until && ((d.active ? d.active.id : null) !== pn.id || (d.active ? d.active.status : null) !== pn.status)) return; fc.st = d; fc.off = d.now - Date.now(); fcRender(); fcSyncYpt(); } catch (e) { /* offline or not deployed */ }
+      if (fc.busy) return; try { const d = await api("/api/focus"); const pn = fc.pin; if (pn && Date.now() < pn.until && ((d.active ? d.active.id : null) !== pn.id || (d.active ? d.active.status : null) !== pn.status)) return; fc.st = d; fc.off = d.now - Date.now(); fcRender(); fcSyncYpt(); } catch (e) { /* offline or not deployed */ }
     }
     async function fcAct(body) {
       if (fc.busy) return; fc.busy = true;
-      try { const d = await api("/api/focus", body); fc.st = d; fc.off = d.now - Date.now(); fc.pin = { id: d.active ? d.active.id : null, status: d.active ? d.active.status : null, until: Date.now() + 40000 }; fcRender(); }
-      catch (e) { toast("無法連線：" + (e.message || "")); } finally { fc.busy = false; }
+      const clickAt = Date.now() + fc.off;
+      if ((body.action === "switch" || body.action === "start") && fc.st) { // optimistic: zero immediately, previous segment folded into today's total
+        const p = fc.st.active, prev = p ? segSec() : 0;
+        fc.st = { ...fc.st, todayDoneSec: (fc.st.todayDoneSec || 0) + prev, sessions: [...(fc.st.sessions || []), ...(p ? [{ ...p, acc: Math.round(prev), status: "完成" }] : [])], active: { id: "local", subject: body.subject, acc: 0, start: clickAt, status: "進行中" } };
+        fc.anchor = { id: "local", start: clickAt }; fcRender();
+      }
+      try { const d = await api("/api/focus", body); if (body.action === "switch" || body.action === "start") fc.anchor = d.active ? { id: d.active.id, start: clickAt } : null; fc.st = d; fc.off = d.now - Date.now(); fc.pin = { id: d.active ? d.active.id : null, status: d.active ? d.active.status : null, until: Date.now() + 40000 }; fcRender(); }
+      catch (e) { fc.anchor = null; setTimeout(fcLoad, 300); toast("無法連線：" + (e.message || "")); } finally { fc.busy = false; }
     }
     $("fc-main").onclick = () => { const a = fc.st?.active; if (a) fcAct({ action: a.status === "進行中" ? "pause" : "resume" }); };
     $("fc-subj").onclick = async (e) => {
