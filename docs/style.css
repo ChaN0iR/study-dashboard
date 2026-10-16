@@ -307,3 +307,4 @@ body{padding-bottom:calc(49px + env(safe-area-inset-bottom))}
 .top-actions{grid-template-columns:repeat(4,48px)!important}
 .top-actions .icon-btn{width:48px!important;height:48px!important;min-width:48px!important;min-height:48px!important;border-radius:12px!important}
 }
+@media(max-width:899px),(max-height:559px){body[data-tab]{padding-bottom:calc(49px + env(safe-area-inset-bottom))!important}}
