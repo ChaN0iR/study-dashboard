@@ -122,7 +122,9 @@ const doNow = fit.length ? fit : (mode === "done" ? [] : rest.slice(0, 2));
 const GAP = fam === "small" ? 4 : (fam === "medium" ? 6 : 9);
 let T = w, R = null;
 if (fam !== "small") { const H = w.addStack(); H.layoutHorizontally(); T = H.addStack(); T.layoutVertically(); H.addSpacer(); R = H.addStack(); R.layoutVertically(); }
-function line(txt, size, color, bold) { const x = T.addText(txt); x.font = bold ? Font.boldSystemFont(size) : Font.systemFont(size); x.textColor = color; x.lineLimit = 1; x.minimumScaleFactor = 0.7; T.addSpacer(GAP); return x; }
+let leftEst = 0;
+const vlen = (t) => [...t].reduce((n, c) => n + (c.charCodeAt(0) > 255 ? 1 : 0.55), 0);
+function line(txt, size, color, bold) { leftEst = Math.max(leftEst, vlen(txt) * size); const x = T.addText(txt); x.font = bold ? Font.boldSystemFont(size) : Font.systemFont(size); x.textColor = color; x.lineLimit = 1; x.minimumScaleFactor = 0.7; T.addSpacer(GAP); return x; }
 
 if (fam === "small") {
   line(sub, 10, muted);
@@ -165,7 +167,7 @@ try {
   const bigSec = a ? segS : todayS, label = a ? (a.subject || "專注") + (running ? "" : "　暫停") : "今日";
   const big = fam === "small" ? 20 : 26;
   let box = w;
-  if (R) { box = R; R.size = fam === "large" ? new Size(120, 280) : new Size(104, 125); R.addSpacer(); }
+  if (R) { box = R; { const CW = 300, lw2 = Math.min(leftEst, CW * 0.62), rw = Math.max(84, Math.min(150, CW - lw2 - 8)); R.size = new Size(rw, fam === "large" ? 280 : 125); } R.addSpacer(); }
   else { box = w.addStack(); box.layoutVertically(); }
   const al = x => { if (R) x.rightAlignText(); };
   const lb = box.addText(label); lb.font = Font.boldSystemFont(13); lb.textColor = muted; lb.lineLimit = 1; al(lb);
