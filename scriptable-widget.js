@@ -38,7 +38,7 @@ if (FAM.startsWith("accessory")) {
   if (lrun || la) {
     if (FAM === "accessoryInline") put(lw, 14);
     else if (FAM === "accessoryCircular") { const st2 = lw.addStack(); st2.layoutVertically(); st2.centerAlignContent(); const t = put(st2, 14); t.centerAlignText(); }
-    else { if (la.subject) { const h = lw.addText(la.subject + (lrun ? "" : "　暫停")); h.font = Font.systemFont(12); } put(lw, 30); const d = lw.addText("열품타 " + hm(todayS)); d.font = Font.systemFont(11); }
+    else { if (la.subject) { const h = lw.addText(la.subject + (lrun ? "" : "　暫停")); h.font = Font.systemFont(12); } put(lw, 30); const dr = lw.addStack(); dr.centerAlignContent(); const dl = dr.addText("열품타 "); dl.font = Font.systemFont(11); if (lrun) { const d = dr.addDate(new Date(Date.now() - todayS * 1000)); d.applyTimerStyle(); d.font = Font.monospacedDigitSystemFont(11, "regular"); } else { const d = dr.addText(hm(todayS)); d.font = Font.systemFont(11); } }
   } else if (FAM === "accessoryInline") { lw.addText("열품타 " + (f ? hm(todayS) : "--") + "　" + slotTxt); }
   else if (FAM === "accessoryCircular") { const st2 = lw.addStack(); st2.layoutVertically(); st2.centerAlignContent(); const a1 = st2.addText("열품타"); a1.font = Font.systemFont(9); a1.centerAlignText(); const t = st2.addText(f ? hm(todayS) : "--"); t.font = Font.boldMonospacedSystemFont(13); t.minimumScaleFactor = 0.5; t.lineLimit = 1; t.centerAlignText(); }
   else {
