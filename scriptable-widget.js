@@ -179,9 +179,10 @@ try {
   const bigSec = a ? segS : todayS, label = a ? (a.subject || "專注") + (running ? "" : "　暫停") : "열품타";
   const big = fam === "small" ? 20 : 26;
   let box = w;
-  if (R) { box = R; { const CW = 300, lw2 = Math.min(leftEst, CW * 0.62), rw = Math.max(84, Math.min(150, CW - lw2 - 8)); R.size = new Size(rw, fam === "large" ? 280 : 125); R.setPadding(0, 0, 0, 8); } R.addSpacer(); }
+  if (R) { box = R; R.size = new Size(fam === "large" ? 150 : 138, fam === "large" ? 280 : 125); R.backgroundColor = Color.dynamic(new Color("#000000", 0.06), new Color("#ffffff", 0.12)); R.cornerRadius = 18; R.setPadding(10, 6, 10, 6); R.centerAlignContent(); R.addSpacer(); }
   else { box = w.addStack(); box.layoutVertically(); }
   const al = x => { if (R) x.centerAlignText(); };
+  const upd = new Date(); const updTxt = "更新 " + String(upd.getHours()).padStart(2, "0") + ":" + String(upd.getMinutes()).padStart(2, "0");
   const lb = box.addText(label); lb.font = Font.boldSystemFont(13); lb.textColor = muted; lb.lineLimit = 1; al(lb);
   if (R) R.addSpacer();
   if (running) { const t = box.addDate(new Date(Date.now() - bigSec * 1000)); t.applyTimerStyle(); t.font = Font.boldMonospacedSystemFont(big); t.textColor = fc; t.minimumScaleFactor = 0.4; t.lineLimit = 1; al(t); }
@@ -189,7 +190,7 @@ try {
   if (R) R.addSpacer();
   if (a) { const d = box.addText("열품타 " + hms(todayS)); d.font = Font.systemFont(12); d.textColor = muted; al(d); }
   else { const d = box.addText("尚未計時"); d.font = Font.systemFont(12); d.textColor = muted; al(d); }
-  if (R) R.addSpacer();
+  if (R) { R.addSpacer(); const u = R.addText(updTxt); u.font = Font.systemFont(9); u.textColor = muted; u.textOpacity = 0.6; u.centerAlignText(); R.addSpacer(4); }
 } catch (e) {}
 if (err) { const e = w.addText("離線資料"); e.font = Font.systemFont(9); e.textColor = muted; }
 
