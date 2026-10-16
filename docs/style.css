@@ -187,3 +187,10 @@ html::-webkit-scrollbar,body::-webkit-scrollbar,*::-webkit-scrollbar{display:non
 .fc-day .t{flex:none;width:96px}.fc-bar{flex:1;height:6px;background:var(--line);border-radius:3px;overflow:hidden}.fc-bar i{display:block;height:100%;background:var(--acc)}
 .fc-day b,.fc-dialog .item b{font-variant-numeric:tabular-nums;font-size:13px}
 @media(max-width:899px){.fc-time{font-size:40px}}
+@media(min-width:900px) and (min-height:560px){
+.top>.focus{flex:1;display:grid;grid-template-columns:auto auto auto auto auto;grid-template-areas:"time seg btns hist";align-items:center;justify-content:start;gap:4px 14px;margin:0 0 0 24px;padding:6px 14px;max-width:560px}
+.top>.focus .fc-head{display:contents}.top>.focus .fc-head h2{display:none}
+.top>.focus .fc-time{grid-area:time;font-size:30px}.top>.focus .fc-seg{grid-area:seg}.top>.focus .fc-hist{grid-area:hist}
+.top>.focus .fc-sub{display:none}
+.top>.focus .fc-btns{grid-area:btns;margin:0}.top>.focus .fc-btns .primary,.top>.focus .fc-btns .ghost{min-height:32px;padding:0 14px;flex:none}
+}
