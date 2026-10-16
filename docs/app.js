@@ -396,7 +396,7 @@
       const goalH = Math.min(10, Math.max(3, 3 + assigned * 0.5)), pct = Math.round(totalSec() / (goalH * 3600) * 100);
       $("fc-prog-i").style.width = Math.min(100, pct) + "%"; $("fc-prog-i").parentNode.classList.toggle("over", pct > 100);
       $("fc-goal-t").textContent = `目標 ${goalH}h　${pct}%`;
-      document.title = running ? `${fmtHMS(t)} 專注中` : "清大後醫";
+      document.title = running ? `${fmtHMS(t)} 열품타 ${a.subject || "其他"}` : "清大後醫";
     }
     async function fcLoad() {
       if (fc.busy) return; try { const d = await api("/api/focus"); const pn = fc.pin; if (pn && Date.now() < pn.until && ((d.active ? d.active.id : null) !== pn.id || (d.active ? d.active.status : null) !== pn.status)) return; fc.st = d; fc.off = d.now - Date.now(); fcRender(); fcSyncYpt(); } catch (e) { /* offline or not deployed */ }
