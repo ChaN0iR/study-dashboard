@@ -404,6 +404,7 @@
     async function fcAct(body) {
       if (fc.busy) return; fc.busy = true;
       const clickAt = Date.now() + fc.off;
+      if (body.action !== "switch" && body.action !== "start") fc.anchor = null;
       if ((body.action === "switch" || body.action === "start") && fc.st) { // optimistic: zero immediately, previous segment folded into today's total
         const p = fc.st.active, prev = p ? segSec() : 0;
         fc.st = { ...fc.st, todayDoneSec: (fc.st.todayDoneSec || 0) + prev, sessions: [...(fc.st.sessions || []), ...(p ? [{ ...p, acc: Math.round(prev), status: "完成" }] : [])], active: { id: "local", subject: body.subject, acc: 0, start: clickAt, status: "進行中" } };
