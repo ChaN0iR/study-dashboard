@@ -278,13 +278,16 @@ const shapeFocus = (pg) => {
   };
 };
 
-async function getFocus(env) {
+async function getFocus(env, exclude = [], hint = {}) {
   const today = taipeiDate();
   const since = taipeiDate(-29);
   const rows = (await queryAll(env, DB.focus, {
     filter: { property: F.date, date: { on_or_after: since } },
     sorts: [{ property: F.start, direction: "descending" }],
-  })).map(shapeFocus);
+  })).map(shapeFocus).filter((r) => !exclude.includes(r.id));
+  if (hint.justDone) { const k = rows.findIndex((r) => r.id === hint.justDone.id); if (k >= 0) rows[k] = hint.justDone; else rows.push(hint.justDone); }
+  if (hint.justStarted && !rows.some((r) => r.id === hint.justStarted.id)) rows.unshift(shapeFocus(hint.justStarted));
+  rows.sort((a, b) => (b.start || 0) - (a.start || 0));
   const active = rows.find((r) => r.status === "進行中" || r.status === "暫停") || null;
   const done = rows.filter((r) => r.status === "完成");
   const days = {};
@@ -294,29 +297,50 @@ async function getFocus(env) {
   }
   return {
     now: Date.now(),
+    today,
     active,
     todayDoneSec: done.filter((r) => r.date === today).reduce((a, r) => a + r.acc, 0),
     sessions: done.filter((r) => r.date === today).sort((a, b) => a.start - b.start),
+    history: done.slice().sort((a, b) => b.start - a.start).slice(0, 80),
     days: Object.values(days).sort((a, b) => (a.date < b.date ? 1 : -1)),
   };
+}
+
+async function startFocus(env, body, now, justDone) {
+  const subject = body.subject && SUBJECTS.includes(body.subject) ? body.subject : null;
+  const pg = await notion(env, "/pages", "POST", { parent: { database_id: DB.focus }, properties: {
+    [F.title]: wr.title("專注 " + tpIso(now).slice(11, 16)),
+    [F.date]: wr.date(taipeiDate()),
+    [F.start]: wr.date(tpIso(now)),
+    [F.acc]: wr.number(0),
+    [F.status]: wr.select("進行中"),
+    ...(subject ? { [F.subject]: wr.select(subject) } : {}),
+  } });
+  return getFocus(env, [], { justDone, justStarted: pg });
 }
 
 async function postFocus(env, body) {
   const action = body.action;
   const cur = (await getFocus(env)).active;
   const now = Date.now();
+  if (action === "delete") {
+    if (!ID_RE.test(body.id || "")) throw new HttpError(400, "id invalid");
+    const pg = await notion(env, `/pages/${body.id}`);
+    if ((pg.parent?.database_id || "").replace(/-/g, "") !== DB.focus) throw new HttpError(400, "not a focus record");
+    await notion(env, `/pages/${body.id}`, "PATCH", { archived: true });
+    return getFocus(env, [body.id]);
+  }
+  if (action === "switch" && !cur) return startFocus(env, body, now);
+  if (action === "switch") {
+    const run = cur.status === "進行中";
+    const acc = cur.acc + (run && cur.start ? Math.max(0, Math.round((now - cur.start) / 1000)) : 0);
+    await notion(env, `/pages/${cur.id}`, "PATCH", { properties: { [F.acc]: wr.number(acc), [F.end]: wr.date(tpIso(now)), [F.status]: wr.select("完成") } });
+    const done = { ...cur, acc, end: now, status: "完成" };
+    return startFocus(env, body, now, done);
+  }
   if (action === "start") {
     if (cur) return getFocus(env);
-    const subject = body.subject && SUBJECTS.includes(body.subject) ? body.subject : null;
-    await notion(env, "/pages", "POST", { parent: { database_id: DB.focus }, properties: {
-      [F.title]: wr.title("專注 " + tpIso(now).slice(11, 16)),
-      [F.date]: wr.date(taipeiDate()),
-      [F.start]: wr.date(tpIso(now)),
-      [F.acc]: wr.number(0),
-      [F.status]: wr.select("進行中"),
-      ...(subject ? { [F.subject]: wr.select(subject) } : {}),
-    } });
-    return getFocus(env);
+    return startFocus(env, body, now);
   }
   if (!cur) return getFocus(env);
   const running = cur.status === "進行中";
@@ -327,8 +351,8 @@ async function postFocus(env, body) {
   else if (action === "stop") props = { [F.acc]: wr.number(acc), [F.end]: wr.date(tpIso(now)), [F.status]: wr.select("完成") };
   else if (action === "subject") props = { [F.subject]: wr.select(SUBJECTS.includes(body.subject) ? body.subject : null) };
   else throw new HttpError(400, "bad action");
-  await notion(env, `/pages/${cur.id}`, "PATCH", { properties: props });
-  return getFocus(env);
+  const upd = await notion(env, `/pages/${cur.id}`, "PATCH", { properties: props });
+  return getFocus(env, [], { justDone: shapeFocus(upd) });
 }
 
 // ---------- router ----------

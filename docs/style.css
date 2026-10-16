@@ -222,3 +222,5 @@ html::-webkit-scrollbar,body::-webkit-scrollbar,*::-webkit-scrollbar{display:non
 .rec .moods{margin:0 0 10px}.rec #save-record{margin-top:10px}
 .col>.note-card{flex:none}
 }
+.fc-dgh{display:flex;justify-content:space-between;margin-top:12px}
+.fc-del{min-height:28px;min-width:0;padding:0 10px;font-size:12px;flex:none}

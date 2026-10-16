@@ -354,10 +354,10 @@
       const b = e.target.closest("button"); if (!b) return; const s = b.dataset.s, a = fc.st?.active;
       if (!a) return fcAct({ action: "start", subject: s });
       if ((a.subject || "其他") === s) return fcAct({ action: a.status === "進行中" ? "pause" : "resume" });
-      await fcAct({ action: "stop" }); await fcAct({ action: "start", subject: s });
+      fcAct({ action: "switch", subject: s });
     };
-    async function fcSyncYpt() {
-      const t = fc.st?.todayDoneSec || 0; if (fc.st?.active || !t) return;
+    async function fcSyncYpt(force) {
+      const t = fc.st?.todayDoneSec || 0; if (fc.st?.active || (!t && !force)) return;
       const h = Math.floor(t / 3600), m = Math.round((t % 3600) / 60);
       if (state.record && state.record.hours === h && state.record.minutes === m) return;
       try { state.record = await api("/api/record", { hours: h, minutes: m }); renderRecord(); } catch (e) {}
@@ -365,22 +365,30 @@
     $("fc-stop").onclick = () => fcAct({ action: "stop" }).then(() => { toast("已記錄這一段"); fcSyncYpt(); });
     $("fc-mode").onclick = (e) => { const b = e.target.closest("button"); if (!b) return; fc.mode = b.dataset.m; localStorage.setItem("fcMode", fc.mode); fcRender(); };
     $("fc-time").onclick = () => { fc.mode = fc.mode === "total" ? "seg" : "total"; localStorage.setItem("fcMode", fc.mode); fcRender(); };
-    $("fc-hist").onclick = () => {
-      const st = fc.st || { days: [], sessions: [] };
+    function fcHistory() {
+      const st = fc.st || { days: [], history: [] };
       const hm = (ms) => new Date(ms + 8 * 3600e3).toISOString().slice(11, 16);
       const body = $("fc-body"); body.replaceChildren();
-      body.append(el("div", { class: "sub" }, "今日分段"));
-      const ul = el("ul", { class: "list" });
-      (st.sessions.length ? st.sessions : []).forEach((x) => ul.append(el("li", { class: "item" }, el("div", { class: "t" }, `${hm(x.start - x.acc * 1000)}–${x.end ? hm(x.end) : ""}${x.subject ? "　" + x.subject : ""}`), el("b", {}, fmtHM(x.acc)))));
-      if (!st.sessions.length) ul.append(el("li", { class: "empty" }, "今日還沒有完成的分段"));
-      body.append(ul, el("div", { class: "sub" }, "近 30 天"));
-      const max = Math.max(1, ...st.days.map((d) => d.sec));
-      const dl = el("ul", { class: "list" });
-      st.days.forEach((d) => dl.append(el("li", { class: "item fc-day" }, el("div", { class: "t" }, d.date.slice(5).replace("-", "/") + `　${d.count} 段`), el("div", { class: "fc-bar" }, el("i", { style: `width:${Math.round(d.sec / max * 100)}%` })), el("b", {}, fmtHM(d.sec)))));
-      if (!st.days.length) dl.append(el("li", { class: "empty" }, "還沒有紀錄"));
-      body.append(dl);
-      $("fc-dialog").showModal();
-    };
+      const groups = {};
+      (st.history || []).forEach((x) => (groups[x.date] ||= []).push(x));
+      const dates = Object.keys(groups).sort().reverse();
+      if (!dates.length) body.append(el("div", { class: "empty" }, "還沒有紀錄"));
+      dates.forEach((d) => {
+        const tot = groups[d].reduce((s, x) => s + x.acc, 0);
+        body.append(el("div", { class: "sub fc-dgh" }, el("span", {}, d.slice(5).replace("-", "/") + (d === st.today ? "　今天" : "")), el("b", {}, fmtHM(tot))));
+        const ul = el("ul", { class: "list" });
+        groups[d].forEach((x) => ul.append(el("li", { class: "item" },
+          el("div", { class: "t" }, `${hm(x.start)}–${x.end ? hm(x.end) : ""}　${x.subject || "其他"}`),
+          el("b", {}, fmtHM(x.acc)),
+          el("button", { class: "ghost fc-del", onclick: async () => {
+            if (!confirm("刪除這一段？")) return;
+            try { fc.st = await api("/api/focus", { action: "delete", id: x.id }); fc.off = fc.st.now - Date.now(); fcRender(); fcSyncYpt(true); fcHistory(); }
+            catch (e) { toast("刪除失敗：" + (e.message || "")); }
+          } }, "刪除"))));
+        body.append(ul);
+      });
+    }
+    $("fc-hist").onclick = () => { fcHistory(); $("fc-dialog").showModal(); };
     $("fc-close").onclick = () => $("fc-dialog").close();
     $("fc-dialog").addEventListener("click", (e) => { if (e.target === $("fc-dialog")) $("fc-dialog").close(); });
     const fcMq = matchMedia("(min-width:900px) and (min-height:560px)");
