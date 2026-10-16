@@ -446,6 +446,24 @@
           try { fc.st = await api("/api/focus", { action: "add", date: dI.value, time: tI.value, minutes: m, subject: sI.value }); fc.off = fc.st.now - Date.now(); fcRender(); fcSyncYpt(true); fcHistory(); toast("已新增"); }
           catch (e) { toast("新增失敗：" + (e.message || "")); }
         } }, "新增"))));
+      const stBox = el("div", { class: "fc-stats" }, el("div", { class: "empty" }, "統計讀取中"));
+      body.append(stBox);
+      api("/api/focus", { action: "stats" }).then((s) => {
+        const days = s.days || [], wk = {}, mo = {};
+        const mon = (d) => { const t = new Date(d + "T00:00:00Z"); const k = (t.getUTCDay() + 6) % 7; t.setUTCDate(t.getUTCDate() - k); return t.toISOString().slice(0, 10); };
+        days.forEach((x) => { wk[mon(x.date)] = (wk[mon(x.date)] || 0) + x.sec; mo[x.date.slice(0, 7)] = (mo[x.date.slice(0, 7)] || 0) + x.sec; });
+        const todayD = st.today || new Date().toISOString().slice(0, 10);
+        const row = (k, v) => el("div", { class: "fc-st-r" }, el("span", {}, k), el("b", {}, v));
+        const wkKeys = Object.keys(wk).sort().reverse().slice(0, 8), moKeys = Object.keys(mo).sort().reverse().slice(0, 12);
+        stBox.replaceChildren(
+          el("div", { class: "fc-st-top" },
+            el("div", {}, el("i", {}, "歷史總計"), el("b", {}, fmtHM(s.total || 0))),
+            el("div", {}, el("i", {}, "本週"), el("b", {}, fmtHM(wk[mon(todayD)] || 0))),
+            el("div", {}, el("i", {}, "本月"), el("b", {}, fmtHM(mo[todayD.slice(0, 7)] || 0)))),
+          el("div", { class: "sub" }, "每週"), ...wkKeys.map((k) => row(k.slice(5).replace("-", "/") + " 起", fmtHM(wk[k]))),
+          el("div", { class: "sub" }, "每月"), ...moKeys.map((k) => row(k.replace("-", "/"), fmtHM(mo[k]))),
+          el("div", { class: "sub" }, "每日明細"));
+      }).catch(() => stBox.replaceChildren(el("div", { class: "empty" }, "統計暫時無法讀取")));
       const groups = {};
       (st.history || []).forEach((x) => (groups[x.date] ||= []).push(x));
       const dates = Object.keys(groups).sort().reverse();
@@ -468,6 +486,11 @@
     $("fc-hist").onclick = () => { fcHistory(); $("fc-dialog").showModal(); };
     $("fc-close").onclick = () => $("fc-dialog").close();
     $("fc-dialog").addEventListener("click", (e) => { if (e.target === $("fc-dialog")) $("fc-dialog").close(); });
+    // mobile: lock scrolling when a tab's content fits; otherwise let it scroll and bounce back
+    const lockFit = () => document.querySelectorAll("main .rec,main [data-tab=notes]").forEach((n) => { if (!n.offsetHeight) return; n.style.overflowY = n.scrollHeight > n.clientHeight + 1 ? "auto" : "hidden"; });
+    new ResizeObserver(lockFit).observe(document.querySelector("main"));
+    new MutationObserver(lockFit).observe(document.body, { attributes: true, attributeFilter: ["data-tab"] });
+    addEventListener("resize", lockFit); setInterval(lockFit, 1500);
     const fcMq = matchMedia("(min-width:900px) and (min-height:560px)");
     const fcPlace = () => { const f = $("focus"); if (fcMq.matches) document.querySelector(".top > div").after(f); else { const r = document.querySelector(".rec"); r.querySelector(".prog").after(f); } };
     fcPlace(); fcMq.addEventListener("change", fcPlace);

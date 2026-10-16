@@ -346,6 +346,13 @@ async function startFocus(env, body, now, justDone) {
 
 async function postFocus(env, body) {
   const action = body.action;
+  if (action === "stats") {
+    const all = await queryAll(env, DB.focus, { sorts: [{ property: F.start, direction: "descending" }] });
+    const by = {};
+    let total = 0;
+    for (const r of all.map(shapeFocus)) { if (r.status !== "完成" || !r.date) continue; by[r.date] = (by[r.date] || 0) + r.acc; total += r.acc; }
+    return { total, days: Object.keys(by).sort().map((d) => ({ date: d, sec: by[d] })) };
+  }
   const cur = (await getFocus(env)).active;
   const now = Date.now();
   if (action === "add") {
