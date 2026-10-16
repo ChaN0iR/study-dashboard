@@ -333,3 +333,5 @@ body[data-tab=record] .fields{gap:6px}
 body[data-tab=record] .fields textarea,body[data-tab=record] .fld textarea,body[data-tab=record] .fld input{min-height:38px;height:38px;padding-top:6px;padding-bottom:6px}
 body[data-tab=record] #save,body[data-tab=record] .rec>button.primary{min-height:40px}
 }
+@media(max-width:899px){.top>div:first-child{display:grid;grid-template-columns:auto auto;justify-content:start;column-gap:8px;align-items:baseline}.top>div:first-child h1{display:contents}.top .title-link{grid-column:1/3;grid-row:1}.top #date{grid-column:1;grid-row:2}.top .countdown{grid-column:2;grid-row:2;font-size:12px}}
+@media(max-width:899px){.top #date{white-space:nowrap;font-size:12px}.top .countdown{white-space:nowrap;font-size:12px}.top>div:first-child{column-gap:6px}}
