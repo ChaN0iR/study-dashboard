@@ -38,11 +38,11 @@ if (FAM.startsWith("accessory")) {
   if (lrun || la) {
     if (FAM === "accessoryInline") put(lw, 14);
     else if (FAM === "accessoryCircular") { const st2 = lw.addStack(); st2.layoutVertically(); st2.centerAlignContent(); const t = put(st2, 14); t.centerAlignText(); }
-    else { if (la.subject) { const h = lw.addText(la.subject + (lrun ? "" : "　暫停")); h.font = Font.systemFont(12); } put(lw, 30); const d = lw.addText("今日 " + hm(todayS)); d.font = Font.systemFont(11); }
-  } else if (FAM === "accessoryInline") { lw.addText("今日 " + (f ? hm(todayS) : "--") + "　" + slotTxt); }
-  else if (FAM === "accessoryCircular") { const st2 = lw.addStack(); st2.layoutVertically(); st2.centerAlignContent(); const a1 = st2.addText("今日"); a1.font = Font.systemFont(9); a1.centerAlignText(); const t = st2.addText(f ? hm(todayS) : "--"); t.font = Font.boldMonospacedSystemFont(15); t.centerAlignText(); }
+    else { if (la.subject) { const h = lw.addText(la.subject + (lrun ? "" : "　暫停")); h.font = Font.systemFont(12); } put(lw, 30); const d = lw.addText("열품타 " + hm(todayS)); d.font = Font.systemFont(11); }
+  } else if (FAM === "accessoryInline") { lw.addText("열품타 " + (f ? hm(todayS) : "--") + "　" + slotTxt); }
+  else if (FAM === "accessoryCircular") { const st2 = lw.addStack(); st2.layoutVertically(); st2.centerAlignContent(); const a1 = st2.addText("열품타"); a1.font = Font.systemFont(9); a1.centerAlignText(); const t = st2.addText(f ? hm(todayS) : "--"); t.font = Font.boldMonospacedSystemFont(15); t.centerAlignText(); }
   else {
-    const h = lw.addText("今日專注 " + (f ? hm(todayS) : "--")); h.font = Font.boldSystemFont(15); h.lineLimit = 1;
+    const h = lw.addText("열품타 " + (f ? hm(todayS) : "--")); h.font = Font.boldSystemFont(15); h.lineLimit = 1;
     const c = lw.addText(slotTxt); c.font = Font.systemFont(12); c.lineLimit = 1;
     if (slot && nextS) { const n = lw.addText("接著 " + nextS[0] + " " + nextS[2]); n.font = Font.systemFont(11); n.lineLimit = 1; n.textOpacity = 0.7; }
   }
@@ -176,7 +176,7 @@ try {
   const segS = a ? Math.max(0, a.acc + (running ? (f.now - a.start) / 1000 : 0)) : 0;
   const todayS = f.todayDoneSec + segS;
   // 有科目在計時：大字顯示該科目本段；沒有則顯示今日總計
-  const bigSec = a ? segS : todayS, label = a ? (a.subject || "專注") + (running ? "" : "　暫停") : "今日";
+  const bigSec = a ? segS : todayS, label = a ? (a.subject || "專注") + (running ? "" : "　暫停") : "열품타";
   const big = fam === "small" ? 20 : 26;
   let box = w;
   if (R) { box = R; { const CW = 300, lw2 = Math.min(leftEst, CW * 0.62), rw = Math.max(84, Math.min(150, CW - lw2 - 8)); R.size = new Size(rw, fam === "large" ? 280 : 125); } R.addSpacer(); }
@@ -187,7 +187,7 @@ try {
   if (running) { const t = box.addDate(new Date(Date.now() - bigSec * 1000)); t.applyTimerStyle(); t.font = Font.boldMonospacedSystemFont(big); t.textColor = fc; t.minimumScaleFactor = 0.4; t.lineLimit = 1; al(t); }
   else { const t = box.addText(hms(bigSec)); t.font = Font.boldMonospacedSystemFont(big); t.textColor = a ? muted : fc; t.minimumScaleFactor = 0.4; t.lineLimit = 1; al(t); }
   if (R) R.addSpacer();
-  if (a) { const d = box.addText("今日 " + hms(todayS)); d.font = Font.systemFont(12); d.textColor = muted; al(d); }
+  if (a) { const d = box.addText("열품타 " + hms(todayS)); d.font = Font.systemFont(12); d.textColor = muted; al(d); }
   else { const d = box.addText("尚未計時"); d.font = Font.systemFont(12); d.textColor = muted; al(d); }
   if (R) R.addSpacer();
 } catch (e) {}
