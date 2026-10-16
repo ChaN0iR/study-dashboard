@@ -115,7 +115,7 @@
     const rest = ["日", "四"].some((d) => String(now.wd || "").includes(d)) || [0, 4].includes(now.dow);
     const slots = rest ? C.SCHEDULE.map((x) => x.name === "重量訓練＋洗澡" ? { ...x, name: "輕度運動", keys: ["運動", "步數", "散步"] } : x) : C.SCHEDULE;
     const idx = slots.findIndex((s) => now.min >= toMin(s.start) && now.min < toMin(s.end));
-    box.append(el("h2", {}, "現在"));
+    box.append(el("span", { class: "eyebrow" }, "現在的節奏"), el("h2", {}, "現在"));
     let slot = null, title, meta;
     if (idx >= 0) {
       slot = slots[idx];
@@ -146,7 +146,7 @@
   const shortTitle = (s) => String(s || "").replace(/[\u{1F000}-\u{1FAFF}\u2600-\u27BF\uFE0F]/gu, "").replace(/[（(][^）)]*[）)]/g, "").replace(/｜.*$/, "").replace(/\s+/g, " ").trim();
   function taskItem(t) {
     return el("li", { class: "item" + (t.done ? " done" : "") },
-      el("button", { class: "chk", role: "checkbox", "aria-checked": String(t.done), "aria-label": "完成", onclick: () => toggleTask(t) }),
+      el("button", { class: "chk", role: "checkbox", "aria-checked": String(t.done), "aria-label": t.done ? "取消完成" : "標記完成", onclick: () => toggleTask(t) }),
       el("div", { class: "t", title: t.title }, shortTitle(t.title), t.source !== "今日" ? el("span", { class: "tag" }, t.source) : null),
       t.skipped ? el("button", { class: "ghost", onclick: () => skipTask(t, false) }, "恢復")
         : t.done ? null : el("button", { class: "ghost", onclick: () => skipTask(t, true) }, "跳過"));
@@ -156,7 +156,10 @@
     const real = state.tasks.filter((t) => !t.skipped).sort((a, b) => a.done - b.done || a.order - b.order);
     const skipped = state.tasks.filter((t) => t.skipped);
     const assigned = state.tasks.filter((t) => t.source === "今日" && !t.skipped);
+    const done = real.filter((t) => t.done).length, pct = real.length ? Math.round(done / real.length * 100) : 0;
     $("task-count").textContent = assigned.length ? `${assigned.filter((t) => t.done).length}/${assigned.length}` : "";
+    $("task-prog-i").style.width = pct + "%";
+    $("task-momentum").textContent = real.length ? (done === real.length ? "今日清單完成" : `${pct}% 已完成`) : "今天先休息";
     $("tasks").replaceChildren(...(real.length ? real.map(taskItem) : [el("li", { class: "empty" }, "今天沒有任務")]));
     $("skipped-wrap").hidden = !skipped.length;
     updateProg();
@@ -233,7 +236,7 @@
         el("div", { class: "lv-bar" }, el("i", { style: `width:${inRank * 10}%` }))));
       g.items.forEach((l) => rows.push(
         el("li", { class: "item lesson" + (l.done ? " done" : "") },
-          el("button", { class: "chk", role: "checkbox", "aria-checked": String(l.done), "aria-label": "完成", onclick: () => toggleLesson(l) }),
+          el("button", { class: "chk", role: "checkbox", "aria-checked": String(l.done), "aria-label": l.done ? "取消完成" : "標記完成", onclick: () => toggleLesson(l) }),
           el("div", { class: "t" }, l.title,
             el("div", { class: "meta" }, [l.subject, l.minutes ? `${l.minutes} 分` : null, l.due ? "該複習" : null].filter(Boolean).join("　"))),
           null)));
@@ -397,6 +400,7 @@
         const k = b.dataset.s;
         b.classList.toggle("on", !!a && (a.subject || "其他") === k);
         b.classList.toggle("run", !!running && (a.subject || "其他") === k);
+        b.setAttribute("aria-pressed", String(!!a && (a.subject || "其他") === k));
         b.querySelector("i").textContent = by[k] ? fmtHM(by[k]) : "";
         b.title = by[k] ? `${k} ${fmtHM(by[k])}` : k;
       });
@@ -407,7 +411,7 @@
       const goalH = Math.min(10, Math.max(3, 3 + assigned * 0.5)), pct = Math.round(totalSec() / (goalH * 3600) * 100);
       $("fc-prog-i").style.width = Math.min(100, pct) + "%"; $("fc-prog-i").parentNode.classList.toggle("over", pct > 100);
       $("fc-goal-t").textContent = `目標 ${goalH} 時　${pct}%`;
-      document.title = running ? `${fmtHMS(t)} 열품타 ${a.subject || "其他"}` : "清大後醫";
+      document.title = running ? `${fmtHMS(t)} 專注 ${a.subject || "其他"}` : "清大後醫";
     }
     async function fcLoad() {
       if (fc.busy) return; try { const d = await api("/api/focus"); const pn = fc.pin; if (pn && Date.now() < pn.until && ((d.active ? d.active.id : null) !== pn.id || (d.active ? d.active.status : null) !== pn.status)) return; fc.st = d; fc.off = d.now - Date.now(); fcRender(); fcSyncYpt(); } catch (e) { /* offline or not deployed */ }
@@ -436,8 +440,10 @@
       if (state.record && state.record.hours === h && state.record.minutes === m) return;
       try { state.record = await api("/api/record", { hours: h, minutes: m }); renderRecord(); } catch (e) {}
     }
-    $("fc-mode").onclick = () => { fc.mode = fc.mode === "total" ? "seg" : "total"; localStorage.setItem("fcMode", fc.mode); fcRender(); };
-    $("fc-time").onclick = () => { fc.mode = fc.mode === "total" ? "seg" : "total"; localStorage.setItem("fcMode", fc.mode); fcRender(); };
+    const fcToggleMode = () => { fc.mode = fc.mode === "total" ? "seg" : "total"; localStorage.setItem("fcMode", fc.mode); fcRender(); };
+    $("fc-mode").onclick = fcToggleMode;
+    $("fc-time").onclick = fcToggleMode;
+    $("fc-time").onkeydown = (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); fcToggleMode(); } };
     function fcHistory() {
       const st = fc.st || { days: [], history: [] };
       const hm = (ms) => new Date(ms + 8 * 3600e3).toISOString().slice(11, 16);
