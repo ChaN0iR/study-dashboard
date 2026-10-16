@@ -323,8 +323,10 @@
     if (nd.title) $("n-title").value = nd.title; if (nd.subject) $("n-subject").value = nd.subject;
     ["n-title", "n-subject"].forEach((id) => $(id).addEventListener("input", ndSave));
     ndRender();
-    const ndAddText = () => { const v = $("n-points").value.trim(); if (!v) return false; nd.items.push({ t: "text", v }); $("n-points").value = ""; ndSave(); ndRender(); return true; };
-    $("n-add").onclick = ndAddText;
+    const ndAddText = () => { const v = $("n-points").value.trim(); if (!v) return false; nd.items.push({ t: "text", v }); $("n-points").value = ""; $("n-points").style.height = "auto"; ndSave(); ndRender(); return true; };
+    const grow = () => { const t = $("n-points"); t.style.height = "auto"; t.style.height = Math.min(t.scrollHeight, 220) + "px"; };
+    $("n-points").addEventListener("input", grow);
+    $("n-add").onclick = () => { ndAddText(); grow(); };
     $("n-points").addEventListener("keydown", (e) => { if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) { e.preventDefault(); ndAddText(); } });
     $("n-photo").onclick = () => $("n-file").click();
     const shrink = (file) => new Promise((res, rej) => {
