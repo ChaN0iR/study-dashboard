@@ -131,6 +131,13 @@ if (fam === "small") {
   w.addSpacer();
   line(`${nxt && cur ? "接著 " + nxt[0] + " " + nxt[2] + "　" : ""}${Math.round(pct * 100)}%　${done}/${total}`, 10, muted);
 }
+try {
+  const fr = new Request(API + "/api/focus"); fr.headers = { "x-app-key": key };
+  const f = await fr.loadJSON();
+  const a = f.active, hms = x => { x = Math.floor(x); return Math.floor(x / 3600) + "h" + String(Math.floor(x / 60) % 60).padStart(2, "0") + "m"; };
+  let seg = 0; if (a) seg = a.acc + (a.status === "進行中" ? (f.now - a.start) / 1000 : 0);
+  line("專注 今日 " + hms(f.todayDoneSec + seg) + (a ? (a.status === "進行中" ? "　進行中" : "　暫停") : ""), 11, muted, false);
+} catch (e) {}
 if (err) { const e = w.addText("離線資料"); e.font = Font.systemFont(9); e.textColor = muted; }
 
 if (config.runsInApp) await w.presentMedium();

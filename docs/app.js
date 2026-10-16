@@ -306,6 +306,57 @@
       await api("/api/note", { title, subject: $("n-subject").value, points: $("n-points").value });
       $("n-title").value = ""; $("n-points").value = "";
     }, "筆記已新增");
+
+    // ---------- focus timer ----------
+    const fc = { st: null, off: 0, mode: localStorage.getItem("fcMode") || "total", busy: false };
+    const fmtHMS = (s) => { s = Math.max(0, Math.floor(s)); return `${Math.floor(s / 3600)}:${String(Math.floor(s / 60) % 60).padStart(2, "0")}:${String(s % 60).padStart(2, "0")}`; };
+    const fmtHM = (s) => `${Math.floor(s / 3600)}h${String(Math.floor(s / 60) % 60).padStart(2, "0")}m`;
+    const segSec = () => { const a = fc.st?.active; if (!a) return 0; return a.acc + (a.status === "進行中" && a.start ? (Date.now() + fc.off - a.start) / 1000 : 0); };
+    const totalSec = () => (fc.st?.todayDoneSec || 0) + segSec();
+    function fcRender() {
+      const a = fc.st?.active, running = a?.status === "進行中";
+      const t = fc.mode === "total" ? totalSec() : segSec();
+      $("fc-time").textContent = fmtHMS(t);
+      $("fc-time").classList.toggle("run", !!running);
+      $("fc-main").textContent = !a ? "開始專注" : running ? "暫停" : "繼續";
+      $("fc-stop").hidden = !a;
+      const n = (fc.st?.sessions?.length || 0) + (a ? 1 : 0);
+      $("fc-sub").textContent = fc.mode === "total" ? (n ? `今日 ${n} 段` : "今日尚未開始") : (a ? (running ? "進行中" : "已暫停") + `　今日合計 ${fmtHM(totalSec())}` : `今日合計 ${fmtHM(totalSec())}`);
+      document.querySelectorAll("#fc-mode button").forEach((b) => b.setAttribute("aria-checked", String(b.dataset.m === fc.mode)));
+      document.title = running ? `${fmtHMS(t)} 專注中` : "清大後醫";
+    }
+    async function fcLoad() {
+      try { const d = await api("/api/focus"); fc.st = d; fc.off = d.now - Date.now(); fcRender(); } catch (e) { /* offline or not deployed */ }
+    }
+    async function fcAct(body) {
+      if (fc.busy) return; fc.busy = true;
+      try { const d = await api("/api/focus", body); fc.st = d; fc.off = d.now - Date.now(); fcRender(); }
+      catch (e) { toast("無法連線：" + (e.message || "")); } finally { fc.busy = false; }
+    }
+    $("fc-main").onclick = () => { const a = fc.st?.active; fcAct({ action: !a ? "start" : a.status === "進行中" ? "pause" : "resume" }); };
+    $("fc-stop").onclick = () => fcAct({ action: "stop" }).then(() => toast("已記錄這一段"));
+    $("fc-mode").onclick = (e) => { const b = e.target.closest("button"); if (!b) return; fc.mode = b.dataset.m; localStorage.setItem("fcMode", fc.mode); fcRender(); };
+    $("fc-time").onclick = () => { fc.mode = fc.mode === "total" ? "seg" : "total"; localStorage.setItem("fcMode", fc.mode); fcRender(); };
+    $("fc-hist").onclick = () => {
+      const st = fc.st || { days: [], sessions: [] };
+      const hm = (ms) => new Date(ms + 8 * 3600e3).toISOString().slice(11, 16);
+      const body = $("fc-body"); body.replaceChildren();
+      body.append(el("div", { class: "sub" }, "今日分段"));
+      const ul = el("ul", { class: "list" });
+      (st.sessions.length ? st.sessions : []).forEach((x) => ul.append(el("li", { class: "item" }, el("div", { class: "t" }, `${hm(x.start - x.acc * 1000)}–${x.end ? hm(x.end) : ""}${x.subject ? "　" + x.subject : ""}`), el("b", {}, fmtHM(x.acc)))));
+      if (!st.sessions.length) ul.append(el("li", { class: "empty" }, "今日還沒有完成的分段"));
+      body.append(ul, el("div", { class: "sub" }, "近 30 天"));
+      const max = Math.max(1, ...st.days.map((d) => d.sec));
+      const dl = el("ul", { class: "list" });
+      st.days.forEach((d) => dl.append(el("li", { class: "item fc-day" }, el("div", { class: "t" }, d.date.slice(5).replace("-", "/") + `　${d.count} 段`), el("div", { class: "fc-bar" }, el("i", { style: `width:${Math.round(d.sec / max * 100)}%` })), el("b", {}, fmtHM(d.sec)))));
+      if (!st.days.length) dl.append(el("li", { class: "empty" }, "還沒有紀錄"));
+      body.append(dl);
+      $("fc-dialog").showModal();
+    };
+    $("fc-close").onclick = () => $("fc-dialog").close();
+    $("fc-dialog").addEventListener("click", (e) => { if (e.target === $("fc-dialog")) $("fc-dialog").close(); });
+    fcLoad(); setInterval(fcRender, 1000); setInterval(fcLoad, 8000);
+    document.addEventListener("visibilitychange", () => { if (!document.hidden) fcLoad(); });
     load();
     setInterval(() => { renderNow(); }, 30000);
     document.addEventListener("visibilitychange", () => { if (!document.hidden) load(true); });

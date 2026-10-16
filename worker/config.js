@@ -10,6 +10,7 @@ export const DB = {
   records: "32f59a83237642d39afd5442c17dda44",      // 每日紀錄   (collection 0a848c84-e67b-4fe8-a012-183d85c8bf42)
   lessons: "928e62e9a1554995b85e14175a14da44",      // 課程進度 / 我的課程 (collection 382f9f1d-15ef-4f12-ac1f-5198db795613)
   notes:   "b3abf87b39c249a2b0758bc90ebbbee0",      // 筆記       (collection 7f9e2bff-5448-4311-b87b-1f44d09d4854)
+  focus:   "5a64541f431649f0b8fa53f6c2b1818c",      // 專注紀錄 (collection b8024dd5-87e0-4215-9f20-dc8cb3fe067a)
   recs:    "81992a3c24d544a0af4dddddc23780d1",      // 推薦任務   (collection fc989b2a-97f9-4a4d-900e-8365b9a10e12) - not used by the API yet
 };
 

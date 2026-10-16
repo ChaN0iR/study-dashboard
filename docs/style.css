@@ -170,3 +170,20 @@ html::-webkit-scrollbar,body::-webkit-scrollbar,*::-webkit-scrollbar{display:non
 }
 .num span{white-space:nowrap}
 .num input{width:50px}
+
+/* focus timer */
+.focus{padding:14px 16px}
+.fc-head{display:flex;align-items:center;gap:8px;margin-bottom:4px}.fc-head h2{margin:0;flex:1}
+.fc-seg{display:grid;grid-template-columns:auto auto;margin:0;border-radius:8px}.fc-seg button{min-height:28px!important;padding:0 10px;font-size:12px}
+.fc-hist{min-height:28px;min-width:0;padding:0 10px;font-size:12px}
+.fc-time{font-size:44px;font-weight:700;font-variant-numeric:tabular-nums;letter-spacing:.01em;line-height:1.15;cursor:pointer;user-select:none;transition:opacity .3s}
+.fc-time.run{animation:fcpulse 2s ease-in-out infinite}
+@keyframes fcpulse{50%{opacity:.72}}
+.fc-sub{font-size:12px;min-height:18px}
+.fc-btns{display:flex;gap:8px;margin-top:8px}.fc-btns .primary{margin:0;min-height:42px;flex:1}.fc-btns .ghost{min-height:42px;padding:0 18px}
+.fc-dialog{border:1px solid var(--line);border-radius:16px;background:var(--card);color:var(--fg);width:min(440px,92vw);max-height:80vh;padding:16px;overflow:auto}
+.fc-dialog::backdrop{background:rgba(0,0,0,.45);backdrop-filter:blur(2px)}
+.fc-dh{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px}.fc-dh h2{margin:0}
+.fc-day .t{flex:none;width:96px}.fc-bar{flex:1;height:6px;background:var(--line);border-radius:3px;overflow:hidden}.fc-bar i{display:block;height:100%;background:var(--acc)}
+.fc-day b,.fc-dialog .item b{font-variant-numeric:tabular-nums;font-size:13px}
+@media(max-width:899px){.fc-time{font-size:40px}}

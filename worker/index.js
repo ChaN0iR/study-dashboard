@@ -261,6 +261,76 @@ async function postNote(env, body) {
   return { id: pg.id, title };
 }
 
+
+// ---------- focus timer ----------
+const F = { title: "紀錄", date: "日期", start: "開始", end: "結束", acc: "累計秒", status: "狀態", subject: "科目" };
+const tpIso = (ms = Date.now()) => new Date(ms + 8 * 3600e3).toISOString().slice(0, 19) + "+08:00";
+const shapeFocus = (pg) => {
+  const p = pg.properties;
+  return {
+    id: pg.id,
+    status: rd.select(p[F.status]),
+    start: rd.date(p[F.start]) ? Date.parse(rd.date(p[F.start])) : null,
+    end: rd.date(p[F.end]) ? Date.parse(rd.date(p[F.end])) : null,
+    acc: rd.number(p[F.acc]) || 0,
+    subject: rd.select(p[F.subject]),
+    date: rd.date(p[F.date]),
+  };
+};
+
+async function getFocus(env) {
+  const today = taipeiDate();
+  const since = taipeiDate(-29);
+  const rows = (await queryAll(env, DB.focus, {
+    filter: { property: F.date, date: { on_or_after: since } },
+    sorts: [{ property: F.start, direction: "descending" }],
+  })).map(shapeFocus);
+  const active = rows.find((r) => r.status === "進行中" || r.status === "暫停") || null;
+  const done = rows.filter((r) => r.status === "完成");
+  const days = {};
+  for (const r of done) {
+    const d = (days[r.date] ||= { date: r.date, sec: 0, count: 0 });
+    d.sec += r.acc; d.count++;
+  }
+  return {
+    now: Date.now(),
+    active,
+    todayDoneSec: done.filter((r) => r.date === today).reduce((a, r) => a + r.acc, 0),
+    sessions: done.filter((r) => r.date === today).sort((a, b) => a.start - b.start),
+    days: Object.values(days).sort((a, b) => (a.date < b.date ? 1 : -1)),
+  };
+}
+
+async function postFocus(env, body) {
+  const action = body.action;
+  const cur = (await getFocus(env)).active;
+  const now = Date.now();
+  if (action === "start") {
+    if (cur) return getFocus(env);
+    const subject = body.subject && SUBJECTS.includes(body.subject) ? body.subject : null;
+    await notion(env, "/pages", "POST", { parent: { database_id: DB.focus }, properties: {
+      [F.title]: wr.title("專注 " + tpIso(now).slice(11, 16)),
+      [F.date]: wr.date(taipeiDate()),
+      [F.start]: wr.date(tpIso(now)),
+      [F.acc]: wr.number(0),
+      [F.status]: wr.select("進行中"),
+      ...(subject ? { [F.subject]: wr.select(subject) } : {}),
+    } });
+    return getFocus(env);
+  }
+  if (!cur) return getFocus(env);
+  const running = cur.status === "進行中";
+  const acc = cur.acc + (running && cur.start ? Math.max(0, Math.round((now - cur.start) / 1000)) : 0);
+  let props;
+  if (action === "pause") { if (!running) return getFocus(env); props = { [F.acc]: wr.number(acc), [F.status]: wr.select("暫停") }; }
+  else if (action === "resume") { if (running) return getFocus(env); props = { [F.start]: wr.date(tpIso(now)), [F.status]: wr.select("進行中") }; }
+  else if (action === "stop") props = { [F.acc]: wr.number(acc), [F.end]: wr.date(tpIso(now)), [F.status]: wr.select("完成") };
+  else if (action === "subject") props = { [F.subject]: wr.select(SUBJECTS.includes(body.subject) ? body.subject : null) };
+  else throw new HttpError(400, "bad action");
+  await notion(env, `/pages/${cur.id}`, "PATCH", { properties: props });
+  return getFocus(env);
+}
+
 // ---------- router ----------
 export default {
   async fetch(request, env) {
@@ -281,7 +351,11 @@ export default {
       if (request.method === "GET" && seg[1] === "state" && seg.length === 2)
         return json(await getState(env), 200, env, { "cache-control": "no-store" });
 
+      if (request.method === "GET" && seg[1] === "focus" && seg.length === 2)
+        return json(await getFocus(env), 200, env, { "cache-control": "no-store" });
+
       if (request.method === "POST") {
+        if (seg[1] === "focus" && seg.length === 2) return json(await postFocus(env, await readBody()), 200, env);
         if (seg[1] === "record" && seg.length === 2) return json(await postRecord(env, await readBody()), 200, env);
         if (seg[1] === "note" && seg.length === 2) return json(await postNote(env, await readBody()), 200, env);
         if ((seg[1] === "task" || seg[1] === "lesson") && seg.length === 3) {
