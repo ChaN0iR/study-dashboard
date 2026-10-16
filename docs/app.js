@@ -297,6 +297,15 @@
         });
       }
     });
+    $("hevy-link").addEventListener("click", (e) => {
+      const ua = navigator.userAgent || "", web = "https://hevy.com/";
+      if (/iPhone|iPad|iPod/i.test(ua)) {
+        e.preventDefault(); let left = false; const onHide = () => { left = true; };
+        document.addEventListener("visibilitychange", onHide, { once: true });
+        location.href = "hevy://";
+        setTimeout(() => { document.removeEventListener("visibilitychange", onHide); if (!left && !document.hidden) window.open(web, "_blank", "noopener"); }, 1800);
+      } else if (/Android/i.test(ua)) { e.preventDefault(); location.href = "intent://#Intent;scheme=hevy;package=com.hevy;S.browser_fallback_url=" + encodeURIComponent(web) + ";end"; }
+    });
     $("reset-key").onclick = (e) => {
       e.preventDefault();
       const u = prompt("Worker 網址（留空保持不變）", apiBase()); if (u) localStorage.setItem("apiBase", u.trim());
