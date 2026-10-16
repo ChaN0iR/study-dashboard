@@ -114,36 +114,38 @@ const mainTitle = cur ? cur[2] : (nxt ? "下一段　" + nxt[2] : (nowMin < 420 
 const sub = cur ? `${cur[0]}–${cur[1]}　剩 ${left} 分` : (nxt ? `${nxt[0]} 開始` : "");
 const doNow = fit.length ? fit : (mode === "done" ? [] : rest.slice(0, 2));
 const GAP = fam === "small" ? 4 : (fam === "medium" ? 6 : 9);
-function line(txt, size, color, bold) { const x = w.addText(txt); x.font = bold ? Font.boldSystemFont(size) : Font.systemFont(size); x.textColor = color; x.lineLimit = 1; w.addSpacer(GAP); return x; }
+let T = w, R = null;
+if (fam !== "small") { const H = w.addStack(); H.layoutHorizontally(); T = H.addStack(); T.layoutVertically(); H.addSpacer(); R = H.addStack(); R.layoutVertically(); R.bottomAlignContent(); }
+function line(txt, size, color, bold) { const x = T.addText(txt); x.font = bold ? Font.boldSystemFont(size) : Font.systemFont(size); x.textColor = color; x.lineLimit = 1; T.addSpacer(GAP); return x; }
 
 if (fam === "small") {
   line(sub, 10, muted);
   const m = line(mainTitle, 17, fc, true); m.minimumScaleFactor = 0.6;
-  w.addSpacer(6);
+  T.addSpacer(6);
   doNow.slice(0, 3).forEach(t => { const x = line("○ " + t.title, 11, fc); x.lineLimit = 2;  });
-  w.addSpacer();
+  T.addSpacer();
   line(`${Math.round(pct * 100)}%　${done}/${total}`, 10, muted);
 } else if (fam === "large") {
   line(sub, 12, muted);
   const m = line(mainTitle, 26, fc, true); m.minimumScaleFactor = 0.6;
-  w.addSpacer(8);
+  T.addSpacer(8);
   line("現在做", 11, muted);
   doNow.slice(0, 5).forEach(t => { const x = line("○ " + t.title, 15, fc); x.lineLimit = 2;  });
   if (!doNow.length) line(mode === "done" ? "今天的任務都完成了" : "這個時段沒有指定任務", 14, fc);
-  w.addSpacer(8);
+  T.addSpacer(8);
   if (nxt && cur) line(`接著　${nxt[0]}　${nxt[2]}`, 12, muted);
-  w.addSpacer(6);
+  T.addSpacer(6);
   line("其他未完成", 11, muted);
   rest.slice(0, 5).forEach(t => line("○ " + t.title, 12, muted));
-  w.addSpacer();
+  T.addSpacer();
   line(`${label}　${bar(pct)}　${done}/${total}`, 11, muted);
 } else {
   line(sub, 11, muted);
   const m = line(mainTitle, 22, fc, true); m.minimumScaleFactor = 0.6;
-  w.addSpacer(4);
+  T.addSpacer(4);
   doNow.slice(0, 2).forEach(t => line("○ " + t.title, 13, fc));
   if (!doNow.length) line(mode === "done" ? "今天的任務都完成了" : "這個時段沒有指定任務", 12, fc);
-  w.addSpacer();
+  T.addSpacer();
   line(`${nxt && cur ? "接著 " + nxt[0] + " " + nxt[2] + "　" : ""}${Math.round(pct * 100)}%　${done}/${total}`, 10, muted);
 }
 try {
@@ -153,12 +155,14 @@ try {
   const running = a && a.status === "進行中";
   const seg = a ? a.acc + (running ? (f.now - a.start) / 1000 : 0) : 0;
   const total = f.todayDoneSec + seg;
-  const big = fam === "small" ? 18 : 24;
-  const row = w.addStack(); row.layoutHorizontally(); row.centerAlignContent();
-  const lb = row.addText((a ? (a.subject || "專注") : "今日專注") + "　"); lb.font = Font.systemFont(11); lb.textColor = muted;
-  if (running) { const t = row.addDate(new Date(Date.now() - total * 1000)); t.applyTimerStyle(); t.font = Font.boldMonospacedSystemFont(big); t.textColor = fc; }
-  else { const t = row.addText(hms(total)); t.font = Font.boldMonospacedSystemFont(big); t.textColor = a ? muted : fc; }
-  if (a && !running) { const p = row.addText("　暫停"); p.font = Font.systemFont(10); p.textColor = muted; }
+  const big = fam === "small" ? 18 : 26;
+  let row = w;
+  if (R) { row = R; }
+  else { row = w.addStack(); row.layoutHorizontally(); row.centerAlignContent(); }
+  const lbT = (a ? (a.subject || "專注") + (running ? "" : "　暫停") : "今日專注");
+  const lb = row.addText(lbT); lb.font = Font.systemFont(11); lb.textColor = muted; if (R) lb.rightAlignText();
+  if (running) { const t = row.addDate(new Date(Date.now() - total * 1000)); t.applyTimerStyle(); t.font = Font.boldMonospacedSystemFont(big); t.textColor = fc; if (R) t.rightAlignText(); }
+  else { const t = row.addText(hms(total)); t.font = Font.boldMonospacedSystemFont(big); t.textColor = a ? muted : fc; if (R) t.rightAlignText(); }
 } catch (e) {}
 if (err) { const e = w.addText("離線資料"); e.font = Font.systemFont(9); e.textColor = muted; }
 
