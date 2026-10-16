@@ -371,7 +371,8 @@
     // ---------- focus timer ----------
     const fc = { st: null, off: 0, mode: localStorage.getItem("fcMode") || "total", busy: false };
     const fmtHMS = (s) => { s = Math.max(0, Math.floor(s)); return `${Math.floor(s / 3600)}:${String(Math.floor(s / 60) % 60).padStart(2, "0")}:${String(s % 60).padStart(2, "0")}`; };
-    const fmtHM = (s) => `${Math.floor(s / 3600)}h${String(Math.floor(s / 60) % 60).padStart(2, "0")}m`;
+    const fmtHM = (s) => `${Math.floor(s / 3600)}時${String(Math.floor(s / 60) % 60).padStart(2, "0")}分`;
+    const fmtFull = (s) => { s = Math.max(0, Math.floor(s)); return `${Math.floor(s / 86400)}天 ${Math.floor(s / 3600) % 24}時 ${Math.floor(s / 60) % 60}分 ${s % 60}秒`; };
     const segSec = () => { const a = fc.st?.active; if (!a) return 0; const st0 = fc.anchor && fc.anchor.id === a.id && a.acc < 5 ? fc.anchor.start : a.start; return Math.max(0, a.acc + (a.status === "進行中" && st0 ? (Date.now() + fc.off - st0) / 1000 : 0)); };
     const totalSec = () => (fc.st?.todayDoneSec || 0) + segSec();
     function fcRender() {
@@ -379,8 +380,6 @@
       const t = fc.mode === "total" ? totalSec() : segSec();
       $("fc-time").textContent = fmtHMS(t);
       $("fc-time").classList.toggle("run", !!running);
-      $("fc-main").textContent = running ? "暫停" : "繼續";
-      $("fc-main").hidden = !a; $("fc-stop").hidden = !a;
       const by = {};
       (fc.st?.sessions || []).forEach((x) => { const k = x.subject || "其他"; by[k] = (by[k] || 0) + x.acc; });
       if (a) { const k = a.subject || "其他"; by[k] = (by[k] || 0) + segSec(); }
@@ -415,11 +414,10 @@
       try { const d = await api("/api/focus", body); if (body.action === "switch" || body.action === "start") fc.anchor = d.active ? { id: d.active.id, start: clickAt } : null; fc.st = d; fc.off = d.now - Date.now(); fc.pin = { id: d.active ? d.active.id : null, status: d.active ? d.active.status : null, until: Date.now() + 40000 }; fcRender(); }
       catch (e) { fc.anchor = null; setTimeout(fcLoad, 300); toast("無法連線：" + (e.message || "")); } finally { fc.busy = false; }
     }
-    $("fc-main").onclick = () => { const a = fc.st?.active; if (a) fcAct({ action: a.status === "進行中" ? "pause" : "resume" }); };
     $("fc-subj").onclick = async (e) => {
       const b = e.target.closest("button"); if (!b) return; const s = b.dataset.s, a = fc.st?.active;
       if (!a) return fcAct({ action: "start", subject: s });
-      if ((a.subject || "其他") === s) return fcAct({ action: a.status === "進行中" ? "pause" : "resume" });
+      if ((a.subject || "其他") === s) return fcAct({ action: "stop" }).then(() => { toast("已記錄這一段"); fcSyncYpt(); });
       fcAct({ action: "switch", subject: s });
     };
     async function fcSyncYpt(force) {
@@ -428,7 +426,6 @@
       if (state.record && state.record.hours === h && state.record.minutes === m) return;
       try { state.record = await api("/api/record", { hours: h, minutes: m }); renderRecord(); } catch (e) {}
     }
-    $("fc-stop").onclick = () => fcAct({ action: "stop" }).then(() => { toast("已記錄這一段"); fcSyncYpt(); });
     $("fc-mode").onclick = () => { fc.mode = fc.mode === "total" ? "seg" : "total"; localStorage.setItem("fcMode", fc.mode); fcRender(); };
     $("fc-time").onclick = () => { fc.mode = fc.mode === "total" ? "seg" : "total"; localStorage.setItem("fcMode", fc.mode); fcRender(); };
     function fcHistory() {
@@ -436,18 +433,24 @@
       const hm = (ms) => new Date(ms + 8 * 3600e3).toISOString().slice(11, 16);
       const body = $("fc-body"); body.replaceChildren();
       const subs = ["英文", "化學", "生物", "物理", "生化"];
-      const dI = el("input", { type: "date", value: st.today || new Date().toISOString().slice(0, 10) });
-      const tI = el("input", { type: "time", value: "09:00" });
+      const nowT = hm(Date.now());
+      const tI = el("input", { type: "time", value: nowT });
       const mI = el("input", { type: "number", inputmode: "numeric", min: "1", max: "1440", placeholder: "分鐘" });
       const sI = el("select", {}, ...subs.map((x) => el("option", { value: x }, x)));
+      const per = (v) => { if (!v) return "今日"; const [h, m] = v.split(":").map(Number); const p = h < 5 ? "凌晨" : h < 12 ? "上午" : h < 13 ? "中午" : h < 18 ? "下午" : "晚上"; return `今日 ${p} ${h % 12 === 0 ? 12 : h % 12}點${String(m).padStart(2, "0")}分`; };
+      const pl = el("span", { class: "fc-per" }, per(nowT));
+      const addB = el("button", { class: "primary", type: "button", disabled: true, onclick: async () => {
+        const m = Number(mI.value); if (!(m >= 1) || !tI.value) return;
+        addB.disabled = true;
+        try { fc.st = await api("/api/focus", { action: "add", date: st.today || new Date().toISOString().slice(0, 10), time: tI.value, minutes: m, subject: sI.value }); fc.off = fc.st.now - Date.now(); fcRender(); fcSyncYpt(true); fcHistory(); toast("已新增"); }
+        catch (e) { addB.disabled = false; toast("新增失敗：" + (e.message || "")); }
+      } }, "新增");
+      const chk = () => { addB.disabled = !(Number(mI.value) >= 1 && tI.value); pl.textContent = per(tI.value); };
+      mI.addEventListener("input", chk); tI.addEventListener("input", chk);
       body.append(el("div", { class: "fc-add" },
-        el("div", { class: "sub" }, "新增紀錄"),
-        el("div", { class: "fc-add-row" }, dI, tI),
-        el("div", { class: "fc-add-row" }, sI, mI, el("button", { class: "primary", type: "button", onclick: async () => {
-          const m = Number(mI.value); if (!(m >= 1)) return toast("請輸入分鐘數");
-          try { fc.st = await api("/api/focus", { action: "add", date: dI.value, time: tI.value, minutes: m, subject: sI.value }); fc.off = fc.st.now - Date.now(); fcRender(); fcSyncYpt(true); fcHistory(); toast("已新增"); }
-          catch (e) { toast("新增失敗：" + (e.message || "")); }
-        } }, "新增"))));
+        el("div", { class: "sub" }, "新增紀錄（僅限今日）"),
+        el("div", { class: "fc-add-row fc-per-row" }, pl, tI),
+        el("div", { class: "fc-add-row" }, sI, mI, addB)));
       const stBox = el("div", { class: "fc-stats" }, el("div", { class: "empty" }, "統計讀取中"));
       body.append(stBox);
       api("/api/focus", { action: "stats" }).then((s) => {
@@ -459,9 +462,9 @@
         const wkKeys = Object.keys(wk).sort().reverse().slice(0, 8), moKeys = Object.keys(mo).sort().reverse().slice(0, 12);
         stBox.replaceChildren(
           el("div", { class: "fc-st-top" },
-            el("div", {}, el("i", {}, "歷史總計"), el("b", {}, fmtHM(s.total || 0))),
-            el("div", {}, el("i", {}, "本週"), el("b", {}, fmtHM(wk[mon(todayD)] || 0))),
-            el("div", {}, el("i", {}, "本月"), el("b", {}, fmtHM(mo[todayD.slice(0, 7)] || 0)))),
+            el("div", {}, el("i", {}, "歷史總計"), el("b", {}, fmtFull(s.total || 0))),
+            el("div", {}, el("i", {}, "本週"), el("b", {}, fmtFull(wk[mon(todayD)] || 0))),
+            el("div", {}, el("i", {}, "本月"), el("b", {}, fmtFull(mo[todayD.slice(0, 7)] || 0)))),
           el("div", { class: "sub" }, "每週"), ...wkKeys.map((k) => row(k.slice(5).replace("-", "/") + " 起", fmtHM(wk[k]))),
           el("div", { class: "sub" }, "每月"), ...moKeys.map((k) => row(k.replace("-", "/"), fmtHM(mo[k]))),
           el("div", { class: "sub" }, "每日明細"));
@@ -477,10 +480,10 @@
         groups[d].forEach((x) => ul.append(el("li", { class: "item" },
           el("div", { class: "t" }, `${hm(x.start)}–${x.end ? hm(x.end) : ""}　${x.subject || "其他"}`),
           el("b", {}, fmtHM(x.acc)),
-          el("button", { class: "ghost fc-del", onclick: async () => {
-            if (!confirm("刪除這一段？")) return;
-            try { fc.st = await api("/api/focus", { action: "delete", id: x.id }); fc.off = fc.st.now - Date.now(); fcRender(); fcSyncYpt(true); fcHistory(); }
-            catch (e) { toast("刪除失敗：" + (e.message || "")); }
+          el("button", { class: "ghost fc-del", onclick: async (ev) => {
+            const li = ev.target.closest("li"), dg = $("fc-dialog"), sc = dg.scrollTop; li.style.display = "none";
+            try { fc.st = await api("/api/focus", { action: "delete", id: x.id }); fc.off = fc.st.now - Date.now(); fcRender(); fcSyncYpt(true); fcHistory(); dg.scrollTop = sc; }
+            catch (e) { li.style.display = ""; toast("刪除失敗：" + (e.message || "")); }
           } }, "刪除"))));
         body.append(ul);
       });

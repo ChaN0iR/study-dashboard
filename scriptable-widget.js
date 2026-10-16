@@ -22,7 +22,7 @@ if (ACT) {
   const call = async (body) => { const r = new Request(API + "/api/focus"); r.method = "POST"; r.headers = { "x-app-key": key, "content-type": "application/json" }; r.body = JSON.stringify(body); return await r.loadJSON(); };
   const g = new Request(API + "/api/focus"); g.headers = { "x-app-key": key }; const cur0 = (await g.loadJSON()).active;
   let act = ACT;
-  if (act === "toggle") act = cur0 ? (cur0.status === "進行中" ? "pause" : "resume") : "";
+  if (act === "toggle") act = cur0 ? ("stop") : "";
   if (act === "pause" || act === "resume" || act === "stop") await call({ action: act });
   else if (act) await call({ action: "switch", subject: act });
   Script.complete(); return;

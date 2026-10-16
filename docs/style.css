@@ -357,3 +357,9 @@ body[data-tab=record] .fields .fld{align-items:stretch}
 }
 .moods.seg{grid-template-columns:repeat(3,1fr)}
 @media(max-width:899px){body[data-tab=record] .rec #f-review{height:96px!important;min-height:96px!important}}
+.fc-st-top{grid-template-columns:1fr 1fr}.fc-st-top>div:first-child{grid-column:1/3}
+.fc-st-top>div:first-child b{font-size:20px}.fc-st-top>div:not(:first-child) b{font-size:13px;line-height:1.4;display:block}
+.fc-per-row{align-items:center}.fc-per{flex:1;font-size:14px;color:var(--fg)}.fc-per-row input{flex:none;width:120px}
+.fc-add .primary:disabled{opacity:.4}
+.fc-del{transition:none}
+.fc-per-row input{width:136px!important}
