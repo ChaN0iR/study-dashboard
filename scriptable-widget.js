@@ -28,11 +28,23 @@ if (FAM.startsWith("accessory")) {
     if (lrun) { const t = parent.addDate(new Date(Date.now() - sec * 1000)); t.applyTimerStyle(); t.font = Font.boldMonospacedSystemFont(size); t.minimumScaleFactor = 0.5; t.lineLimit = 1; return t; }
     const t = parent.addText(la ? hms(sec) : "--:--"); t.font = Font.boldMonospacedSystemFont(size); t.minimumScaleFactor = 0.5; t.lineLimit = 1; return t;
   };
-  if (FAM === "accessoryInline") { const t = put(lw, 14); }
-  else if (FAM === "accessoryCircular") { const st2 = lw.addStack(); st2.layoutVertically(); st2.centerAlignContent(); const t = put(st2, 14); t.centerAlignText(); }
+  // 沒在計時：顯示今日專注合計＋目前時段與剩餘時間
+  const tpn = new Date(new Date().toLocaleString("en-US", { timeZone: "Asia/Taipei" }));
+  const nm = tpn.getHours() * 60 + tpn.getMinutes(), tmin = q => { const [h, m] = q.split(":").map(Number); return h * 60 + m; };
+  const slot = SCHEDULE.find(q => nm >= tmin(q[0]) && nm < tmin(q[1])), nextS = SCHEDULE.find(q => tmin(q[0]) > nm);
+  const todayS = f ? f.todayDoneSec + sec : 0;
+  const hm = x => Math.floor(x / 3600) + ":" + String(Math.floor(x / 60) % 60).padStart(2, "0");
+  const slotTxt = slot ? slot[2] + " 剩" + (tmin(slot[1]) - nm) + "分" : (nextS ? nextS[0] + " " + nextS[2] : "今日已結束");
+  if (lrun || la) {
+    if (FAM === "accessoryInline") put(lw, 14);
+    else if (FAM === "accessoryCircular") { const st2 = lw.addStack(); st2.layoutVertically(); st2.centerAlignContent(); const t = put(st2, 14); t.centerAlignText(); }
+    else { if (la.subject) { const h = lw.addText(la.subject + (lrun ? "" : "　暫停")); h.font = Font.systemFont(12); } put(lw, 30); const d = lw.addText("今日 " + hm(todayS)); d.font = Font.systemFont(11); }
+  } else if (FAM === "accessoryInline") { lw.addText("今日 " + (f ? hm(todayS) : "--") + "　" + slotTxt); }
+  else if (FAM === "accessoryCircular") { const st2 = lw.addStack(); st2.layoutVertically(); st2.centerAlignContent(); const a1 = st2.addText("今日"); a1.font = Font.systemFont(9); a1.centerAlignText(); const t = st2.addText(f ? hm(todayS) : "--"); t.font = Font.boldMonospacedSystemFont(15); t.centerAlignText(); }
   else {
-    if (la && la.subject) { const h = lw.addText(la.subject + (lrun ? "" : "　暫停")); h.font = Font.systemFont(12); }
-    const t = put(lw, 30);
+    const h = lw.addText("今日專注 " + (f ? hm(todayS) : "--")); h.font = Font.boldSystemFont(15); h.lineLimit = 1;
+    const c = lw.addText(slotTxt); c.font = Font.systemFont(12); c.lineLimit = 1;
+    if (slot && nextS) { const n = lw.addText("接著 " + nextS[0] + " " + nextS[2]); n.font = Font.systemFont(11); n.lineLimit = 1; n.textOpacity = 0.7; }
   }
   Script.setWidget(lw); Script.complete(); return;
 }
