@@ -165,7 +165,7 @@ try {
   const bigSec = a ? segS : todayS, label = a ? (a.subject || "專注") + (running ? "" : "　暫停") : "今日";
   const big = fam === "small" ? 20 : 30;
   let box = w;
-  if (R) { box = R; R.size = new Size(fam === "large" ? 150 : 128, 0); R.addSpacer(); }
+  if (R) { box = R; R.size = fam === "large" ? new Size(150, 280) : new Size(128, 125); R.addSpacer(); }
   else { box = w.addStack(); box.layoutVertically(); }
   const al = x => { if (R) x.rightAlignText(); };
   const lb = box.addText(label); lb.font = Font.boldSystemFont(13); lb.textColor = muted; lb.lineLimit = 1; al(lb);
