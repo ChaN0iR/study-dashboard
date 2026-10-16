@@ -179,9 +179,9 @@ try {
   const bigSec = a ? segS : todayS, label = a ? (a.subject || "專注") + (running ? "" : "　暫停") : "열품타";
   const big = fam === "small" ? 20 : 26;
   let box = w;
-  if (R) { box = R; { const CW = 300, lw2 = Math.min(leftEst, CW * 0.62), rw = Math.max(84, Math.min(150, CW - lw2 - 8)); R.size = new Size(rw, fam === "large" ? 280 : 125); } R.addSpacer(); }
+  if (R) { box = R; { const CW = 300, lw2 = Math.min(leftEst, CW * 0.62), rw = Math.max(84, Math.min(150, CW - lw2 - 8)); R.size = new Size(rw, fam === "large" ? 280 : 125); R.setPadding(0, 0, 0, 8); } R.addSpacer(); }
   else { box = w.addStack(); box.layoutVertically(); }
-  const al = x => { if (R) x.rightAlignText(); };
+  const al = x => { if (R) x.centerAlignText(); };
   const lb = box.addText(label); lb.font = Font.boldSystemFont(13); lb.textColor = muted; lb.lineLimit = 1; al(lb);
   if (R) R.addSpacer();
   if (running) { const t = box.addDate(new Date(Date.now() - bigSec * 1000)); t.applyTimerStyle(); t.font = Font.boldMonospacedSystemFont(big); t.textColor = fc; t.minimumScaleFactor = 0.4; t.lineLimit = 1; al(t); }

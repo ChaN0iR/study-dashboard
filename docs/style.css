@@ -317,3 +317,6 @@ body{padding-bottom:calc(49px + env(safe-area-inset-bottom))}
 .fc-st-top b{font-size:18px;font-variant-numeric:tabular-nums}
 .fc-st-r{display:flex;justify-content:space-between;padding:6px 2px;border-top:1px solid var(--line);font-size:14px}
 .fc-st-r:first-of-type{border-top:0}
+.top-actions{grid-template-columns:repeat(5,48px)!important}
+@media(max-width:899px){.top-actions{grid-template-columns:repeat(5,34px)!important;gap:6px!important}}
+@media(min-width:900px) and (min-height:560px){.top>.focus{margin-left:auto!important;margin-right:auto!important}}
