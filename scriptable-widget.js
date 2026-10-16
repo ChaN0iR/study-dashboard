@@ -17,7 +17,13 @@ if (!Keychain.contains(KEY_NAME)) {
 const key = Keychain.get(KEY_NAME);
 
 // 點鎖定畫面小工具或由捷徑呼叫：act = toggle / pause / resume / stop / 科目名稱（切換）
-const ACT = (args.queryParameters && args.queryParameters.act) || (typeof args.shortcutParameter === "string" ? args.shortcutParameter : "");
+let ACT = (args.queryParameters && args.queryParameters.act) || (typeof args.shortcutParameter === "string" ? args.shortcutParameter : "");
+if (Array.isArray(args.shortcutParameter) || ACT === "menu") {
+  const subs = ["英文", "化學", "生物", "物理", "生化"], m = new Alert(); m.title = "열품타";
+  subs.forEach(x => m.addAction(x)); m.addDestructiveAction("停止"); m.addCancelAction("取消");
+  const i = await m.presentSheet(); ACT = i < 0 || i === subs.length + 1 ? "" : i === subs.length ? "stop" : subs[i];
+  if (!ACT) { Script.complete(); return; }
+}
 if (ACT) {
   const call = async (body) => { const r = new Request(API + "/api/focus"); r.method = "POST"; r.headers = { "x-app-key": key, "content-type": "application/json" }; r.body = JSON.stringify(body); return await r.loadJSON(); };
   const g = new Request(API + "/api/focus"); g.headers = { "x-app-key": key }; const cur0 = (await g.loadJSON()).active;
