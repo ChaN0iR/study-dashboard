@@ -31,7 +31,7 @@ try {
 
 const w = new ListWidget();
 w.url = APP;
-w.refreshAfterDate = new Date(Date.now() + 15 * 60 * 1000);
+w.refreshAfterDate = new Date(Date.now() + 5 * 60 * 1000);
 
 // 以台北時間計算現在時段
 const tp = new Date(new Date().toLocaleString("en-US", { timeZone: "Asia/Taipei" }));
@@ -134,9 +134,16 @@ if (fam === "small") {
 try {
   const fr = new Request(API + "/api/focus"); fr.headers = { "x-app-key": key };
   const f = await fr.loadJSON();
-  const a = f.active, hms = x => { x = Math.floor(x); return Math.floor(x / 3600) + "h" + String(Math.floor(x / 60) % 60).padStart(2, "0") + "m"; };
-  let seg = 0; if (a) seg = a.acc + (a.status === "進行中" ? (f.now - a.start) / 1000 : 0);
-  line("專注 今日 " + hms(f.todayDoneSec + seg) + (a ? (a.status === "進行中" ? "　進行中" : "　暫停") : ""), 11, muted, false);
+  const a = f.active, hms = x => { x = Math.floor(x); return Math.floor(x / 3600) + ":" + String(Math.floor(x / 60) % 60).padStart(2, "0") + ":" + String(x % 60).padStart(2, "0"); };
+  const running = a && a.status === "進行中";
+  const seg = a ? a.acc + (running ? (f.now - a.start) / 1000 : 0) : 0;
+  const total = f.todayDoneSec + seg;
+  const big = fam === "small" ? 18 : 24;
+  const row = w.addStack(); row.layoutHorizontally(); row.centerAlignContent();
+  const lb = row.addText((a ? (a.subject || "專注") : "今日專注") + "　"); lb.font = Font.systemFont(11); lb.textColor = muted;
+  if (running) { const t = row.addDate(new Date(Date.now() - total * 1000)); t.applyTimerStyle(); t.font = Font.boldMonospacedSystemFont(big); t.textColor = fc; }
+  else { const t = row.addText(hms(total)); t.font = Font.boldMonospacedSystemFont(big); t.textColor = a ? muted : fc; }
+  if (a && !running) { const p = row.addText("　暫停"); p.font = Font.systemFont(10); p.textColor = muted; }
 } catch (e) {}
 if (err) { const e = w.addText("離線資料"); e.font = Font.systemFont(9); e.textColor = muted; }
 
