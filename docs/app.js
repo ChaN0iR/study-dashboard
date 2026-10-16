@@ -241,7 +241,7 @@
   }
 
   function renderAll() {
-    $("date").textContent = `${state.today || taipeiNow().date}　${taipeiNow().wd}`;
+    { const dt = state.today || taipeiNow().date, wd = String(taipeiNow().wd || ""), w1 = ({Mon:"一",Tue:"二",Wed:"三",Thu:"四",Fri:"五",Sat:"六",Sun:"日"})[wd.slice(0, 3)] || wd.replace("星期", "").replace("週", "").slice(0, 1); $("date").replaceChildren(Object.assign(document.createElement("span"), { className: "dl", textContent: `${dt}　${wd}` }), Object.assign(document.createElement("span"), { className: "ds", textContent: `${dt.slice(5).replace("-", "/")} 週${w1}` })); }
     renderNow(); renderTasks(); renderRecord(); renderLessons();
   }
 
@@ -278,7 +278,7 @@
       const el2 = $("countdown"); if (!el2 || !C.EXAM_DATE) return;
       const d = new Date(C.EXAM_DATE + "T00:00:00"), n = new Date(); n.setHours(0, 0, 0, 0);
       const days = Math.round((d - n) / 86400000);
-      el2.textContent = days > 0 ? `　倒數 ${days} 天` : days === 0 ? "　今天考試" : "";
+      el2.replaceChildren(...(days > 0 ? [Object.assign(document.createElement("span"), { className: "dl", textContent: `　倒數 ${days} 天` }), Object.assign(document.createElement("span"), { className: "ds", textContent: `${days} 天` })] : days === 0 ? [document.createTextNode("今天考試")] : []));
     })();
     
     ankiBadge();

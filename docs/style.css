@@ -364,3 +364,14 @@ body[data-tab=record] .fields .fld{align-items:stretch}
 .fc-del{transition:none}
 .fc-per-row input{width:136px!important}
 @media(max-width:899px){.fc-head h2{flex:none!important}.fc-head .fc-tog{margin-left:2px}.fc-head .fc-hist{margin-left:auto}}
+.top .ds{display:none}
+@media(max-width:899px){
+.top>div:first-child{display:block;flex:1;min-width:0}
+.top>div:first-child h1{display:flex;align-items:center;gap:6px;margin:0}
+.top .title-link{grid-column:auto;white-space:nowrap}
+.top .dl{display:none}.top .ds{display:inline}
+.top .countdown{font-size:11px;font-weight:600;color:var(--fg,inherit);border:1px solid var(--line);border-radius:999px;padding:1px 8px;line-height:16px}
+.top #date{display:block;margin-top:2px;font-size:12px;white-space:nowrap}
+.top-actions{grid-template-columns:repeat(5,35px)!important;gap:3px!important}
+.top-actions .icon-btn{width:35px!important;min-width:35px!important;height:35px!important;min-height:35px!important}
+}
