@@ -50,7 +50,7 @@ if (FAM.startsWith("accessory")) {
   if (lrun || la) {
     if (FAM === "accessoryInline") put(lw, 14);
     else if (FAM === "accessoryCircular") { const st2 = lw.addStack(); st2.layoutVertically(); st2.centerAlignContent(); const t = put(st2, 14); t.centerAlignText(); }
-    else { if (la.subject) { const h = lw.addText(la.subject + (lrun ? "" : "　暫停")); h.font = Font.systemFont(12); } put(lw, 30); const dr = lw.addStack(); dr.centerAlignContent(); const dl = dr.addText("열품타 "); dl.font = Font.systemFont(11); if (lrun) { const d = dr.addDate(new Date(Date.now() - todayS * 1000)); d.applyTimerStyle(); d.font = Font.monospacedDigitSystemFont(11, "regular"); } else { const d = dr.addText(hm(todayS)); d.font = Font.systemFont(11); } }
+    else { if (la.subject) { const h = lw.addText(la.subject + (lrun ? "" : "　暫停")); h.font = Font.systemFont(12); } put(lw, 30); const dr = lw.addStack(); dr.centerAlignContent(); const dl = dr.addText("열품타 "); dl.font = Font.systemFont(11); if (lrun) { const d = dr.addDate(new Date(Date.now() - todayS * 1000)); d.applyTimerStyle(); d.font = Font.systemFont(11); } else { const d = dr.addText(hm(todayS)); d.font = Font.systemFont(11); } }
   } else if (FAM === "accessoryInline") { lw.addText("열품타 " + (f ? hm(todayS) : "--") + "　" + slotTxt); }
   else if (FAM === "accessoryCircular") { const st2 = lw.addStack(); st2.layoutVertically(); st2.centerAlignContent(); const a1 = st2.addText("열품타"); a1.font = Font.systemFont(9); a1.centerAlignText(); const t = st2.addText(f ? hm(todayS) : "--"); t.font = Font.boldMonospacedSystemFont(13); t.minimumScaleFactor = 0.5; t.lineLimit = 1; t.centerAlignText(); }
   else {
@@ -189,19 +189,19 @@ try {
   const todayS = f.todayDoneSec + segS;
   // 有科目在計時：大字顯示該科目本段；沒有則顯示今日總計
   const bigSec = a ? segS : todayS, label = a ? (a.subject || "專注") + (running ? "" : "　暫停") : "열품타";
-  const big = fam === "small" ? 20 : 26;
+  const big = fam === "small" ? 20 : 24;
   let box = w;
-  if (R) { box = R; R.size = new Size(fam === "large" ? 150 : 138, fam === "large" ? 280 : 125); R.backgroundColor = Color.dynamic(new Color("#000000", 0.06), new Color("#ffffff", 0.12)); R.cornerRadius = 18; R.setPadding(10, 6, 10, 6); R.centerAlignContent(); R.addSpacer(); }
+  if (R) { box = R; { const sw = Device.screenSize().width, mh = sw >= 428 ? 170 : sw >= 414 ? 169 : sw >= 390 ? 158 : sw >= 375 ? 148 : 141; R.size = new Size(fam === "large" ? 150 : 146, (fam === "large" ? mh * 2 + 22 : mh) - 28); } R.backgroundColor = Color.dynamic(new Color("#000000", 0.06), new Color("#ffffff", 0.12)); R.cornerRadius = 18; R.setPadding(8, 8, 8, 8); R.centerAlignContent(); R.addSpacer(); }
   else { box = w.addStack(); box.layoutVertically(); }
   const al = x => { if (R) x.centerAlignText(); };
   const upd = new Date(); const updTxt = "更新 " + String(upd.getHours()).padStart(2, "0") + ":" + String(upd.getMinutes()).padStart(2, "0");
-  const lb = box.addText(label); lb.font = Font.boldSystemFont(13); lb.textColor = muted; lb.lineLimit = 1; al(lb);
+  const lb = box.addText(label); lb.font = Font.boldSystemFont(12); lb.textColor = muted; lb.lineLimit = 1; al(lb);
   if (R) R.addSpacer();
   if (running) { const t = box.addDate(new Date(Date.now() - bigSec * 1000)); t.applyTimerStyle(); t.font = Font.boldMonospacedSystemFont(big); t.textColor = fc; t.minimumScaleFactor = 0.4; t.lineLimit = 1; al(t); }
   else { const t = box.addText(hms(bigSec)); t.font = Font.boldMonospacedSystemFont(big); t.textColor = a ? muted : fc; t.minimumScaleFactor = 0.4; t.lineLimit = 1; al(t); }
   if (R) R.addSpacer();
-  if (a) { const d = box.addText("열품타 " + hms(todayS)); d.font = Font.systemFont(12); d.textColor = muted; al(d); }
-  else { const d = box.addText("尚未計時"); d.font = Font.systemFont(12); d.textColor = muted; al(d); }
+  if (a) { const d = box.addText("열품타 " + hms(todayS)); d.font = Font.systemFont(11); d.textColor = muted; al(d); }
+  else { const d = box.addText("尚未計時"); d.font = Font.systemFont(11); d.textColor = muted; al(d); }
   if (R) { R.addSpacer(); const u = R.addText(updTxt); u.font = Font.systemFont(9); u.textColor = muted; u.textOpacity = 0.6; u.centerAlignText(); R.addSpacer(4); }
 } catch (e) {}
 if (err) { const e = w.addText("離線資料"); e.font = Font.systemFont(9); e.textColor = muted; }
