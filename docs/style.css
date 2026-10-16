@@ -298,3 +298,12 @@ body{padding-bottom:calc(49px + env(safe-area-inset-bottom))}
 .tabs{position:fixed;left:0;right:0;bottom:0;z-index:5;padding-bottom:env(safe-area-inset-bottom)}
 }
 @media(min-width:900px) and (min-height:560px){.top>.focus{flex:none;margin-left:auto;margin-right:28px}}
+@media(min-width:900px) and (min-height:560px){
+.top-actions .icon-btn{border-radius:12px!important}
+.top>.focus,.top>.focus .fc-hist{border-radius:12px}
+.top>.focus .fc-hist{border-radius:10px}
+}
+@media(min-width:900px) and (min-height:560px){
+.top-actions{grid-template-columns:repeat(4,48px)!important}
+.top-actions .icon-btn{width:48px!important;height:48px!important;min-width:48px!important;min-height:48px!important;border-radius:12px!important}
+}

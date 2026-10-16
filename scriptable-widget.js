@@ -19,15 +19,21 @@ const key = Keychain.get(KEY_NAME);
 const FAM = config.widgetFamily || "";
 if (FAM.startsWith("accessory")) {
   let f = null;
-  try { const r = new Request(API + "/api/focus"); r.headers = { "x-app-key": key }; f = await r.loadJSON(); } catch (e) {}
+  try { const r = new Request(API + "/api/focus"); r.headers = { "x-app-key": key }; r.timeoutInterval = 8; f = await r.loadJSON(); } catch (e) {}
   const lw = new ListWidget(); lw.url = APP; lw.refreshAfterDate = new Date(Date.now() + 5 * 60 * 1000);
-  const la = f && f.active, lrun = la && la.status === "進行中";
-  const ltotal = f ? f.todayDoneSec + (la ? la.acc + (lrun ? (f.now - la.start) / 1000 : 0) : 0) : 0;
-  const lhm = x => Math.floor(x / 3600) + "h" + String(Math.floor(x / 60) % 60).padStart(2, "0");
-  const ltimer = (p, size) => { if (lrun) { const t = p.addDate(new Date(Date.now() - ltotal * 1000)); t.applyTimerStyle(); t.font = Font.boldMonospacedSystemFont(size); return t; } const t = p.addText(f ? lhm(ltotal) : "--"); t.font = Font.boldMonospacedSystemFont(size); return t; };
-  if (FAM === "accessoryInline") lw.addText("專注 " + (f ? lhm(ltotal) : "--") + (lrun ? " ▶" : ""));
-  else if (FAM === "accessoryCircular") { const t = ltimer(lw, 13); t.centerAlignText(); }
-  else { const h = lw.addText(la ? (la.subject || "專注") + (lrun ? "　進行中" : "　暫停") : "今日專注"); h.font = Font.systemFont(11); ltimer(lw, 26); const d = lw.addText("今日 " + (f ? lhm(ltotal) : "--")); d.font = Font.systemFont(11); }
+  const la = f && f.active, lrun = !!la && la.status === "進行中";
+  const sec = la ? Math.max(0, la.acc + (lrun ? (f.now - la.start) / 1000 : 0)) : 0;
+  const hms = x => { x = Math.floor(x); const h = Math.floor(x / 3600), m = Math.floor(x / 60) % 60, s2 = x % 60; return (h ? h + ":" + String(m).padStart(2, "0") : m) + ":" + String(s2).padStart(2, "0"); };
+  const put = (parent, size) => {
+    if (lrun) { const t = parent.addDate(new Date(Date.now() - sec * 1000)); t.applyTimerStyle(); t.font = Font.boldMonospacedSystemFont(size); t.minimumScaleFactor = 0.5; t.lineLimit = 1; return t; }
+    const t = parent.addText(la ? hms(sec) : "--:--"); t.font = Font.boldMonospacedSystemFont(size); t.minimumScaleFactor = 0.5; t.lineLimit = 1; return t;
+  };
+  if (FAM === "accessoryInline") { const t = put(lw, 14); }
+  else if (FAM === "accessoryCircular") { const st2 = lw.addStack(); st2.layoutVertically(); st2.centerAlignContent(); const t = put(st2, 14); t.centerAlignText(); }
+  else {
+    if (la && la.subject) { const h = lw.addText(la.subject + (lrun ? "" : "　暫停")); h.font = Font.systemFont(12); }
+    const t = put(lw, 30);
+  }
   Script.setWidget(lw); Script.complete(); return;
 }
 
