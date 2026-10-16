@@ -33,14 +33,14 @@ if (FAM.startsWith("accessory")) {
   const nm = tpn.getHours() * 60 + tpn.getMinutes(), tmin = q => { const [h, m] = q.split(":").map(Number); return h * 60 + m; };
   const slot = SCHEDULE.find(q => nm >= tmin(q[0]) && nm < tmin(q[1])), nextS = SCHEDULE.find(q => tmin(q[0]) > nm);
   const todayS = f ? f.todayDoneSec + sec : 0;
-  const hm = x => Math.floor(x / 3600) + ":" + String(Math.floor(x / 60) % 60).padStart(2, "0");
+  const hm = x => { x = Math.floor(x); const h = Math.floor(x / 3600), m = Math.floor(x / 60) % 60, s2 = x % 60; return h ? h + ":" + String(m).padStart(2, "0") + ":" + String(s2).padStart(2, "0") : m ? m + ":" + String(s2).padStart(2, "0") : s2 + "秒"; };
   const slotTxt = slot ? slot[2] + " 剩" + (tmin(slot[1]) - nm) + "分" : (nextS ? nextS[0] + " " + nextS[2] : "今日已結束");
   if (lrun || la) {
     if (FAM === "accessoryInline") put(lw, 14);
     else if (FAM === "accessoryCircular") { const st2 = lw.addStack(); st2.layoutVertically(); st2.centerAlignContent(); const t = put(st2, 14); t.centerAlignText(); }
     else { if (la.subject) { const h = lw.addText(la.subject + (lrun ? "" : "　暫停")); h.font = Font.systemFont(12); } put(lw, 30); const d = lw.addText("열품타 " + hm(todayS)); d.font = Font.systemFont(11); }
   } else if (FAM === "accessoryInline") { lw.addText("열품타 " + (f ? hm(todayS) : "--") + "　" + slotTxt); }
-  else if (FAM === "accessoryCircular") { const st2 = lw.addStack(); st2.layoutVertically(); st2.centerAlignContent(); const a1 = st2.addText("열품타"); a1.font = Font.systemFont(9); a1.centerAlignText(); const t = st2.addText(f ? hm(todayS) : "--"); t.font = Font.boldMonospacedSystemFont(15); t.centerAlignText(); }
+  else if (FAM === "accessoryCircular") { const st2 = lw.addStack(); st2.layoutVertically(); st2.centerAlignContent(); const a1 = st2.addText("열품타"); a1.font = Font.systemFont(9); a1.centerAlignText(); const t = st2.addText(f ? hm(todayS) : "--"); t.font = Font.boldMonospacedSystemFont(13); t.minimumScaleFactor = 0.5; t.lineLimit = 1; t.centerAlignText(); }
   else {
     const h = lw.addText("열품타 " + (f ? hm(todayS) : "--")); h.font = Font.boldSystemFont(15); h.lineLimit = 1;
     const c = lw.addText(slotTxt); c.font = Font.systemFont(12); c.lineLimit = 1;
