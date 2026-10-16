@@ -274,11 +274,6 @@
     })();
     
     ankiBadge();
-    $("ypt-link").addEventListener("click", (e) => {
-      e.preventDefault();
-      if (!/iPhone|iPad|iPod|Android/i.test(navigator.userAgent || "")) { window.open("https://www.yeolpumta.com/", "_blank", "noopener"); return; }
-      location.href = "https://link.yeolpumta.com/";
-    });
     $("anki-link").addEventListener("click", (e) => {
       e.preventDefault();
       const ua = navigator.userAgent || "";

@@ -224,3 +224,9 @@ html::-webkit-scrollbar,body::-webkit-scrollbar,*::-webkit-scrollbar{display:non
 }
 .fc-dgh{display:flex;justify-content:space-between;margin-top:12px}
 .fc-del{min-height:28px;min-width:0;padding:0 10px;font-size:12px;flex:none}
+.top-actions{grid-template-columns:repeat(2,38px)}
+@media(min-width:900px) and (min-height:560px){
+.top-actions{grid-template-columns:repeat(4,52px);gap:8px}
+.top-actions .icon-btn{width:52px;height:46px;min-width:52px;min-height:46px;border-radius:12px}
+.top-actions svg{width:24px;height:24px}
+}
