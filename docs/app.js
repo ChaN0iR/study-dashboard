@@ -326,7 +326,7 @@
       document.title = running ? `${fmtHMS(t)} 專注中` : "清大後醫";
     }
     async function fcLoad() {
-      try { const d = await api("/api/focus"); fc.st = d; fc.off = d.now - Date.now(); fcRender(); } catch (e) { /* offline or not deployed */ }
+      try { const d = await api("/api/focus"); fc.st = d; fc.off = d.now - Date.now(); fcRender(); fcSyncYpt(); } catch (e) { /* offline or not deployed */ }
     }
     async function fcAct(body) {
       if (fc.busy) return; fc.busy = true;
@@ -334,7 +334,13 @@
       catch (e) { toast("無法連線：" + (e.message || "")); } finally { fc.busy = false; }
     }
     $("fc-main").onclick = () => { const a = fc.st?.active; fcAct({ action: !a ? "start" : a.status === "進行中" ? "pause" : "resume" }); };
-    $("fc-stop").onclick = () => fcAct({ action: "stop" }).then(() => toast("已記錄這一段"));
+    async function fcSyncYpt() {
+      const t = fc.st?.todayDoneSec || 0; if (fc.st?.active || !t) return;
+      const h = Math.floor(t / 3600), m = Math.round((t % 3600) / 60);
+      if (state.record && state.record.hours === h && state.record.minutes === m) return;
+      try { state.record = await api("/api/record", { hours: h, minutes: m }); renderRecord(); } catch (e) {}
+    }
+    $("fc-stop").onclick = () => fcAct({ action: "stop" }).then(() => { toast("已記錄這一段"); fcSyncYpt(); });
     $("fc-mode").onclick = (e) => { const b = e.target.closest("button"); if (!b) return; fc.mode = b.dataset.m; localStorage.setItem("fcMode", fc.mode); fcRender(); };
     $("fc-time").onclick = () => { fc.mode = fc.mode === "total" ? "seg" : "total"; localStorage.setItem("fcMode", fc.mode); fcRender(); };
     $("fc-hist").onclick = () => {

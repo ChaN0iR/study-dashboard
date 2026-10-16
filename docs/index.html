@@ -10,7 +10,7 @@
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="apple-touch-icon" href="icons/icon-192.png">
 <link rel="icon" href="icons/icon.svg" type="image/svg+xml">
-<link rel="stylesheet" href="style.css?v=40">
+<link rel="stylesheet" href="style.css?v=41">
 <title>清大後醫</title>
 </head>
 <body>
@@ -42,13 +42,7 @@
 <div class="col">
   <section class="card rec" data-tab="record">
     <div class="rec-head"><h2>今日進度</h2><span id="completion" class="muted"></span></div>
-    <div class="ypt-hero">
-      <div class="ypt-big"><span class="ypt-cap">YPT 今日合計</span><b id="ypt">0h00m</b></div>
-      <div class="ypt-in">
-        <label class="num"><input id="f-hours" type="number" inputmode="decimal" min="0" max="24" step="0.25" placeholder="0"><span>小時</span></label>
-        <label class="num"><input id="f-minutes" type="number" inputmode="numeric" min="0" max="1440" step="1" placeholder="0"><span>分鐘</span></label>
-      </div>
-    </div>
+    <div hidden><input id="f-hours" type="number" inputmode="decimal" min="0" max="24" step="0.25" placeholder="0"><input id="f-minutes" type="number" inputmode="numeric" min="0" max="1440" step="1" placeholder="0"><b id="ypt"></b></div>
     <div class="moods seg" id="moods" role="radiogroup" aria-label="心情"></div>
     <div class="fields">
       <label class="fld"><span>心得</span><textarea id="f-review" rows="2" placeholder="今天的狀態與感想"></textarea></label>
@@ -82,8 +76,8 @@
 <nav id="tabs" class="tabs"><button data-t="today" aria-selected="true">今日</button><button data-t="record">進度</button><button data-t="lessons">課程</button><button data-t="notes">筆記</button></nav>
 <dialog id="fc-dialog" class="fc-dialog"><div class="fc-dh"><h2>專注紀錄</h2><button class="ghost" id="fc-close">關閉</button></div><div id="fc-body"></div></dialog>
 <div id="toast" class="toast" hidden></div>
-<script src="config.js?v=40"></script>
-<script src="app.js?v=40"></script>
+<script src="config.js?v=41"></script>
+<script src="app.js?v=41"></script>
 <script>(function(){var b=document.querySelectorAll("#tabs button");function go(t){document.body.dataset.tab=t;b.forEach(function(x){x.setAttribute("aria-selected",x.dataset.t==t)})}b.forEach(function(x){x.onclick=function(){go(x.dataset.t)}});go("today")})()</script>
 </body>
 </html>
