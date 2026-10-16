@@ -230,3 +230,13 @@ html::-webkit-scrollbar,body::-webkit-scrollbar,*::-webkit-scrollbar{display:non
 .top-actions .icon-btn{width:52px;height:46px;min-width:52px;min-height:46px;border-radius:12px}
 .top-actions svg{width:24px;height:24px}
 }
+.n-draft{list-style:none;margin:8px 0 0;padding:0;display:flex;flex-direction:column;gap:6px;max-height:150px;overflow-y:auto}
+.n-draft:empty{display:none}
+.n-it{position:relative;border:1px solid var(--line);border-radius:10px;background:var(--bg);padding:6px 30px 6px 10px}
+.n-it textarea{width:100%;border:0;background:transparent;margin:0;padding:2px 0;min-height:22px;font-size:14px;resize:none;overflow:hidden}
+.n-it textarea:focus{outline:0}.n-it:focus-within{border-color:var(--fg)}
+.n-it img{display:block;max-height:90px;max-width:100%;border-radius:6px}
+.n-x{position:absolute;top:4px;right:4px;width:22px;height:22px;min-height:0;padding:0;border:0;background:none;color:var(--mut);font-size:18px;line-height:1;cursor:pointer;border-radius:6px}
+.n-x:hover{background:var(--line);color:var(--fg)}
+.note-row .ghost{flex:none;min-height:38px;padding:0 12px;margin:0}
+.note-row #save-note{width:auto;flex:1}

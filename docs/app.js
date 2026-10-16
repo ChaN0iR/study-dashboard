@@ -302,11 +302,43 @@
       });
       renderRecord();
     }, "已儲存");
+    // ---------- note draft ----------
+    const nd = (() => { try { return JSON.parse(localStorage.getItem("sd-note-draft") || "null") || {}; } catch (e) { return {}; } })();
+    nd.items = nd.items || [];
+    const ndSave = () => { try { localStorage.setItem("sd-note-draft", JSON.stringify({ title: $("n-title").value, subject: $("n-subject").value, items: nd.items })); } catch (e) { toast("草稿太大，請減少照片"); } };
+    function ndRender() {
+      $("n-draft").replaceChildren(...nd.items.map((it, i) => el("li", { class: "n-it" + (it.t === "img" ? " img" : "") },
+        it.t === "img" ? el("img", { src: it.d, alt: "" })
+          : el("textarea", { rows: "1", value: it.v, oninput: (e) => { it.v = e.target.value; e.target.style.height = "auto"; e.target.style.height = e.target.scrollHeight + "px"; ndSave(); } }),
+        el("button", { class: "n-x", type: "button", "aria-label": "移除", onclick: () => { nd.items.splice(i, 1); ndSave(); ndRender(); } }, "×"))));
+      document.querySelectorAll("#n-draft textarea").forEach((t, k) => { t.value = nd.items.filter((x) => x.t === "text")[k].v; t.style.height = "auto"; t.style.height = t.scrollHeight + "px"; });
+    }
+    if (nd.title) $("n-title").value = nd.title; if (nd.subject) $("n-subject").value = nd.subject;
+    ["n-title", "n-subject"].forEach((id) => $(id).addEventListener("input", ndSave));
+    ndRender();
+    const ndAddText = () => { const v = $("n-points").value.trim(); if (!v) return false; nd.items.push({ t: "text", v }); $("n-points").value = ""; ndSave(); ndRender(); return true; };
+    $("n-add").onclick = ndAddText;
+    $("n-points").addEventListener("keydown", (e) => { if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) { e.preventDefault(); ndAddText(); } });
+    $("n-photo").onclick = () => $("n-file").click();
+    const shrink = (file) => new Promise((res, rej) => {
+      const img = new Image(), u = URL.createObjectURL(file);
+      img.onload = () => { const k = Math.min(1, 1280 / Math.max(img.width, img.height)), c = document.createElement("canvas"); c.width = Math.round(img.width * k); c.height = Math.round(img.height * k); c.getContext("2d").drawImage(img, 0, 0, c.width, c.height); URL.revokeObjectURL(u); res(c.toDataURL("image/jpeg", 0.72)); };
+      img.onerror = () => rej(new Error("無法讀取圖片")); img.src = u;
+    });
+    $("n-file").onchange = async (e) => {
+      for (const f of [...e.target.files]) { try { nd.items.push({ t: "img", d: await shrink(f) }); } catch (er) { toast(er.message); } }
+      e.target.value = ""; ndSave(); ndRender();
+    };
+    $("n-clear").onclick = () => { if (!nd.items.length && !$("n-title").value && !$("n-points").value) return; if (!confirm("清除目前草稿？")) return; nd.items = []; $("n-title").value = ""; $("n-points").value = ""; ndSave(); ndRender(); };
     $("save-note").onclick = () => guarded(async () => {
-      const title = $("n-title").value.trim(); if (!title) return toast("請輸入標題");
-      await api("/api/note", { title, subject: $("n-subject").value, points: $("n-points").value });
-      $("n-title").value = ""; $("n-points").value = "";
-    }, "筆記已新增");
+      ndAddText();
+      if (!nd.items.length) return toast("請先輸入內容或照片");
+      const texts = nd.items.filter((x) => x.t === "text").map((x) => x.v);
+      const photos = nd.items.filter((x) => x.t === "img").map((x, k) => ({ name: `note-${Date.now()}-${k}.jpg`, type: "image/jpeg", data: x.d.split(",")[1] }));
+      const title = $("n-title").value.trim() || (texts[0] || "照片筆記").split("\n")[0].slice(0, 30);
+      await api("/api/note", { title, subject: $("n-subject").value, points: texts.join("\n"), photos });
+      nd.items = []; $("n-title").value = ""; ndSave(); ndRender();
+    }, "筆記已送出");
 
     // ---------- focus timer ----------
     const fc = { st: null, off: 0, mode: localStorage.getItem("fcMode") || "total", busy: false };
