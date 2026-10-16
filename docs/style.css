@@ -264,3 +264,6 @@ html::-webkit-scrollbar,body::-webkit-scrollbar,*::-webkit-scrollbar{display:non
 [data-tab=lessons]{padding-bottom:20px}
 /* iOS: inputs under 16px trigger auto-zoom */
 @media(max-width:899px){input,select,textarea,.fld textarea,.note-row input,.note-row select,.note-row textarea,.n-it textarea,.num input{font-size:16px!important}}
+.chk{position:relative}
+.chk[aria-checked=true]::after{position:absolute;left:50%;top:46%;width:7px;height:14px;margin:0;transform:translate(-50%,-50%) rotate(45deg);animation:tickc .22s ease}
+@keyframes tickc{from{opacity:0;transform:translate(-50%,-50%) rotate(45deg) scale(.5)}to{opacity:1;transform:translate(-50%,-50%) rotate(45deg) scale(1)}}
