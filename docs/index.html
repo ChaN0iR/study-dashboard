@@ -10,7 +10,7 @@
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="apple-touch-icon" href="icons/icon-192.png">
 <link rel="icon" href="icons/icon.svg" type="image/svg+xml">
-<link rel="stylesheet" href="style.css?v=86">
+<link rel="stylesheet" href="style.css?v=87">
 <title>清大後醫</title>
 </head>
 <body>
@@ -61,16 +61,14 @@
       <select id="n-subject" aria-label="科目"><option value="">科目</option></select>
     </div>
     <ul id="n-draft" class="n-draft"></ul>
-    <div class="note-row">
-      <textarea id="n-points" rows="1" placeholder="寫下內容，可一直補充"></textarea>
+    <div class="note-row"><textarea id="n-points" rows="1" placeholder="寫下內容，可一直補充"></textarea></div>
+    <div class="n-tools">
       <button id="n-add" class="ghost" type="button">換頁</button>
       <button id="n-photo" class="ghost" type="button">照片</button>
+      <button id="n-clear" class="ghost" type="button">清除</button>
       <input id="n-file" type="file" accept="image/*" multiple hidden>
     </div>
-    <div class="note-row">
-      <button id="save-note" class="primary">送出筆記</button>
-      <button id="n-clear" class="ghost" type="button">清除</button>
-    </div>
+    <button id="save-note" class="primary n-save">送出筆記</button>
   </section>
 </div>
 <div class="col">
@@ -85,8 +83,8 @@
 <nav id="tabs" class="tabs"><button data-t="today" aria-selected="true">今日</button><button data-t="record">進度</button><button data-t="lessons">課程</button><button data-t="notes">筆記</button></nav>
 <dialog id="fc-dialog" class="fc-dialog"><div class="fc-dh"><h2>열품타 紀錄</h2><button class="ghost" id="fc-close">關閉</button></div><div id="fc-body"></div></dialog>
 <div id="toast" class="toast" hidden></div>
-<script src="config.js?v=86"></script>
-<script src="app.js?v=86"></script>
+<script src="config.js?v=87"></script>
+<script src="app.js?v=87"></script>
 <script>(function(){var b=document.querySelectorAll("#tabs button");function go(t){document.body.dataset.tab=t;b.forEach(function(x){x.setAttribute("aria-selected",x.dataset.t==t)})}b.forEach(function(x){x.onclick=function(){go(x.dataset.t)}});go("today")})()</script>
 </body>
 </html>
