@@ -391,7 +391,7 @@
       });
       const n = (fc.st?.sessions?.length || 0) + (a ? 1 : 0);
       $("fc-sub").textContent = fc.mode === "total" ? (n ? `今日 ${n} 段` : "今日尚未開始") : (a ? (running ? "進行中" : "已暫停") + `　今日合計 ${fmtHM(totalSec())}` : `今日合計 ${fmtHM(totalSec())}`);
-      document.querySelectorAll("#fc-mode button").forEach((b) => b.setAttribute("aria-checked", String(b.dataset.m === fc.mode)));
+      $("fc-mode").textContent = fc.mode === "total" ? "今日" : "本段";
       const assigned = (state.tasks || []).filter((x) => x.source === "今日" && !x.skipped).length;
       const goalH = Math.min(10, Math.max(3, 3 + assigned * 0.5)), pct = Math.round(totalSec() / (goalH * 3600) * 100);
       $("fc-prog-i").style.width = Math.min(100, pct) + "%"; $("fc-prog-i").parentNode.classList.toggle("over", pct > 100);
@@ -427,7 +427,7 @@
       try { state.record = await api("/api/record", { hours: h, minutes: m }); renderRecord(); } catch (e) {}
     }
     $("fc-stop").onclick = () => fcAct({ action: "stop" }).then(() => { toast("已記錄這一段"); fcSyncYpt(); });
-    $("fc-mode").onclick = (e) => { const b = e.target.closest("button"); if (!b) return; fc.mode = b.dataset.m; localStorage.setItem("fcMode", fc.mode); fcRender(); };
+    $("fc-mode").onclick = () => { fc.mode = fc.mode === "total" ? "seg" : "total"; localStorage.setItem("fcMode", fc.mode); fcRender(); };
     $("fc-time").onclick = () => { fc.mode = fc.mode === "total" ? "seg" : "total"; localStorage.setItem("fcMode", fc.mode); fcRender(); };
     function fcHistory() {
       const st = fc.st || { days: [], history: [] };
