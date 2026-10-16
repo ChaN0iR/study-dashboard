@@ -290,3 +290,10 @@ main #tasks,main #lessons{overflow-y:auto!important}
 #tasks,#lessons,.col,.col>[data-tab=notes],body[data-tab=record] [data-tab=record],body[data-tab=notes] [data-tab=notes],#fc-body,.n-draft{overscroll-behavior-y:contain;-webkit-overflow-scrolling:touch;scroll-behavior:auto;scroll-snap-type:none}
 #tasks,#lessons{padding-bottom:14px}
 body[data-tab=record] [data-tab=record],body[data-tab=notes] [data-tab=notes]{padding-bottom:20px}
+/* v59 fixes: record card scrolls again; nav pinned to the viewport bottom */
+body[data-tab=record] main [data-tab=record].rec{overflow-y:auto!important}
+@media(max-width:899px),(max-height:559px){
+html,body{height:auto;position:fixed;inset:0}
+body{padding-bottom:calc(49px + env(safe-area-inset-bottom))}
+.tabs{position:fixed;left:0;right:0;bottom:0;z-index:5;padding-bottom:env(safe-area-inset-bottom)}
+}

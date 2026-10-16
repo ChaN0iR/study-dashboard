@@ -16,6 +16,21 @@ if (!Keychain.contains(KEY_NAME)) {
 }
 const key = Keychain.get(KEY_NAME);
 
+const FAM = config.widgetFamily || "";
+if (FAM.startsWith("accessory")) {
+  let f = null;
+  try { const r = new Request(API + "/api/focus"); r.headers = { "x-app-key": key }; f = await r.loadJSON(); } catch (e) {}
+  const lw = new ListWidget(); lw.url = APP; lw.refreshAfterDate = new Date(Date.now() + 5 * 60 * 1000);
+  const la = f && f.active, lrun = la && la.status === "進行中";
+  const ltotal = f ? f.todayDoneSec + (la ? la.acc + (lrun ? (f.now - la.start) / 1000 : 0) : 0) : 0;
+  const lhm = x => Math.floor(x / 3600) + "h" + String(Math.floor(x / 60) % 60).padStart(2, "0");
+  const ltimer = (p, size) => { if (lrun) { const t = p.addDate(new Date(Date.now() - ltotal * 1000)); t.applyTimerStyle(); t.font = Font.boldMonospacedSystemFont(size); return t; } const t = p.addText(f ? lhm(ltotal) : "--"); t.font = Font.boldMonospacedSystemFont(size); return t; };
+  if (FAM === "accessoryInline") lw.addText("專注 " + (f ? lhm(ltotal) : "--") + (lrun ? " ▶" : ""));
+  else if (FAM === "accessoryCircular") { const t = ltimer(lw, 13); t.centerAlignText(); }
+  else { const h = lw.addText(la ? (la.subject || "專注") + (lrun ? "　進行中" : "　暫停") : "今日專注"); h.font = Font.systemFont(11); ltimer(lw, 26); const d = lw.addText("今日 " + (f ? lhm(ltotal) : "--")); d.font = Font.systemFont(11); }
+  Script.setWidget(lw); Script.complete(); return;
+}
+
 let st = null, err = null;
 try {
   const r = new Request(API + "/api/state");
