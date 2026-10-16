@@ -362,7 +362,7 @@
     $("fc-close").onclick = () => $("fc-dialog").close();
     $("fc-dialog").addEventListener("click", (e) => { if (e.target === $("fc-dialog")) $("fc-dialog").close(); });
     const fcMq = matchMedia("(min-width:900px) and (min-height:560px)");
-    const fcPlace = () => { const f = $("focus"); if (fcMq.matches) document.querySelector(".top > div").after(f); else $("now").after(f); };
+    const fcPlace = () => { const f = $("focus"); if (fcMq.matches) document.querySelector(".top > div").after(f); else { const r = document.querySelector(".rec"); r.querySelector(".rec-head").after(f); } };
     fcPlace(); fcMq.addEventListener("change", fcPlace);
     fcLoad(); setInterval(fcRender, 1000); setInterval(fcLoad, 8000);
     document.addEventListener("visibilitychange", () => { if (!document.hidden) fcLoad(); });

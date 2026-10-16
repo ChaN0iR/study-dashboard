@@ -197,3 +197,5 @@ html::-webkit-scrollbar,body::-webkit-scrollbar,*::-webkit-scrollbar{display:non
 .fc-btns button,.fc-hist,.fc-seg button{white-space:nowrap;flex:none}
 @media(min-width:900px) and (min-height:560px){.top>.focus{grid-template-columns:auto auto auto auto;grid-template-areas:"time seg btns hist";gap:4px 12px;max-width:none;flex:none}.top>.focus .fc-btns{display:flex;gap:6px}}
 @media(min-width:900px) and (min-height:560px){.top>.focus .fc-btns .primary{flex:none;width:auto;min-width:72px}.top>.focus .fc-btns{min-width:0;width:max-content}.top>.focus .fc-hist,.top>.focus .fc-btns .ghost{position:static;width:auto;min-width:52px;margin:0}}
+.rec .focus{border:0;box-shadow:none;background:transparent;padding:6px 0 10px}
+@media(min-width:900px) and (min-height:560px){.top>.focus{border:1px solid var(--line);background:var(--card);padding:6px 14px}}
