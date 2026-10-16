@@ -253,3 +253,12 @@ html::-webkit-scrollbar,body::-webkit-scrollbar,*::-webkit-scrollbar{display:non
 .primary:disabled{background:var(--line)!important;color:var(--mut)!important;border-color:transparent!important;box-shadow:none!important;transform:none!important;cursor:not-allowed;opacity:1}
 .note-row textarea#n-points{height:38px;max-height:220px;overflow-y:auto;line-height:1.5}
 .note-row{align-items:flex-end}
+/* lessons spacing */
+.lv-head{margin-top:22px;padding:0 2px 8px;list-style:none}
+#lessons>.lv-head:first-child{margin-top:6px}
+.lv-top{display:flex;align-items:baseline;gap:10px;margin-bottom:8px}.lv-top .muted{margin-left:auto}
+.lv-bar{margin-bottom:4px}
+.lesson.item{padding:10px 2px;min-height:56px;gap:14px}
+.lesson .meta{margin-top:3px}
+#lessons{padding:0 2px 18px}
+[data-tab=lessons]{padding-bottom:20px}
