@@ -589,3 +589,55 @@ button:active,a.icon-btn:active,.chk:active,.fc-hist:active{box-shadow:0 0 0 1px
   .fc-main,.fc-subj button{transition:none!important}
   #focus.is-choosing #fc-heading-wrap .fc-subject-icon,#focus.is-choosing #fc-main,#focus.is-choosing #fc-subj:not([hidden]),#focus.is-running #fc-heading-wrap .fc-subject-icon,#focus.is-running #fc-time{animation:none!important}
 }
+
+
+/* v98: compact horizontal timer, chamfered insets, balanced header */
+@media (min-width:900px) and (min-height:560px){
+  .top>div:first-child{position:relative;isolation:isolate;margin-left:4px;padding:8px 15px 8px 19px}
+  .top>div:first-child::before{content:"";position:absolute;inset:0;z-index:-1;pointer-events:none;background:var(--card);border:1px solid var(--line);clip-path:polygon(10px 0,calc(100% - 10px) 0,100% 10px,100% calc(100% - 10px),calc(100% - 10px) 100%,10px 100%,0 calc(100% - 10px),0 10px)}
+  .top>div:first-child::after{content:"";position:absolute;left:9px;top:14px;width:2px;height:18px;background:var(--mut);transform:skew(-18deg);pointer-events:none}
+  .top>div:first-child #date{margin-top:3px;letter-spacing:.04em}
+
+  .top-actions{grid-template-columns:repeat(5,46px)!important;gap:8px!important;margin:0 18px 0 4px!important}
+  .top-actions .icon-btn{position:relative;isolation:isolate;width:46px!important;min-width:46px!important;height:46px!important;min-height:46px!important;padding:0;border:0!important;border-radius:0!important;background:transparent!important}
+  .top-actions .icon-btn::before,.top-actions .icon-btn::after{content:"";position:absolute;inset:0;pointer-events:none;clip-path:polygon(8px 0,calc(100% - 8px) 0,100% 8px,100% calc(100% - 8px),calc(100% - 8px) 100%,8px 100%,0 calc(100% - 8px),0 8px)}
+  .top-actions .icon-btn::before{z-index:-2;background:var(--line)}
+  .top-actions .icon-btn::after{inset:1px;z-index:-1;background:var(--card);clip-path:polygon(7px 0,calc(100% - 7px) 0,100% 7px,100% calc(100% - 7px),calc(100% - 7px) 100%,7px 100%,0 calc(100% - 7px),0 7px)}
+  .top-actions .icon-btn:hover{box-shadow:none!important}
+  .top-actions .icon-btn:hover::before{background:var(--mut)}
+  .top-actions .icon-btn:focus-visible{outline:2px solid var(--fg);outline-offset:3px}
+
+  .top>.focus{position:relative;isolation:isolate;display:grid!important;grid-template-columns:22px minmax(0,1fr) 38px;grid-template-areas:"timer-icon timer-main timer-history" "timer-goal timer-goal timer-goal";align-items:center;gap:6px 9px;flex:0 1 440px;width:min(440px,38vw);min-width:320px;max-width:440px;margin:0 auto!important;padding:9px 13px!important;border:0!important;border-radius:0!important;background:transparent!important}
+  .top>.focus::before,.top>.focus::after{content:"";position:absolute;pointer-events:none;clip-path:polygon(11px 0,calc(100% - 11px) 0,100% 11px,100% calc(100% - 11px),calc(100% - 11px) 100%,11px 100%,0 calc(100% - 11px),0 11px)}
+  .top>.focus::before{inset:0;z-index:-2;background:var(--line)}
+  .top>.focus::after{inset:1px;z-index:-1;background:var(--card);clip-path:polygon(10px 0,calc(100% - 10px) 0,100% 10px,100% calc(100% - 10px),calc(100% - 10px) 100%,10px 100%,0 calc(100% - 10px),0 10px)}
+  .top>.focus .fc-head{display:contents!important;margin:0}
+  .top>.focus .fc-heading{grid-area:timer-icon;flex:none;width:22px;min-width:22px}
+  .top>.focus .fc-main{position:relative;isolation:isolate;grid-area:timer-main;display:flex!important;flex-direction:row!important;align-items:center;justify-content:space-between;gap:12px;width:100%;min-width:0;min-height:50px!important;padding:7px 13px;border:0!important;border-radius:0!important;background:transparent!important;text-align:left}
+  .top>.focus .fc-main::before,.top>.focus .fc-main::after{content:"";position:absolute;pointer-events:none;clip-path:polygon(8px 0,calc(100% - 8px) 0,100% 8px,100% calc(100% - 8px),calc(100% - 8px) 100%,8px 100%,0 calc(100% - 8px),0 8px)}
+  .top>.focus .fc-main::before{inset:0;z-index:-2;background:var(--line)}
+  .top>.focus .fc-main::after{inset:1px;z-index:-1;background:var(--card);clip-path:polygon(7px 0,calc(100% - 7px) 0,100% 7px,100% calc(100% - 7px),calc(100% - 7px) 100%,7px 100%,0 calc(100% - 7px),0 7px)}
+  .top>.focus .fc-main:hover{box-shadow:none!important}
+  .top>.focus .fc-main:hover::before{background:var(--mut)}
+  .top>.focus.is-running .fc-main::before{background:color-mix(in srgb,var(--signal) 42%,var(--line))}
+  .top>.focus .fc-main-title{flex:none;font-size:15px;white-space:nowrap}
+  .top>.focus .fc-main .fc-time{flex:none;font-size:26px;line-height:1;white-space:nowrap}
+  .top>.focus .fc-hist{position:relative;isolation:isolate;grid-area:timer-history;display:flex;align-items:center;justify-content:center;width:36px;min-width:36px;min-height:36px;margin:0!important;padding:0;border:0!important;border-radius:0!important;background:transparent!important}
+  .top>.focus .fc-hist::before,.top>.focus .fc-hist::after{content:"";position:absolute;inset:0;pointer-events:none;clip-path:polygon(7px 0,calc(100% - 7px) 0,100% 7px,100% calc(100% - 7px),calc(100% - 7px) 100%,7px 100%,0 calc(100% - 7px),0 7px)}
+  .top>.focus .fc-hist::before{z-index:-2;background:var(--line)}
+  .top>.focus .fc-hist::after{inset:1px;z-index:-1;background:var(--card);clip-path:polygon(6px 0,calc(100% - 6px) 0,100% 6px,100% calc(100% - 6px),calc(100% - 6px) 100%,6px 100%,0 calc(100% - 6px),0 6px)}
+  .top>.focus .fc-hist:focus-visible{outline:2px solid var(--fg);outline-offset:3px}
+  .top>.focus .fc-goal{grid-area:timer-goal;width:100%;min-width:0;margin:0!important;gap:8px}
+  .top>.focus .fc-goal .fc-prog{height:4px;margin:0;border-radius:2px}
+  .top>.focus .fc-goal #fc-goal-t{font-size:11px;white-space:nowrap}
+  .top>.focus .fc-subj{grid-area:timer-subjects;width:100%;margin:0!important}
+  .top>.focus .fc-subj[hidden]{display:none!important}
+  .top>.focus.is-choosing{grid-template-areas:"timer-icon timer-main timer-history" "timer-goal timer-goal timer-goal" "timer-subjects timer-subjects timer-subjects"}
+}
+
+
+/* v98 follow-up: use the full desktop header width while keeping a deliberate right inset */
+@media (min-width:900px) and (min-height:560px){
+  .top{max-width:none;margin:0;padding:14px 18px 8px}
+  .top>div:first-child{margin-left:0}
+}
