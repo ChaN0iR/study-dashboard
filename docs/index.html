@@ -10,7 +10,7 @@
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="apple-touch-icon" href="icons/icon-192.png">
 <link rel="icon" href="icons/icon.svg" type="image/svg+xml">
-<link rel="stylesheet" href="style.css?v=114">
+<link rel="stylesheet" href="style.css?v=115">
 <title>清大後醫</title>
 </head>
 <body>
@@ -48,6 +48,7 @@
 <div class="col">
   <section class="card rec" data-tab="record">
     <div class="rec-head"><h2>今日進度</h2><span id="completion" class="muted"></span></div>
+    <div class="rec-content">
     <div class="prog"><i id="prog-i"></i></div>
     <div hidden><input id="f-hours" type="number" inputmode="decimal" min="0" max="24" step="0.25" placeholder="0"><input id="f-minutes" type="number" inputmode="numeric" min="0" max="1440" step="1" placeholder="0"><b id="ypt"></b></div>
     <div class="moods seg" id="moods" role="radiogroup" aria-label="心情"></div>
@@ -56,23 +57,27 @@
       <textarea id="f-workout" hidden></textarea>
       <label class="fld"><span>重點</span><textarea id="f-points" rows="2" placeholder="各科重點與需記憶處"></textarea></label>
     </div>
+    </div>
     <button id="save-record" class="primary">儲存進度</button>
   </section>
 
   <section class="card note-card" data-tab="notes">
     <h2>快速筆記</h2>
+    <div class="note-content">
     <div class="note-row">
-      <input id="n-title" type="text" placeholder="標題">
-      <select id="n-subject" aria-label="科目"><option value="">科目</option></select>
+      <label class="note-title-field"><span>標題</span><input id="n-title" type="text" placeholder="這次想記住什麼？"></label>
+      <label class="note-subject-field"><span>科目</span><select id="n-subject" aria-label="科目"><option value="">科目</option></select></label>
     </div>
     <ul id="n-draft" class="n-draft"></ul>
-    <div class="note-row"><textarea id="n-points" rows="1" placeholder="寫下內容，可一直補充"></textarea></div>
+    <label class="note-row note-editor"><span>內容</span><textarea id="n-points" rows="4" placeholder="寫下重點、問題或靈感，可一直補充"></textarea></label>
+    </div>
     <div class="n-tools">
       <button id="n-photo" class="ghost" type="button">照片</button>
       <button id="n-clear" class="ghost" type="button">清除</button>
       <input id="n-file" type="file" accept="image/*" multiple hidden>
     </div>
     <button id="save-note" class="primary n-save">送出筆記</button>
+    <footer class="muted foot note-footer"><a href="#" id="reset-key" title="重設 APP_KEY / API 位址">重設連線</a><span id="mode"></span></footer>
   </section>
 </div>
 <div class="col">
@@ -83,7 +88,6 @@
   </section>
 
 </div>
-  <footer class="muted foot" data-tab="notes"><a href="#" id="reset-key">重設 APP_KEY / API 位址</a><span id="mode"></span></footer>
 </main>
 <nav id="tabs" class="tabs"><button data-t="today" aria-selected="true">今日</button><button data-t="record">進度</button><button data-t="lessons">成就</button><button data-t="notes">筆記</button></nav>
 <dialog id="fc-dialog" class="fc-dialog"><div class="fc-dh"><h2>專注紀錄</h2><button class="ghost" id="fc-close">關閉</button></div><div id="fc-body"></div></dialog>

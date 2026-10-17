@@ -929,3 +929,53 @@ button:active,a.icon-btn:active,.chk:active,.fc-hist:active{box-shadow:0 0 0 1px
 @media(prefers-color-scheme:dark){:root{--current-task-glow:17%}}
 .item.task-item.is-current{position:relative;z-index:0;border-radius:12px;background:transparent;box-shadow:none}
 .item.task-item.is-current::before{content:"";position:absolute;inset:-7px 5px;z-index:-1;border-radius:20px;background:linear-gradient(100deg,transparent 0%,color-mix(in srgb,#ffe66d calc(var(--current-task-glow) * .5),transparent) 12%,color-mix(in srgb,#ffe66d var(--current-task-glow),transparent) 48%,color-mix(in srgb,#ffe66d calc(var(--current-task-glow) * .55),transparent) 86%,transparent 100%);filter:blur(14px);pointer-events:none}
+
+/* v115: aligned progress / notes shells; only their content scrolls. */
+.rec-content,.note-content{display:flex;flex-direction:column;flex:1 1 auto;min-width:0;min-height:0;overflow-x:hidden;overflow-y:auto;overscroll-behavior-y:contain;-webkit-overflow-scrolling:touch;padding:2px 2px 4px;scroll-padding-block:10px}
+.rec-content>.prog,.rec-content>.focus,.rec-content>.moods{flex-shrink:0}
+.rec-content>.fields{flex:1 0 auto;min-height:160px;gap:12px}
+.rec-content>.moods.seg{min-height:44px;margin:12px 0 16px}
+.rec-content>.moods.seg>button{min-height:44px!important}
+.rec>.rec-head,.note-card>h2,.rec>#save-record,.note-card>.n-tools,.note-card>#save-note,.note-card>.note-footer{flex:0 0 auto}
+.rec>#save-record{margin-top:12px}
+.note-content>.note-row:not(.note-editor){display:grid;grid-template-columns:minmax(0,1fr) 104px;gap:10px;margin:0;align-items:end;flex:none}
+.note-title-field,.note-subject-field{margin:0;min-width:0}
+.note-title-field>span,.note-subject-field>span,.note-editor>span{display:block;font-size:12px;font-weight:600;color:var(--mut);letter-spacing:.04em}
+.note-content .note-row input,.note-content .note-row select{width:100%;min-height:44px;margin-top:6px}
+.note-content>.note-editor{display:flex;flex-direction:column;align-items:stretch;flex:1 0 auto;gap:6px;margin:14px 0 0;min-width:0;min-height:140px}
+.note-content .note-editor textarea#n-points{flex:1 0 auto;width:100%;min-height:120px;max-height:320px;padding:10px 12px;line-height:1.65;margin:0}
+.note-content>.n-draft{flex:none;margin-top:12px}
+.note-card>.n-tools{margin-top:12px}
+.note-card>.n-tools .ghost{min-height:44px!important;height:44px}
+.note-card>.note-footer{gap:12px;align-items:center;margin-top:10px;padding:4px 2px 0;font-size:12px;line-height:1.5}
+.note-footer a{display:inline-flex;align-items:center;min-height:32px;text-underline-offset:3px}
+.note-footer #mode{text-align:right;overflow-wrap:anywhere}
+
+@media(max-width:899px),(max-height:559px){
+  body[data-tab=record] main [data-tab=record].rec,
+  body[data-tab=notes] main [data-tab=notes].note-card{
+    display:flex!important;flex-direction:column;flex:1 1 0;min-height:0;max-height:none;
+    margin:7px 0;padding:15px;overflow:hidden!important
+  }
+  body[data-tab=record] .rec-content>.fields{flex:1 0 auto;min-height:240px;gap:14px}
+  body[data-tab=record] .rec-content .fld{display:flex;flex-direction:column;flex:1 0 auto;min-height:0;border:0;border-radius:0;background:transparent;overflow:visible}
+  body[data-tab=record] .rec-content .fld>span{justify-content:flex-start;width:auto;border:0;padding:0 0 6px;font-size:13px;font-weight:600;letter-spacing:.04em}
+  body[data-tab=record] .rec-content .fld textarea{flex:1 0 auto;min-height:88px;height:auto;padding:10px 12px;line-height:1.65;border:1px solid var(--line);border-radius:10px;background:var(--bg)}
+  body[data-tab=record] .rec-content .fld #f-review{height:auto!important;min-height:112px!important}
+  body[data-tab=record] .rec-content .fld:focus-within{box-shadow:none}
+  body[data-tab=record] .rec-content .fld textarea:focus{outline:2px solid var(--fg);outline-offset:-2px}
+  body[data-tab=record] .rec>#save-record{min-height:48px;margin-top:12px}
+  body[data-tab=notes] .note-card>.n-save{min-height:48px!important}
+}
+@media(min-width:900px) and (min-height:560px){
+  .col>.rec,.col>.note-card{display:flex!important;flex-direction:column;flex:1 1 0;min-height:0;overflow:hidden!important}
+  .rec-content>.fields .fld{min-height:64px}
+  .rec-content>.fields .fld textarea{min-height:64px}
+  .note-content>.note-editor{min-height:100px}
+  .note-content .note-editor textarea#n-points{min-height:72px}
+  .note-card>.n-tools .ghost{min-height:36px!important;height:36px}
+  .note-card>.note-footer{margin-top:6px}
+}
+@media(min-width:1100px) and (min-height:560px){
+  main{grid-template-rows:minmax(0,1fr)}
+}
