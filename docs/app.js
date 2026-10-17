@@ -290,7 +290,7 @@
       e.preventDefault();
       const ua = navigator.userAgent || "";
       const web = "https://ankiweb.net/decks";
-      if (/iPhone|iPad|iPod/i.test(ua)) { location.href = "anki://x-callback-url/sync"; }
+      if (/iPhone|iPad|iPod/i.test(ua)) { location.href = "anki://"; }
       else if (/Android/i.test(ua)) { location.href = "intent://#Intent;package=com.ichi2.anki;S.browser_fallback_url=" + encodeURIComponent(web) + ";end"; }
       else {
         ankiCall("guiDeckBrowser").catch(() => {
