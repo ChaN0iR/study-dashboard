@@ -435,6 +435,7 @@
       $("fc-subj").dataset.collapsed = String(collapsed);
       $("fc-subj").setAttribute("aria-label", collapsed ? `${selected}；點選結束計時` : "選擇計時科目");
       const t = fc.mode === "total" ? totalSec() : segSec();
+      $("focus").classList.toggle("is-running", !!running);
       $("fc-time").textContent = fmtHMS(t);
       $("fc-time").classList.toggle("run", !!running);
       const by = {};
