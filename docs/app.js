@@ -259,6 +259,32 @@
     };
     return ideas[taskSubject(t)] || "默寫 10 個本週重點，再訂正 3 個易錯處";
   }
+  const taskDetailMq = window.matchMedia("(max-width:899px),(max-height:559px)");
+  let taskDetailReturnFocus = null;
+  function syncTaskActivityAccessibility(node) {
+    const text = node.dataset.taskText || node.textContent || "";
+    if (taskDetailMq.matches) {
+      node.setAttribute("role", "button");
+      node.setAttribute("aria-haspopup", "dialog");
+      node.setAttribute("aria-controls", "task-detail-dialog");
+      node.setAttribute("aria-label", `${text}；查看完整任務說明`);
+    } else {
+      node.removeAttribute("role");
+      node.removeAttribute("aria-haspopup");
+      node.removeAttribute("aria-controls");
+      node.setAttribute("aria-label", text);
+    }
+  }
+  function openTaskDetails(t, activity, trigger) {
+    const title = String(t.title || "").trim(), description = String(activity || "").trim();
+    $("task-detail-origin").hidden = !title;
+    $("task-detail-origin-text").textContent = title;
+    $("task-detail-description-block").hidden = !description;
+    $("task-detail-description").textContent = description;
+    taskDetailReturnFocus = trigger;
+    const dialog = $("task-detail-dialog");
+    if (!dialog.open) dialog.showModal();
+  }
   function taskItem(t, options = {}) {
     const activity = options.activity || taskActivity(t);
     const labels = [];
@@ -271,7 +297,19 @@
     const subject = isLifeTask(t) ? null : taskSubject(t);
     const suffix = SUBJECT_MARKS[subject] ? el("span", { class: "task-subject-suffix", "data-subject": subject, title: `科目：${subject}` }, `${subject} ${SUBJECT_MARKS[subject]}`) : null;
     const taskText = String(activity);
-    const title = el("span", { class: "task-title" }, el("span", { class: "task-activity", tabindex: "0", title: taskText, "aria-label": taskText }, taskText), badges);
+    const activityNode = el("span", {
+      class: "task-activity", tabindex: "0", title: taskText, "aria-label": taskText, "data-task-text": taskText,
+      onclick: (e) => {
+        if (!taskDetailMq.matches) return;
+        e.preventDefault(); e.stopPropagation(); openTaskDetails(t, taskText, e.currentTarget);
+      },
+      onkeydown: (e) => {
+        if (!taskDetailMq.matches || (e.key !== "Enter" && e.key !== " ")) return;
+        e.preventDefault(); e.stopPropagation(); openTaskDetails(t, taskText, e.currentTarget);
+      },
+    }, taskText);
+    syncTaskActivityAccessibility(activityNode);
+    const title = el("span", { class: "task-title" }, activityNode, badges);
     const copy = el("div", { class: "t task-copy" }, title);
     return el("li", { class: "item task-item" + (t.done ? " done" : "") },
       el("button", { class: "chk", role: "checkbox", "aria-checked": String(t.done), "aria-label": t.done ? "取消完成" : "標記完成", onclick: () => toggleTask(t) }),
@@ -470,6 +508,14 @@
   function init() {
     $("n-subject").append(...C.SUBJECTS.map((s) => el("option", { value: s }, s)));
     $("mode").textContent = DEMO ? "示範模式" : "";
+    const taskDetailDialog = $("task-detail-dialog");
+    $("task-detail-close").onclick = () => taskDetailDialog.close();
+    taskDetailDialog.addEventListener("click", (e) => { if (e.target === taskDetailDialog) taskDetailDialog.close(); });
+    taskDetailDialog.addEventListener("close", () => {
+      const trigger = taskDetailReturnFocus; taskDetailReturnFocus = null;
+      if (trigger?.isConnected) trigger.focus({ preventScroll: true });
+    });
+    taskDetailMq.addEventListener?.("change", () => document.querySelectorAll(".task-activity").forEach(syncTaskActivityAccessibility));
     ["f-hours", "f-minutes"].forEach((id) => $(id).addEventListener("input", updateTotal));
     (function () {
       const el2 = $("countdown"); if (!el2 || !C.EXAM_DATE) return;

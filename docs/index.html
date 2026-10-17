@@ -10,7 +10,7 @@
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="apple-touch-icon" href="icons/icon-192.png">
 <link rel="icon" href="icons/icon.svg" type="image/svg+xml">
-<link rel="stylesheet" href="style.css?v=109">
+<link rel="stylesheet" href="style.css?v=110">
 <title>清大後醫</title>
 </head>
 <body>
@@ -33,7 +33,7 @@
       <span class="fc-time" id="fc-time">0:00:00</span>
     </button>
     <div class="fc-goal" id="fc-goal"><div class="prog fc-prog"><i id="fc-prog-i"></i></div><span id="fc-goal-t" class="muted"></span></div>
-    <div class="fc-subj" id="fc-subj" role="group" aria-label="選擇計時科目" hidden><button type="button" data-s="英文" aria-pressed="false">英文</button><button type="button" data-s="化學" aria-pressed="false">化學</button><button type="button" data-s="生物" aria-pressed="false">生物</button><button type="button" data-s="物理" aria-pressed="false">物理</button><button type="button" data-s="生化" aria-pressed="false">生化</button></div>
+    <div class="fc-subj" id="fc-subj" role="group" aria-label="選擇計時科目" hidden><button type="button" data-s="英文" aria-pressed="false"><svg class="fc-choice-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 4.5h16a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2h-8l-5 3v-3H4a2 2 0 0 1-2-2v-10a2 2 0 0 1 2-2Z"/><path d="m8.5 14 2.5-6 2.5 6M9.3 12h3.4"/></svg><span>英文</span></button><button type="button" data-s="化學" aria-pressed="false"><svg class="fc-choice-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 3h6M10.5 3v6l-5.3 8.4A2.2 2.2 0 0 0 7.1 21h9.8a2.2 2.2 0 0 0 1.9-3.6L13.5 9V3"/><path d="M7.1 16h9.8"/><circle cx="10" cy="14" r=".7"/><circle cx="14.3" cy="12.5" r=".55"/></svg><span>化學</span></button><button type="button" data-s="生物" aria-pressed="false"><svg class="fc-choice-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 3.5C12.4 4 5.5 7.4 5.5 13c0 3.2 2.3 5.4 5.4 5.4C16.8 18.4 20.6 11.8 21 3.5Z"/><path d="M3.5 21c4.2-5.8 8.4-9.2 15.2-13.4M9 15l-.5-3M13.2 11.4l.2-3M14.7 13.4l3 .4"/></svg><span>生物</span></button><button type="button" data-s="物理" aria-pressed="false"><svg class="fc-choice-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true"><ellipse cx="12" cy="12" rx="9" ry="3.5" transform="rotate(-30 12 12)"/><ellipse cx="12" cy="12" rx="9" ry="3.5" transform="rotate(30 12 12)"/><ellipse cx="12" cy="12" rx="9" ry="3.5" transform="rotate(90 12 12)"/><circle cx="12" cy="12" r="1.5" fill="currentColor" stroke="none"/></svg><span>物理</span></button><button type="button" data-s="生化" aria-pressed="false"><svg class="fc-choice-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 3c7 4.3 7 13.7 0 18M17 3c-7 4.3-7 13.7 0 18"/><path d="M8 5h8M6.8 8.2h10.4M6.5 12h11M6.8 15.8h10.4M8 19h8"/></svg><span>生化</span></button></div>
   </section>
 
   <section class="card tasks-card" data-tab="today">
@@ -86,9 +86,10 @@
 </main>
 <nav id="tabs" class="tabs"><button data-t="today" aria-selected="true">今日</button><button data-t="record">進度</button><button data-t="lessons">成就</button><button data-t="notes">筆記</button></nav>
 <dialog id="fc-dialog" class="fc-dialog"><div class="fc-dh"><h2>專注紀錄</h2><button class="ghost" id="fc-close">關閉</button></div><div id="fc-body"></div></dialog>
+<dialog id="task-detail-dialog" class="fc-dialog task-detail-dialog" aria-labelledby="task-detail-title"><div class="fc-dh"><h2 id="task-detail-title">任務詳細說明</h2><button type="button" class="ghost" id="task-detail-close">關閉</button></div><div id="task-detail-origin" class="task-detail-block"><span class="task-detail-label">原始任務</span><p id="task-detail-origin-text" class="task-detail-text"></p></div><div id="task-detail-description-block" class="task-detail-block"><span class="task-detail-label">完整說明</span><p id="task-detail-description" class="task-detail-text"></p></div></dialog>
 <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
 <script src="config.js?v=89"></script>
-<script src="app.js?v=106"></script>
+<script src="app.js?v=107"></script>
 <script>(function(){var b=document.querySelectorAll("#tabs button");function go(t){t=t||"today";document.body.dataset.tab=t;localStorage.setItem("sd-tab",t);b.forEach(function(x){x.setAttribute("aria-selected",x.dataset.t==t)})}b.forEach(function(x){x.onclick=function(){go(x.dataset.t)}});go(localStorage.getItem("sd-tab")||"today")})()</script>
 </body>
 </html>
