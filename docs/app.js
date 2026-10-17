@@ -135,21 +135,85 @@
     }
     if (slot) {
       const open = state.tasks.filter((t) => !t.done && !t.skipped);
-      const fit = open.filter((t) => slot.keys.some((k) => t.title.toLowerCase().includes(k.toLowerCase())));
+      const fit = open.filter((t) => slot.keys.some((k) => String(t.title || "").toLowerCase().includes(k.toLowerCase())));
       box.append(el("div", { class: "sub" }, "可搭配任務"));
-      if (fit.length) box.append(el("ul", { class: "list" }, fit.map((t) => taskItem(t))));
+      if (fit.length) box.append(el("ul", { class: "list slot-task-list" }, renderSlotTasks(fit)));
       else if (!(slot.tips || []).length) box.append(el("div", { class: "empty" }, "這個時段沒有對應任務"));
       if ((slot.tips || []).length) box.append(el("ul", { class: "list" }, slot.tips.map((x) => el("li", { class: "item" }, el("div", { class: "t" }, x)))));
     }
   }
 
   const shortTitle = (s) => String(s || "").replace(/[\u{1F000}-\u{1FAFF}\u2600-\u27BF\uFE0F]/gu, "").replace(/[（(][^）)]*[）)]/g, "").replace(/｜.*$/, "").replace(/\s+/g, " ").trim();
-  function taskItem(t) {
+  function taskItem(t, options = {}) {
+    const title = el("span", { class: "task-title" }, shortTitle(t.title), t.source !== "今日" ? el("span", { class: "tag" }, t.source) : null);
+    const copy = el("div", { class: "t task-copy", title: t.title }, title,
+      options.activity ? el("small", { class: "task-activity" }, options.activity) : null);
     return el("li", { class: "item" + (t.done ? " done" : "") },
       el("button", { class: "chk", role: "checkbox", "aria-checked": String(t.done), "aria-label": t.done ? "取消完成" : "標記完成", onclick: () => toggleTask(t) }),
-      el("div", { class: "t", title: t.title }, shortTitle(t.title), t.source !== "今日" ? el("span", { class: "tag" }, t.source) : null),
+      copy,
       t.skipped ? el("button", { class: "ghost", onclick: () => skipTask(t, false) }, "恢復")
         : t.done ? null : el("button", { class: "ghost", onclick: () => skipTask(t, true) }, "跳過"));
+  }
+
+  const MISSING_ACTIVITY = "原任務未標示具體活動";
+  function taskSubject(t) {
+    const title = String(t.title || "");
+    if (/生化/.test(title)) return "生化";
+    if (/化學|普化|有機/.test(title)) return "化學";
+    if (/生物/.test(title)) return "生物";
+    if (/物理/.test(title)) return "物理";
+    if (/英文|英語/.test(title)) return "英文";
+    if (/anki/i.test(title)) return "Anki";
+    return null;
+  }
+  function taskActivity(t) {
+    const title = String(t.title || "");
+    const lesson = title.match(/第\s*\d+(?:\s*[-－]\s*\d+)?\s*堂/);
+    const lessonName = lesson ? lesson[0].replace(/\s+/g, "") : "";
+    const actions = [];
+    if (/anki/i.test(title)) {
+      const detail = title.replace(/^.*?anki\s*[:：]?\s*/i, "").trim();
+      actions.push(detail ? `做 Anki：${shortTitle(detail)}` : "做 Anki");
+    }
+    if (/錯題/.test(title)) actions.push(lessonName ? `回顧${lessonName}錯題` : "回顧錯題");
+    else if (/複習/.test(title)) actions.push(lessonName ? `複習${lessonName}` : "複習");
+    if (/講義/.test(title) && /(練習題|題目|做題|解題)/.test(title)) actions.push("做講義練習題");
+    else if (/練習題/.test(title)) actions.push("做練習題");
+    else if (/(題庫|題目|做題|解題)/.test(title)) actions.push("做題目");
+    if (!/錯題|複習/.test(title) && (lessonName || /(看課|上課|課程|先修|主課)/.test(title))) actions.push(lessonName ? `看${lessonName}` : "看課");
+    if (/閱讀|文章/.test(title)) actions.push(/文章/.test(title) ? "閱讀文章" : "閱讀");
+    if (/單字|生字/.test(title)) actions.push("背單字");
+    if (actions.length) return [...new Set(actions)].join("＋");
+
+    const remainder = title
+      .replace(/化學|普化|有機|生化|生物|物理|英文|英語|anki/gi, " ")
+      .replace(/今日|推薦|備用/g, " ")
+      .replace(/[：:＋+｜|]/g, " ").replace(/\s+/g, " ").trim();
+    return remainder ? `任務原文：${remainder}` : MISSING_ACTIVITY;
+  }
+  function renderSlotTasks(tasks) {
+    const groups = new Map();
+    tasks.forEach((t, index) => {
+      const subject = taskSubject(t), key = subject || `task:${t.id || index}`;
+      if (!groups.has(key)) groups.set(key, { subject, items: [] });
+      groups.get(key).items.push(t);
+    });
+    return [...groups.values()].map((group) => {
+      if (!group.subject || group.items.length === 1) {
+        const t = group.items[0];
+        return taskItem(t, { activity: taskActivity(t) });
+      }
+      const descriptions = group.items.map(taskActivity);
+      const summary = [...new Set(descriptions.filter((x) => x !== MISSING_ACTIVITY))];
+      const missing = descriptions.filter((x) => x === MISSING_ACTIVITY).length;
+      if (missing) summary.push(`${missing} 筆未標明活動`);
+      return el("li", { class: "task-pack" },
+        el("div", { class: "task-pack-head" },
+          el("div", { class: "task-pack-name" }, group.subject, el("span", { class: "tag" }, `${group.items.length} 筆`)),
+          el("div", { class: "task-pack-activity" }, summary.length ? summary.join("＋") : MISSING_ACTIVITY),
+          el("div", { class: "task-pack-note" }, "同科任務合併顯示；底下每筆仍可個別完成／跳過。")),
+        el("ul", { class: "list task-pack-list" }, group.items.map((t) => taskItem(t))));
+    });
   }
 
   function renderTasks() {
