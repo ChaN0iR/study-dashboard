@@ -806,3 +806,12 @@ button:active,a.icon-btn:active,.chk:active,.fc-hist:active{box-shadow:0 0 0 1px
   body[data-tab=record] main [data-tab=record].rec>.moods.seg{min-height:44px;flex:0 0 44px;width:100%;align-self:stretch}
   body[data-tab=record] main [data-tab=record].rec>.moods.seg>button{min-height:44px!important;min-width:0;white-space:nowrap}
 }
+
+
+/* v108: lead task rows with the subject capsule and keep attributes trailing */
+.item>.task-subject-suffix{margin:0;flex:0 0 auto;align-self:center}
+.item .task-copy{white-space:normal;overflow:visible;text-overflow:clip;overflow-wrap:anywhere}
+.item .task-copy .task-title{display:flex;align-items:center;flex-wrap:wrap;gap:4px 8px;min-width:0;white-space:normal}
+.item .task-copy .task-activity{flex:0 1 auto;min-width:0;overflow-wrap:anywhere}
+.item .task-copy .tag{margin:0;flex:none}
+.item.done>.task-subject-suffix{text-decoration:line-through}
