@@ -10,7 +10,7 @@
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="apple-touch-icon" href="icons/icon-192.png">
 <link rel="icon" href="icons/icon.svg" type="image/svg+xml">
-<link rel="stylesheet" href="style.css?v=91">
+<link rel="stylesheet" href="style.css?v=92">
 <title>清大後醫</title>
 </head>
 <body>
@@ -24,8 +24,7 @@
   <section id="now" class="card" data-tab="today"></section>
 
   <section class="card focus" id="focus" data-tab="record">
-    <div class="fc-head"><div class="fc-title"><h2>計時</h2></div>
-      <button type="button" class="fc-seg fc-tog" id="fc-mode" aria-label="切換今日或本段">今日</button>
+    <div class="fc-head"><button type="button" class="fc-seg fc-tog" id="fc-mode" aria-label="切換計時顯示"><span class="fc-brand-mark" aria-hidden="true"><i></i><i></i><i></i></span><span lang="ko">열품타</span></button>
       <button class="fc-hist" id="fc-hist" aria-label="專注紀錄" title="紀錄"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h16M4 12h10M4 18h6"/><circle cx="18" cy="17" r="3.5"/><path d="M18 15.6v1.6l1 .6"/></svg></button></div>
     <div class="fc-time" id="fc-time">0:00:00</div>
     <div class="fc-goal"><div class="prog fc-prog"><i id="fc-prog-i"></i></div><span id="fc-goal-t" class="muted"></span></div>
@@ -85,7 +84,7 @@
 <dialog id="fc-dialog" class="fc-dialog"><div class="fc-dh"><h2>專注紀錄</h2><button class="ghost" id="fc-close">關閉</button></div><div id="fc-body"></div></dialog>
 <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
 <script src="config.js?v=89"></script>
-<script src="app.js?v=91"></script>
+<script src="app.js?v=92"></script>
 <script>(function(){var b=document.querySelectorAll("#tabs button");function go(t){t=t||"today";document.body.dataset.tab=t;localStorage.setItem("sd-tab",t);b.forEach(function(x){x.setAttribute("aria-selected",x.dataset.t==t)})}b.forEach(function(x){x.onclick=function(){go(x.dataset.t)}});go(localStorage.getItem("sd-tab")||"today")})()</script>
 </body>
 </html>

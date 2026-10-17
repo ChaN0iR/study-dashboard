@@ -422,7 +422,7 @@
     }, "筆記已送出");
 
     // ---------- focus timer ----------
-    const fc = { st: null, off: 0, mode: localStorage.getItem("fcMode") || "total", busy: false };
+    const fc = { st: null, off: 0, mode: "total", busy: false };
     const fmtHMS = (s) => { s = Math.max(0, Math.floor(s)); return `${Math.floor(s / 3600)}:${String(Math.floor(s / 60) % 60).padStart(2, "0")}:${String(s % 60).padStart(2, "0")}`; };
     const fmtHM = (s) => `${Math.floor(s / 3600)}時${String(Math.floor(s / 60) % 60).padStart(2, "0")}分`;
     const fmtFull = (s) => { s = Math.max(0, Math.floor(s)); return `${Math.floor(s / 86400)}天 ${Math.floor(s / 3600) % 24}時 ${Math.floor(s / 60) % 60}分 ${s % 60}秒`; };
@@ -451,7 +451,6 @@
         b.setAttribute("aria-label", collapsed ? `${k}，點選結束計時` : `${k}，開始計時`);
       });
       $("fc-sub").textContent = a ? (running ? "進行中" : "已暫停") : "尚未開始";
-      $("fc-mode").textContent = fc.mode === "total" ? "今日" : "本段";
       const assigned = (state.tasks || []).filter((x) => x.source === "今日" && !x.skipped).length;
       const goalH = Math.min(10, Math.max(3, 3 + assigned * 0.5)), pct = Math.round(totalSec() / (goalH * 3600) * 100);
       $("fc-prog-i").style.width = Math.min(100, pct) + "%"; $("fc-prog-i").parentNode.classList.toggle("over", pct > 100);
@@ -485,7 +484,7 @@
       if (state.record && state.record.hours === h && state.record.minutes === m) return;
       try { state.record = await api("/api/record", { hours: h, minutes: m }); renderRecord(); } catch (e) {}
     }
-    const fcToggleMode = () => { fc.mode = fc.mode === "total" ? "seg" : "total"; localStorage.setItem("fcMode", fc.mode); fcRender(); };
+    const fcToggleMode = () => { fc.mode = fc.mode === "total" ? "seg" : "total"; fcRender(); };
     $("fc-mode").onclick = fcToggleMode;
     function fcHistory() {
       const st = fc.st || { days: [], history: [] };

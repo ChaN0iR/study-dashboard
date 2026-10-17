@@ -450,3 +450,12 @@ body{background:radial-gradient(circle at 92% -10%,rgba(57,73,171,.08),transpare
  button:active,a.icon-btn:active,.chk:active{transform:translateY(2px) scale(.98);box-shadow:0 0 0 1px color-mix(in srgb,var(--acc) 35%,transparent)}
  .primary:active{transform:translateY(2px);box-shadow:0 1px 0 color-mix(in srgb,var(--acc) 60%,var(--fg) 40%)}
 }
+
+/* original study-brand treatment for the timer mode control */
+.fc-brand-mark{display:inline-flex;align-items:center;justify-content:center;gap:2px;flex:none;width:22px;height:22px;border:1px solid color-mix(in srgb,var(--acc) 28%,var(--line));border-radius:7px;background:linear-gradient(145deg,color-mix(in srgb,var(--acc) 12%,var(--card)),var(--card));box-shadow:0 2px 5px color-mix(in srgb,var(--acc) 12%,transparent)}
+.fc-brand-mark i{display:block;width:2.5px;border-radius:99px;background:var(--acc)}
+.fc-brand-mark i:nth-child(1){height:6px;opacity:.62}
+.fc-brand-mark i:nth-child(2){height:11px;opacity:.82}
+.fc-brand-mark i:nth-child(3){height:8px}
+.fc-tog{display:inline-flex;align-items:center;justify-content:center;gap:7px;min-width:88px!important;min-height:32px!important;padding:0 11px!important;border:1px solid color-mix(in srgb,var(--acc) 28%,var(--line));border-radius:11px;background:linear-gradient(145deg,color-mix(in srgb,var(--acc) 11%,var(--card)),var(--card));color:var(--acc);font-size:13px;font-weight:800;letter-spacing:.025em;box-shadow:0 2px 6px color-mix(in srgb,var(--acc) 12%,transparent)}
+.fc-tog .fc-brand-mark{width:18px;height:18px;border-radius:6px;box-shadow:none}
