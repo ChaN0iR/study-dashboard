@@ -6,6 +6,46 @@ import assert from "node:assert/strict";
 const calls = [];
 const taskId = "11111111-1111-1111-1111-111111111111";
 const englishLessonId = "22222222-2222-2222-2222-222222222222";
+const dependentTaskId = "33333333-3333-3333-3333-333333333334";
+const blockedPrerequisiteId = "55555555-5555-5555-5555-555555555555";
+const donePrerequisiteId = "66666666-6666-6666-6666-666666666666";
+const skippedPrerequisiteId = "dddddddd-dddd-dddd-dddd-dddddddddddd";
+const physicsBackId = "77777777-7777-7777-7777-777777777777";
+const physicsReadyId = "88888888-8888-8888-8888-888888888888";
+const oldDoneId = "99999999-9999-9999-9999-999999999999";
+const oldSkippedId = "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa";
+const oldUnmarkedId = "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb";
+const oldLifeId = "cccccccc-cccc-cccc-cccc-cccccccccccc";
+const day = (offset) => {
+  const d = new Date(Date.now() + 8 * 3600e3 + offset * 86400e3);
+  return d.toISOString().slice(0, 10);
+};
+const taskPage = (id, title, { date = day(0), done = false, skipped = false, makeup = false, order = 1, prerequisites = [], lessonIds = [] } = {}) => ({
+  id,
+  properties: {
+    "任務": { title: [{ plain_text: title }] },
+    "　": { checkbox: done },
+    "»": { checkbox: skipped },
+    "來源": { select: { name: "今日" } },
+    "日期": { date: { start: date } },
+    "順序": { number: order },
+    "類型": { select: { name: "複習" } },
+    "預估分鐘": { number: 25 },
+    "難度": { select: { name: "標準" } },
+    "對應堂次": { relation: lessonIds.map((id) => ({ id })) },
+    "可補做": { checkbox: makeup },
+    "前置任務": { relation: prerequisites.map((id) => ({ id })) },
+  },
+});
+const task = taskPage(taskId, "英文主課第02-1堂", { lessonIds: [englishLessonId] });
+const carryoverRows = [
+  taskPage(physicsBackId, "物理先修後段練習題", { date: day(-1), makeup: true, prerequisites: [blockedPrerequisiteId], order: 1 }),
+  taskPage(physicsReadyId, "物理先修另一題練習", { date: day(-2), makeup: true, prerequisites: [donePrerequisiteId], order: 2 }),
+  taskPage(oldDoneId, "已完成舊課程第01堂", { date: day(-1), makeup: true, done: true, order: 3 }),
+  taskPage(oldSkippedId, "已跳過舊課程第02堂", { date: day(-1), makeup: true, skipped: true, order: 4 }),
+  taskPage(oldUnmarkedId, "未標可補做課程第03堂", { date: day(-1), makeup: false, order: 5 }),
+  taskPage(oldLifeId, "重量訓練＋洗澡", { date: day(-1), makeup: true, order: 6 }),
+];
 const lessonPage = (id, title, subject, course, status, weekStart, order) => ({
   id,
   properties: {
@@ -20,55 +60,81 @@ const lessonPage = (id, title, subject, course, status, weekStart, order) => ({
     "排序": { number: order },
   },
 });
-const day = (offset) => {
-  const d = new Date(Date.now() + 8 * 3600e3 + offset * 86400e3);
-  return d.toISOString().slice(0, 10);
-};
-const task = {
-  id: taskId,
-  properties: {
-    "任務": { title: [{ plain_text: "英文主課第02-1堂" }] },
-    "　": { checkbox: true },
-    "»": { checkbox: false },
-    "來源": { select: { name: "今日" } },
-    "順序": { number: 1 },
-    "類型": { select: { name: "複習" } },
-    "預估分鐘": { number: 25 },
-    "難度": { select: { name: "標準" } },
-    "對應堂次": { relation: [{ id: englishLessonId }] },
-  },
-};
 const lessons = [
   lessonPage(englishLessonId, "英文主課第02-1堂", "英文", "英文主課", "未開始", day(0), 1),
   lessonPage("33333333-3333-3333-3333-333333333333", "英文主課第01-1堂", "英文", "英文主課", "完成", day(-10), 2),
   lessonPage("44444444-4444-4444-4444-444444444444", "英文字彙第01-1堂", "英文", "英文字彙", "未開始", day(9), 3),
 ];
-const page = (id = taskId, properties = {}) => ({ id, properties });
+const prerequisitePage = (id, done) => taskPage(id, "物理前段任務", { date: day(-1), done });
+const genericPage = (id = taskId, properties = {}) => ({ id, properties });
+const mockPages = new Map([
+  [dependentTaskId, taskPage(dependentTaskId, "依賴任務", { prerequisites: [blockedPrerequisiteId, skippedPrerequisiteId] })],
+  [blockedPrerequisiteId, prerequisitePage(blockedPrerequisiteId, false)],
+  [skippedPrerequisiteId, taskPage(skippedPrerequisiteId, "已略過前置", { date: day(-1), skipped: true })],
+]);
 
-globalThis.fetch = async (url, init) => {
+const nativeFetch = globalThis.fetch;
+globalThis.fetch = async (url, init = {}) => {
   const target = String(url);
   const body = init.body ? JSON.parse(init.body) : null;
-  calls.push({ url: target, method: init.method, body });
+  calls.push({ url: target, method: init.method || "GET", body });
   if (target.endsWith("/query")) {
-    if (target.includes(`/databases/${DB.tasks}/query`)) return Response.json({ results: [task], has_more: false });
+    if (target.includes(`/databases/${DB.tasks}/query`)) {
+      const isCarryoverQuery = Array.isArray(body?.filter?.and);
+      return Response.json({ results: isCarryoverQuery ? carryoverRows : [task], has_more: false });
+    }
     if (target.includes(`/databases/${DB.records}/query`)) return Response.json({ results: [], has_more: false });
     if (target.includes(`/databases/${DB.lessons}/query`)) return Response.json({ results: lessons, has_more: false });
   }
-  return Response.json(page());
+  const pageMatch = target.match(/\/pages\/([^/]+)$/);
+  if (pageMatch) {
+    const id = pageMatch[1];
+    const page = mockPages.get(id) || (id === donePrerequisiteId ? prerequisitePage(id, true) : genericPage(id));
+    if (init.method === "PATCH") {
+      page.properties = { ...page.properties, ...body.properties };
+      mockPages.set(id, page);
+    }
+    return Response.json(page);
+  }
+  return Response.json(genericPage());
 };
 
 const env = { NOTION_TOKEN: "t", APP_KEY: "k", ALLOWED_ORIGIN: "*" };
-const call = (m, p, b, key = "k") => worker.fetch(new Request("https://x" + p, { method: m, headers: { "x-app-key": key, "content-type": "application/json" }, body: b ? JSON.stringify(b) : undefined }), env);
+const call = (m, p, b, key = "k") => worker.fetch(new Request("https://x" + p, {
+  method: m, headers: { "x-app-key": key, "content-type": "application/json" }, body: b ? JSON.stringify(b) : undefined,
+}), env);
 assert.equal((await call("GET", "/api/state", null, "bad")).status, 401);
+const stateCallStart = calls.length;
 const st = await (await call("GET", "/api/state")).json();
 assert.equal(st.tasks[0].title, "英文主課第02-1堂");
-assert.equal(st.tasks[0].done, true);
+assert.equal(st.tasks[0].done, false);
 assert.equal(st.tasks[0].type, "複習");
 assert.equal(st.tasks[0].estimatedMinutes, 25);
 assert.equal(st.tasks[0].difficulty, "標準");
 assert.deepEqual(st.tasks[0].relatedSubjects, ["英文"]);
 assert.deepEqual(st.tasks[0].relatedCourses, ["英文主課"]);
 assert.equal(st.lessons.length, 1, "only current-window rows are displayed");
+const carry = st.tasks.find((item) => item.id === physicsBackId);
+assert.equal(carry.carryover, true);
+assert.equal(carry.date, day(-1), "carryover keeps its original date");
+assert.equal(carry.makeup, true);
+assert.equal(carry.blocked, true, "unfinished prerequisite blocks the downstream task");
+assert.deepEqual(carry.prerequisiteTaskIds, [blockedPrerequisiteId]);
+const ready = st.tasks.find((item) => item.id === physicsReadyId);
+assert.equal(ready.blocked, false, "completed prerequisite does not block the task");
+assert.equal(st.tasks.some((item) => [oldDoneId, oldSkippedId, oldUnmarkedId].includes(item.id)), false,
+  "done, skipped, and unmarked historical tasks are not returned");
+assert.equal(st.tasks.filter((item) => item.id === oldLifeId).length, 1,
+  "life-task classification is left to the frontend policy");
+const stateCalls = calls.slice(stateCallStart);
+const oldTaskQuery = stateCalls.find((entry) => entry.url.includes(`/databases/${DB.tasks}/query`) && Array.isArray(entry.body?.filter?.and));
+assert.ok(oldTaskQuery, "queries old tasks only through the makeup/date filter");
+assert.deepEqual(oldTaskQuery.body.filter.and, [
+  { property: "日期", date: { before: st.today } },
+  { property: "可補做", checkbox: { equals: true } },
+]);
+assert.equal(stateCalls.some((entry) => entry.method === "PATCH" || entry.method === "POST" && !entry.url.endsWith("/query")), false,
+  "loading task state must not write to Notion");
 const english = st.courseStats.find((x) => x.course === "英文主課");
 const vocabulary = st.courseStats.find((x) => x.course === "英文字彙");
 assert.deepEqual([english.done, english.total], [1, 2]);
@@ -84,12 +150,33 @@ assert.equal(taskWrites.some((c) => c.url.includes(englishLessonId)), false, "ta
 assert.equal((await call("POST", `/api/task/${taskId}`, { skip: true })).status, 200);
 assert.equal((await call("POST", `/api/task/${taskId}`, {})).status, 400);
 assert.equal((await call("POST", `/api/task/zzz`, { done: true })).status, 400);
+assert.equal((await call("POST", `/api/task/${dependentTaskId}`, { done: false })).status, 200,
+  "cancelling completion is allowed while prerequisites are blocked");
+let dependentWritesBefore = calls.filter((c) => c.method === "PATCH" && c.url.endsWith(`/pages/${dependentTaskId}`)).length;
+let rejected = await call("POST", `/api/task/${dependentTaskId}`, { done: true });
+assert.equal(rejected.status, 409, "unfinished and skipped prerequisites block completion");
+assert.deepEqual(await rejected.json(), { error: "prerequisites incomplete" });
+assert.equal(calls.filter((c) => c.method === "PATCH" && c.url.endsWith(`/pages/${dependentTaskId}`)).length, dependentWritesBefore,
+  "rejected completion performs zero writes");
+assert.equal((await call("POST", `/api/task/${blockedPrerequisiteId}`, { done: true })).status, 200);
+dependentWritesBefore = calls.filter((c) => c.method === "PATCH" && c.url.endsWith(`/pages/${dependentTaskId}`)).length;
+rejected = await call("POST", `/api/task/${dependentTaskId}`, { done: true });
+assert.equal(rejected.status, 409, "a skipped prerequisite still blocks completion");
+assert.equal(calls.filter((c) => c.method === "PATCH" && c.url.endsWith(`/pages/${dependentTaskId}`)).length, dependentWritesBefore,
+  "skipped prerequisite rejection performs zero writes");
+assert.equal((await call("POST", `/api/task/${skippedPrerequisiteId}`, { done: true, skip: false })).status, 200);
+assert.equal((await call("POST", `/api/task/${dependentTaskId}`, { done: true })).status, 200,
+  "completion is allowed after every prerequisite is done and unskipped");
+assert.equal(calls.filter((c) => c.method === "PATCH" && c.url.endsWith(`/pages/${dependentTaskId}`)).length,
+  dependentWritesBefore + 1, "allowed completion writes exactly once");
 assert.equal((await call("POST", `/api/record`, { hours: 1, minutes: 40, "心得": "x", "心情": "普通" })).status, 200);
 assert.equal((await call("POST", `/api/record`, { "心情": "bad" })).status, 400);
 assert.equal((await call("POST", `/api/lesson/${englishLessonId}`, { done: true })).status, 200);
 assert.equal((await call("POST", `/api/lesson/${englishLessonId}`, { review: true })).status, 200);
 assert.equal((await call("POST", `/api/note`, { title: "n", subject: "化學" })).status, 200);
 assert.equal((await call("POST", `/api/note`, {})).status, 400);
-const patch = calls.find((c) => c.method === "PATCH" && c.body.properties["　"]);
+const patch = calls.find((c) => c.method === "PATCH" && c.body?.properties?.["　"]);
 assert.deepEqual(patch.body.properties["　"], { checkbox: true });
 console.log("worker ok,", calls.length, "mock notion calls");
+
+globalThis.fetch = nativeFetch;

@@ -202,11 +202,12 @@
     return null;
   }
   function isLifeTask(t) {
-    return /^(早餐|午餐|晚餐|用餐|飯後散步|散步|步數|肌酸|蛋白粉|重量訓練|重訓|運動|洗澡|晚間簡單整理|簡單清潔|清潔收尾|睡前)(?:[｜|：:\s＋+]|$)/.test(String(t.title || ""));
+    const title = String(t.title || "");
+    return String(t.type || "").trim() === "生活" || /^(早餐|午餐|晚餐|用餐|飯後散步|散步|步數|肌酸|蛋白粉|重量訓練|重訓|運動|洗澡|晚間簡單整理|簡單清潔|清潔收尾|睡前|收尾|甘胺酸|YPT|填\s*YPT)(?:[｜|：:\s＋+・]|$)/i.test(title);
   }
   const STUDY_TASK_TYPES = new Set(["預習", "初學", "複習", "週複習", "練習"]);
   const DIFFICULTY_FACTORS = { "簡單": 0.75, "標準": 1, "困難": 1.5 };
-  const EXPLICIT_STUDY_TASK = /看課|上課|練習|錯題|訂正|精讀|單字|字彙|閱讀|測驗|預習|到期卡|自測|背誦|解題|做題|新卡|複習|回顧|第\s*\d+(?:\s*[-－]\s*\d+)?\s*堂|(?:看|上)微課|微課.*(?:觀看|看課|上課|第\s*\d+|堂|單元|練習|複習)/i;
+  const EXPLICIT_STUDY_TASK = /看課|上課|練習|錯題|訂正|精讀|單字|字彙|閱讀|測驗|預習|到期卡|自測|背誦|解題|做題|新卡|複習|回顧|第\s*\d+(?:\s*[-－]\s*\d+)?\s*堂|(?:看|上|觀看)微課|微課.*(?:觀看|看課|上課|第\s*\d+|堂|單元|練習|複習)|(?:看|觀看|上)影片|影片.*(?:觀看|課程|第\s*\d+|堂|單元|練習|複習)/i;
   const ADMIN_ONLY_TASK = /^(設定|整理牌組|整理資料|整理檔案|同步|匯入|匯出|登入|排程|安排|管理)(?:[｜|：:\s＋+]|$)/;
   const ADMIN_OPERATION = /登入|帳號|密碼|安裝|設定|同步|匯入|匯出|排程|安排|管理/;
   function isStudyTask(t) {
@@ -320,6 +321,17 @@
     }
     return bestIn(slots);
   }
+  function taskViewNow() {
+    const now = taipeiNow(), slots = scheduleSlots(now);
+    const bedMinute = toMin(C.BED);
+    return {
+      now, slots,
+      view: TaskPolicy.taskView(state.tasks, {
+        today: state.today || now.date, weekday: now.wd, nowMin: now.min, slots, bedMinute,
+        isStudyTask, isLifeTask,
+      }),
+    };
+  }
   function taskSteps(t) {
     const original = String(t.title || "").trim();
     if (!original) return [];
@@ -347,6 +359,8 @@
   function taskItem(t) {
     const labels = [];
     labels.push(...taskStages(t));
+    if (t.carryover === true) labels.push("補做");
+    if (t.blocked === true) labels.push("等待前置");
     const source = String(t.source || "");
     if (source && source !== "今日") labels.push(source);
     else if (/推薦/.test(String(t.title || "")) && !labels.includes("推薦")) labels.push("推薦");
@@ -355,7 +369,13 @@
     const subject = isLifeTask(t) ? null : taskSubject(t);
     const suffix = SUBJECT_MARKS[subject] ? el("span", { class: "task-subject-suffix", "data-subject": subject, title: `科目：${subject}` }, `${subject} ${SUBJECT_MARKS[subject]}`) : null;
     const taskText = taskSummary(t);
-    const isCurrent = t.done !== true && activeScheduleSlot && taskScheduleSlot(t) === activeScheduleSlot;
+    const schedule = taskViewNow();
+    const currentSlot = schedule.slots.find((s) => schedule.now.min >= toMin(s.start) && schedule.now.min < toMin(s.end)) || null;
+    const isCurrent = TaskPolicy.taskIsCurrent(t, {
+      activeSlot: currentSlot, weekday: schedule.now.wd, nowMin: schedule.now.min,
+      slots: schedule.slots, bedMinute: toMin(C.BED), isStudyTask,
+      getSlot: (task) => taskScheduleSlot(task, schedule.slots),
+    });
     const activityNode = el("span", {
       class: "task-activity", tabindex: "0", title: String(t.title || taskText), "aria-label": taskText, "data-task-text": taskText,
       onclick: (e) => {
@@ -369,8 +389,8 @@
     syncTaskActivityAccessibility(activityNode);
     const title = el("span", { class: "task-title" }, activityNode, badges);
     const copy = el("div", { class: "t task-copy" }, title);
-    return el("li", { class: "item task-item" + (t.done ? " done" : "") + (isCurrent ? " is-current" : "") },
-      el("button", { class: "chk", role: "checkbox", "aria-checked": String(t.done), "aria-label": t.done ? "取消完成" : "標記完成", onclick: () => toggleTask(t) }),
+    return el("li", { class: "item task-item" + (t.done ? " done" : "") + (t.blocked ? " blocked" : "") + (isCurrent ? " is-current" : "") },
+      el("button", { class: "chk", role: "checkbox", "aria-checked": String(t.done), "aria-label": t.blocked ? "等待前置任務完成" : t.done ? "取消完成" : "標記完成", disabled: t.blocked === true, onclick: () => toggleTask(t) }),
       suffix,
       copy,
       t.skipped ? el("button", { class: "ghost", onclick: () => skipTask(t, false) }, "恢復")
@@ -381,14 +401,18 @@
   }
 
   function renderTasks() {
-    const real = state.tasks.filter((t) => !t.skipped).sort((a, b) => {
-      const unfinished = Number(a.done === true) - Number(b.done === true);
-      if (unfinished) return unfinished;
-      const current = Number(!(a.done !== true && activeScheduleSlot && taskScheduleSlot(a) === activeScheduleSlot))
-        - Number(!(b.done !== true && activeScheduleSlot && taskScheduleSlot(b) === activeScheduleSlot));
-      return current || ((Number(a.order) || 999) - (Number(b.order) || 999));
-    });
-    const skipped = state.tasks.filter((t) => t.skipped);
+    const schedule = taskViewNow(), slots = schedule.slots;
+    const sortOptions = {
+      nowMin: schedule.now.min, weekday: schedule.now.wd, slots, bedMinute: toMin(C.BED),
+      activeSlot: activeScheduleSlot, isStudyTask, isLifeTask,
+      getSlot: (task) => taskScheduleSlot(task, slots),
+    };
+    const real = schedule.view.tasks.filter((t) => !t.skipped).sort((a, b) => TaskPolicy.compareTasks(a, b, sortOptions));
+    const skipped = state.tasks.filter((t) => t.skipped && t.carryover !== true);
+    const note = $("task-policy-note");
+    note.hidden = !schedule.view.suppression;
+    note.textContent = schedule.view.suppression === "rest" ? "週日休息日：今天不提示未完成的學習任務。"
+      : schedule.view.suppression === "quiet" ? "睡前時段：未完成的學習任務暫不顯示，明天再處理。" : "";
     const done = real.filter((t) => t.done).length, pct = real.length ? Math.round(done / real.length * 100) : 0;
     $("task-count").textContent = real.length ? `${done}/${real.length}` : "";
     $("task-prog-i").style.width = pct + "%";
@@ -410,7 +434,7 @@
     updateProg(); recBtn();
   }
   function updateProg() {
-    const t = (state.tasks || []).filter((x) => !x.skipped), d = t.filter((x) => x.done).length, p = t.length ? Math.round(d / t.length * 100) : 0;
+    const t = taskViewNow().view.tasks.filter((x) => !x.skipped), d = t.filter((x) => x.done).length, p = t.length ? Math.round(d / t.length * 100) : 0;
     $("completion").textContent = t.length ? `${d}/${t.length}　${p}%` : "";
     $("prog-i").style.width = p + "%";
   }
@@ -881,7 +905,10 @@
     setInterval(() => {
       const previousSlot = activeScheduleKey;
       renderNow();
-      if (previousSlot !== activeScheduleKey) renderTasks();
+      if (previousSlot !== activeScheduleKey) {
+        if ((state.today || "") !== taipeiNow().date) load(true);
+        else renderTasks();
+      }
     }, 30000);
     document.addEventListener("visibilitychange", () => { if (!document.hidden) load(true); });
     if ("serviceWorker" in navigator && location.protocol.startsWith("http")) navigator.serviceWorker.register("sw.js").catch(() => {});

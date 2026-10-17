@@ -39,6 +39,7 @@
   <section class="card tasks-card" data-tab="today">
     <div class="section-head"><div><h2>今日任務 <span id="task-count" class="muted"></span></h2></div></div>
     <div class="task-progress" aria-hidden="true"><i id="task-prog-i"></i></div>
+    <p id="task-policy-note" class="muted" hidden></p>
     <ul id="tasks" class="list"></ul>
     <details id="skipped-wrap" hidden><summary>已跳過</summary><ul id="skipped" class="list"></ul></details>
   </section>
@@ -89,7 +90,8 @@
 <dialog id="task-detail-dialog" class="fc-dialog task-detail-dialog" aria-labelledby="task-detail-title"><div class="fc-dh"><h2 id="task-detail-title">任務詳細說明</h2><button type="button" class="ghost" id="task-detail-close">關閉</button></div><div id="task-detail-origin" class="task-detail-block"><span class="task-detail-label">任務原文</span><p id="task-detail-origin-text" class="task-detail-text"></p></div><div id="task-detail-steps-block" class="task-detail-block"><span class="task-detail-label">照做步驟</span><ol id="task-detail-steps" class="task-detail-steps"></ol><p class="task-detail-note">只按原文列出要求；未補寫原文沒有提供的做法。</p></div></dialog>
 <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
 <script src="config.js?v=89"></script>
-<script src="app.js?v=110"></script>
+<script src="task-policy.js?v=1"></script>
+<script src="app.js?v=111"></script>
 <script>(function(){var b=document.querySelectorAll("#tabs button");function go(t){t=t||"today";document.body.dataset.tab=t;localStorage.setItem("sd-tab",t);b.forEach(function(x){x.setAttribute("aria-selected",x.dataset.t==t)})}b.forEach(function(x){x.onclick=function(){go(x.dataset.t)}});go(localStorage.getItem("sd-tab")||"today")})()</script>
 </body>
 </html>

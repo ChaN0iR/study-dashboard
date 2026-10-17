@@ -109,8 +109,13 @@ const shapeTask = (pg) => ({
   done: rd.check(pg.properties[P.task.done]),
   skipped: rd.check(pg.properties[P.task.skip]),
   source: rd.select(pg.properties[P.task.source]) || "今日",
+  date: rd.date(pg.properties[P.task.date]),
   order: rd.number(pg.properties[P.task.order]) ?? 999,
   type: rd.select(pg.properties[P.task.type]) || null,
+  makeup: rd.check(pg.properties[P.task.makeup]),
+  carryover: false,
+  prerequisiteTaskIds: rd.relation(pg.properties[P.task.prerequisites]),
+  blocked: false,
   estimatedMinutes: rd.number(pg.properties[P.task.estimatedMinutes]),
   difficulty: rd.select(pg.properties[P.task.difficulty]),
   relatedLessonIds: rd.relation(pg.properties[P.task.lesson]),
@@ -178,10 +183,17 @@ async function getOrCreateRecord(env, today) {
 async function getState(env) {
   const today = taipeiDate();
   const weekFloor = taipeiDate(-7);
-  const [taskRows, rec, lessonRows] = await Promise.all([
+  const [todayTaskRows, carryoverRows, rec, lessonRows] = await Promise.all([
     queryAll(env, DB.tasks, {
       filter: { property: P.task.date, date: { equals: today } },
       sorts: [{ property: P.task.order, direction: "ascending" }],
+    }),
+    queryAll(env, DB.tasks, {
+      filter: { and: [
+        { property: P.task.date, date: { before: today } },
+        { property: P.task.makeup, checkbox: { equals: true } },
+      ] },
+      sorts: [{ property: P.task.date, direction: "descending" }, { property: P.task.order, direction: "ascending" }],
     }),
     findTodayRecord(env, today),
     queryAll(env, DB.lessons, {
@@ -193,7 +205,24 @@ async function getState(env) {
     l.weekStart && l.weekStart <= today && (!l.done || l.weekStart > weekFloor)
   );
   const lessonsById = new Map(allLessons.map((l) => [l.id, l]));
-  const tasks = taskRows.map(shapeTask).map((t) => {
+  const todayTasks = todayTaskRows.map(shapeTask);
+  const todayTaskIds = new Set(todayTasks.map((task) => task.id));
+  const priorTasks = carryoverRows.map(shapeTask)
+    .filter((task) => task.makeup && !task.done && !task.skipped && !todayTaskIds.has(task.id))
+    .map((task) => ({ ...task, carryover: true }));
+  const tasksWithoutDependencies = [...todayTasks, ...priorTasks];
+  const taskById = new Map(tasksWithoutDependencies.map((task) => [task.id, task]));
+  const prerequisiteIds = [...new Set(tasksWithoutDependencies.flatMap((task) => task.prerequisiteTaskIds))];
+  const missingPrerequisites = prerequisiteIds.filter((id) => !taskById.has(id));
+  const prerequisiteRows = await Promise.all(missingPrerequisites.map(async (id) => {
+    try { return [id, shapeTask(await notion(env, `/pages/${id}`))]; }
+    catch { return [id, null]; }
+  }));
+  for (const [id, task] of prerequisiteRows) taskById.set(id, task);
+  const tasks = tasksWithoutDependencies.map((task) => ({
+    ...task,
+    blocked: task.prerequisiteTaskIds.some((id) => !taskById.get(id) || taskById.get(id).done !== true),
+  })).map((t) => {
     const related = t.relatedLessonIds.map((id) => lessonsById.get(id)).filter(Boolean);
     return {
       ...t,
@@ -250,6 +279,16 @@ async function postTask(env, id, body) {
   if (typeof body.done === "boolean") props[P.task.done] = wr.check(body.done);
   if (typeof body.skip === "boolean") props[P.task.skip] = wr.check(body.skip);
   if (!Object.keys(props).length) throw new HttpError(400, "need done or skip (boolean)");
+  if (body.done === true) {
+    const task = await notion(env, `/pages/${id}`);
+    const prerequisiteIds = rd.relation(task.properties?.[P.task.prerequisites]);
+    const prerequisites = await Promise.all(prerequisiteIds.map((prerequisiteId) =>
+      notion(env, `/pages/${prerequisiteId}`)
+    ));
+    if (prerequisites.some((prerequisite) =>
+      !rd.check(prerequisite.properties?.[P.task.done]) || rd.check(prerequisite.properties?.[P.task.skip])
+    )) throw new HttpError(409, "prerequisites incomplete");
+  }
   return shapeTask(await notion(env, `/pages/${id}`, "PATCH", { properties: props }));
 }
 
