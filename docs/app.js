@@ -17,6 +17,7 @@
 
   let state = { tasks: [], lessons: [], record: null, today: "" };
   let mood = null;
+  let xpVerified = false;
 
   // ---------- helpers ----------
   function el(tag, props = {}, ...kids) {
@@ -197,21 +198,38 @@
   function isLifeTask(t) {
     return /^(早餐|午餐|晚餐|用餐|飯後散步|散步|步數|肌酸|蛋白粉|重量訓練|重訓|運動|洗澡|晚間簡單整理|簡單清潔|清潔收尾|睡前)(?:[｜|：:\s＋+]|$)/.test(String(t.title || ""));
   }
-  const XP_PER_COMPLETED_TASK = 10;
+  const STUDY_TASK_TYPES = new Set(["預習", "初學", "複習", "週複習", "練習"]);
+  const DIFFICULTY_FACTORS = { "簡單": 0.75, "標準": 1, "困難": 1.5 };
+  const EXPLICIT_STUDY_TASK = /看課|上課|練習|錯題|訂正|精讀|單字|字彙|閱讀|測驗|預習|到期卡|自測|背誦|解題|做題|新卡|複習|回顧|第\s*\d+(?:\s*[-－]\s*\d+)?\s*堂|(?:看|上)微課|微課.*(?:觀看|看課|上課|第\s*\d+|堂|單元|練習|複習)/i;
+  const ADMIN_ONLY_TASK = /^(設定|整理牌組|整理資料|整理檔案|同步|匯入|匯出|登入|排程|安排|管理)(?:[｜|：:\s＋+]|$)/;
+  const ADMIN_OPERATION = /登入|帳號|密碼|安裝|設定|同步|匯入|匯出|排程|安排|管理/;
+  function isStudyTask(t) {
+    const title = String(t.title || "").trim();
+    if (!title || isLifeTask(t) || ADMIN_ONLY_TASK.test(title)) return false;
+    const explicitStudy = EXPLICIT_STUDY_TASK.test(title);
+    if (ADMIN_OPERATION.test(title) && !explicitStudy) return false;
+    if (STUDY_TASK_TYPES.has(String(t.type || ""))) return true;
+    return explicitStudy;
+  }
   function coursePointAllocation(tasks) {
     const byCourse = new Map();
-    let eligibleTasks = 0;
+    let totalRaw = 0, unassignedRaw = 0, eligibleTasks = 0, unscoredTasks = 0;
     for (const t of Array.isArray(tasks) ? tasks : []) {
-      if (t.done !== true || t.skipped === true || isLifeTask(t)) continue;
+      if (t.done !== true || t.skipped === true || !isStudyTask(t)) continue;
+      const minutes = Number(t.estimatedMinutes);
+      const factor = DIFFICULTY_FACTORS[t.difficulty];
+      if (!Number.isFinite(minutes) || minutes <= 0 || !Number.isFinite(factor)) { unscoredTasks++; continue; }
+      const points = 10 * minutes * factor / 30;
+      totalRaw += points;
+      eligibleTasks++;
       const courses = [...new Set((Array.isArray(t.relatedCourses) ? t.relatedCourses : [])
         .filter((course) => typeof course === "string" && course.trim())
         .map((course) => course.trim()))];
-      if (courses.length !== 1) continue;
-      eligibleTasks++;
-      const course = courses[0];
-      byCourse.set(course, (byCourse.get(course) || 0) + XP_PER_COMPLETED_TASK);
+      if (!courses.length) { unassignedRaw += points; continue; }
+      const share = points / courses.length;
+      for (const course of courses) byCourse.set(course, (byCourse.get(course) || 0) + share);
     }
-    return { byCourse, eligibleTasks, total: eligibleTasks * XP_PER_COMPLETED_TASK };
+    return { byCourse, eligibleTasks, unscoredTasks, totalRaw, total: Math.round(totalRaw), unassignedRaw };
   }
   const formatPoints = (points) => Number((Number(points) || 0).toFixed(1));
   function taskStages(t) {
@@ -251,7 +269,7 @@
     if (isLifeTask(t)) labels.push("生活");
     const badges = labels.map((label) => el("span", { class: `tag ${TASK_TAG_STYLES[label] || "tag-neutral"}` }, label));
     const subject = isLifeTask(t) ? null : taskSubject(t);
-    const suffix = SUBJECT_MARKS[subject] ? el("span", { class: "task-subject-suffix", title: `科目：${subject}` }, `${subject} ${SUBJECT_MARKS[subject]}`) : null;
+    const suffix = SUBJECT_MARKS[subject] ? el("span", { class: "task-subject-suffix", "data-subject": subject, title: `科目：${subject}` }, `${subject} ${SUBJECT_MARKS[subject]}`) : null;
     const title = el("span", { class: "task-title" }, el("span", { class: "task-activity" }, activity), badges, suffix);
     const copy = el("div", { class: "t task-copy", title: [activity, ...labels].join(" · ") }, title);
     return el("li", { class: "item" + (t.done ? " done" : "") },
@@ -360,8 +378,11 @@
     const total = stats.reduce((n, g) => n + (Number(g.total) || 0), 0);
     const doneTotal = stats.reduce((n, g) => n + (Number(g.done) || 0), 0);
     const pointAllocation = coursePointAllocation(state.tasks);
+    const xpNotes = [];
+    if (pointAllocation.unassignedRaw > 0) xpNotes.push(`未指派 ${formatPoints(pointAllocation.unassignedRaw)}`);
+    if (pointAllocation.unscoredTasks) xpNotes.push(`${pointAllocation.unscoredTasks} 筆缺估時／難度`);
     $("lesson-count").textContent = total ? `${doneTotal}/${total} 堂` : "";
-    $("xp-total").textContent = DEMO ? "示範資料不計分" : state.today ? `今日可分配 ${pointAllocation.total} 點` : "今日可分配 — 點";
+    $("xp-total").textContent = DEMO ? "示範資料不計分" : !xpVerified ? "今日 XP 未驗證" : `今日學習 ${pointAllocation.total} 點${xpNotes.length ? `（${xpNotes.join("；")}）` : ""}`;
     if (!stats.length) { $("lessons").replaceChildren(el("li", { class: "empty" }, "目前沒有課程進度資料")); return; }
     const list = stats.map((g) => {
       const name = g.name || g.course || "未設定課程";
@@ -370,7 +391,7 @@
       const courseTotal = Number(g.total) || items.length;
       const courseDone = Number(g.done) || 0;
       const pct = courseTotal ? Math.round(courseDone / courseTotal * 100) : 0;
-      const coursePoints = DEMO ? 0 : pointAllocation.byCourse.get(g.course || name) || 0;
+      const coursePoints = xpVerified ? pointAllocation.byCourse.get(g.course || name) || 0 : null;
       return { ...g, name, items, courseTotal, courseDone, pct, coursePoints };
     }).sort((a, b) => (Number(a.order) || 0) - (Number(b.order) || 0) || a.name.localeCompare(b.name));
     const rows = [];
@@ -399,9 +420,9 @@
   }
 
   // ---------- actions (optimistic) ----------
-  async function guarded(fn, okMsg) {
+  async function guarded(fn, okMsg, reloadOnError = true) {
     try { await fn(); if (okMsg) toast(okMsg); }
-    catch (e) { showError(e); await load(true); }
+    catch (e) { showError(e); if (reloadOnError) await load(true); }
   }
   function showError(e) {
     const m = e.message;
@@ -410,8 +431,18 @@
     toast(m.length > 60 ? "失敗，請重試" : m); banner(m);
   }
   function banner(msg) { const b = $("banner"); b.textContent = msg; b.hidden = !msg; }
-  const toggleTask = (t) => guarded(async () => { t.done = !t.done; renderAll(); await api(`/api/task/${t.id}`, { done: t.done }); });
-  const skipTask = (t, v) => guarded(async () => { t.skipped = v; renderAll(); await api(`/api/task/${t.id}`, { skip: v }); });
+  const toggleTask = (t) => guarded(async () => {
+    const previous = t.done === true;
+    t.done = !previous;
+    try { renderAll(); await api(`/api/task/${t.id}`, { done: t.done }); }
+    catch (e) { t.done = previous; renderAll(); throw e; }
+  }, null, false);
+  const skipTask = (t, v) => guarded(async () => {
+    const previous = t.skipped === true;
+    t.skipped = v;
+    try { renderAll(); await api(`/api/task/${t.id}`, { skip: v }); }
+    catch (e) { t.skipped = previous; renderAll(); throw e; }
+  }, null, false);
   const toggleLesson = (l) => guarded(async () => {
     l.done = !l.done;
     const groupName = l.course || `${l.subject || "未分類"}（未設定課程）`;
@@ -424,9 +455,13 @@
 
   async function load(silent) {
     try {
-      state = await api("/api/state");
+      const incoming = await api("/api/state");
+      if (!incoming || !Array.isArray(incoming.tasks) || typeof incoming.today !== "string" || !incoming.today)
+        throw new Error("儀表板狀態資料不完整");
+      state = incoming;
+      xpVerified = !DEMO;
       banner(""); renderAll();
-    } catch (e) { if (!silent) showError(e); renderAll(); }
+    } catch (e) { xpVerified = false; if (!silent) showError(e); renderAll(); }
   }
 
   // ---------- init ----------
@@ -488,29 +523,26 @@
       (nd.items || []).forEach((it) => { if (it.t === "text") nd.pages.push({ v: it.v, imgs: [] }); else if (nd.pages.length) nd.pages[nd.pages.length - 1].imgs.push(it.d); else nd.cur.push(it.d); });
       delete nd.items;
     })();
-    nd.cur = nd.cur || []; nd.sel = -1;
+    nd.cur = nd.cur || [];
     const ndSave = () => { try { localStorage.setItem("sd-note-draft", JSON.stringify({ title: $("n-title").value, subject: $("n-subject").value, pages: nd.pages, cur: nd.cur })); } catch (e) { toast("草稿太大，請減少照片"); } };
     const fit = (t) => { t.style.height = "auto"; t.style.height = t.scrollHeight + "px"; };
     function ndRender() {
-      const thumbs = (imgs, rm) => imgs.length ? el("div", { class: "n-th" }, ...imgs.map((d, k) => el("span", { class: "n-ti" }, el("img", { src: d, alt: "" }), el("button", { type: "button", class: "n-x2", "aria-label": "移除照片", onclick: (ev) => { ev.stopPropagation(); rm(k); } }, "×")))) : "";
-      const lis = nd.pages.map((pg, i) => el("li", { class: "n-it" + (nd.sel === i ? " sel" : ""), onclick: () => { nd.sel = nd.sel === i ? -1 : i; ndRender(); } },
-        el("div", { class: "n-pn" }, `第 ${i + 1} 頁`, nd.sel === i ? "　照片將加入此頁" : ""),
+      const thumbs = (imgs) => imgs.length ? el("div", { class: "n-th" }, ...imgs.map((d) => el("span", { class: "n-ti" }, el("img", { src: d, alt: "" })))) : "";
+      const lis = nd.pages.map((pg, i) => el("li", { class: "n-it" },
+        el("div", { class: "n-pn" }, `第 ${i + 1} 頁`),
         el("textarea", { rows: "1", onclick: (ev) => ev.stopPropagation(), oninput: (ev) => { pg.v = ev.target.value; fit(ev.target); ndSave(); } }),
-        thumbs(pg.imgs, (k) => { pg.imgs.splice(k, 1); ndSave(); ndRender(); }),
-        el("button", { class: "n-x", type: "button", "aria-label": "移除此頁", onclick: (ev) => { ev.stopPropagation(); if (pg.v || pg.imgs.length) if (!confirm("移除此頁？")) return; nd.pages.splice(i, 1); nd.sel = -1; ndSave(); ndRender(); } }, "×")));
-      if (nd.cur.length) lis.push(el("li", { class: "n-it cur" }, el("div", { class: "n-pn" }, `第 ${nd.pages.length + 1} 頁（輸入中）照片`), thumbs(nd.cur, (k) => { nd.cur.splice(k, 1); ndSave(); ndRender(); })));
+        thumbs(pg.imgs)));
+      if (nd.cur.length) lis.push(el("li", { class: "n-it cur" }, el("div", { class: "n-pn" }, `目前草稿照片`), thumbs(nd.cur)));
       $("n-draft").replaceChildren(...lis);
       document.querySelectorAll("#n-draft textarea").forEach((t, k) => { t.value = nd.pages[k].v; fit(t); });
-      $("n-photo").textContent = nd.sel >= 0 ? `照片→第${nd.sel + 1}頁` : "照片";
+      $("n-photo").textContent = "照片";
     }
     if (nd.title) $("n-title").value = nd.title; if (nd.subject) $("n-subject").value = nd.subject;
     ["n-title", "n-subject"].forEach((id) => $(id).addEventListener("input", ndSave));
     ndRender();
     const grow = () => { const t = $("n-points"); t.style.height = "auto"; t.style.height = Math.min(t.scrollHeight, Math.round(innerHeight * 0.6)) + "px"; };
-    const ndAddText = () => { const v = $("n-points").value.trim(); if (!v && !nd.cur.length) return false; nd.pages.push({ v, imgs: nd.cur }); nd.cur = []; $("n-points").value = ""; grow(); ndSave(); ndRender(); return true; };
+    const ndCommitCurrentPage = () => { const v = $("n-points").value.trim(); if (!v && !nd.cur.length) return false; nd.pages.push({ v, imgs: nd.cur }); nd.cur = []; $("n-points").value = ""; grow(); ndSave(); ndRender(); return true; };
     $("n-points").addEventListener("input", grow);
-    $("n-add").onclick = () => { ndAddText(); };
-    $("n-points").addEventListener("keydown", (e) => { if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) { e.preventDefault(); ndAddText(); } });
     $("n-photo").onclick = () => $("n-file").click();
     const shrink = (file) => new Promise((res, rej) => {
       const img = new Image(), u = URL.createObjectURL(file);
@@ -518,13 +550,13 @@
       img.onerror = () => rej(new Error("無法讀取圖片")); img.src = u;
     });
     $("n-file").onchange = async (e) => {
-      const target = nd.sel >= 0 && nd.pages[nd.sel] ? nd.pages[nd.sel].imgs : nd.cur;
+      const target = nd.cur;
       for (const f of [...e.target.files]) { try { target.push(await shrink(f)); } catch (er) { toast(er.message); } }
       e.target.value = ""; ndSave(); ndRender();
     };
-    $("n-clear").onclick = () => { if (!nd.pages.length && !nd.cur.length && !$("n-title").value && !$("n-points").value) return; if (!confirm("清除目前草稿？")) return; nd.pages = []; nd.cur = []; nd.sel = -1; $("n-title").value = ""; $("n-points").value = ""; grow(); ndSave(); ndRender(); };
+    $("n-clear").onclick = () => { if (!nd.pages.length && !nd.cur.length && !$("n-title").value && !$("n-points").value) return; if (!confirm("確定清除目前尚未送出的筆記草稿？已送出的筆記不會受影響。")) return; nd.pages = []; nd.cur = []; $("n-title").value = ""; $("n-points").value = ""; grow(); ndSave(); ndRender(); };
     $("save-note").onclick = () => guarded(async () => {
-      ndAddText();
+      ndCommitCurrentPage();
       if (!nd.pages.length) return toast("請先輸入內容或照片");
       const texts = nd.pages.map((x) => x.v).filter(Boolean);
       const pages = nd.pages.map((p, i) => ({ photos: p.imgs.map((d, k) => ({ name: `note-${Date.now()}-${i}-${k}.jpg`, type: "image/jpeg", data: d.split(",")[1] })) }));
@@ -532,7 +564,7 @@
       if (total > 8) return toast("照片最多 8 張");
       const title = $("n-title").value.trim() || (texts[0] || "照片筆記").split("\n")[0].slice(0, 30);
       await api("/api/note", { title, subject: $("n-subject").value, points: texts.join("\n"), pages });
-      nd.pages = []; nd.cur = []; nd.sel = -1; $("n-title").value = ""; ndSave(); ndRender();
+      nd.pages = []; nd.cur = []; $("n-title").value = ""; ndSave(); ndRender();
     }, "筆記已送出");
 
     // ---------- focus timer ----------

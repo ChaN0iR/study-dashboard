@@ -25,6 +25,8 @@ export const P = {
     type: "類型",
     source: "來源",       // 今日 / 推薦 / 備用
     lesson: "對應堂次",
+    estimatedMinutes: "預估分鐘",
+    difficulty: "難度",
     reward: "獎勵文字",
     record: "每日紀錄",
   },

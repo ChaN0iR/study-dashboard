@@ -33,6 +33,8 @@ const task = {
     "來源": { select: { name: "今日" } },
     "順序": { number: 1 },
     "類型": { select: { name: "複習" } },
+    "預估分鐘": { number: 25 },
+    "難度": { select: { name: "標準" } },
     "對應堂次": { relation: [{ id: englishLessonId }] },
   },
 };
@@ -62,6 +64,8 @@ const st = await (await call("GET", "/api/state")).json();
 assert.equal(st.tasks[0].title, "英文主課第02-1堂");
 assert.equal(st.tasks[0].done, true);
 assert.equal(st.tasks[0].type, "複習");
+assert.equal(st.tasks[0].estimatedMinutes, 25);
+assert.equal(st.tasks[0].difficulty, "標準");
 assert.deepEqual(st.tasks[0].relatedSubjects, ["英文"]);
 assert.deepEqual(st.tasks[0].relatedCourses, ["英文主課"]);
 assert.equal(st.lessons.length, 1, "only current-window rows are displayed");

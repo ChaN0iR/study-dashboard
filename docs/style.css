@@ -722,3 +722,87 @@ button:active,a.icon-btn:active,.chk:active,.fc-hist:active{box-shadow:0 0 0 1px
 .xp-explanation{margin:0 0 8px;font-size:12px}
 .xp-explanation summary{color:var(--mut);cursor:pointer}
 .xp-explanation p{margin:6px 0 10px;line-height:1.55}
+
+/* v101: stable record controls, brand placement, and mobile note actions */
+.top .brand-name{display:inline-flex;align-items:center;gap:6px;min-width:0}
+.top .brand-name .medical-mark{flex:none}
+@media (min-width:900px) and (min-height:560px){
+  .top>div:first-child::after{content:none!important;display:none!important}
+  .col>.rec{overflow-x:hidden;overflow-y:auto!important}
+  .col>.rec>.rec-head,.col>.rec>.prog{flex:0 0 auto}
+  .col>.rec>.moods.seg{flex:0 0 36px;min-height:36px;align-self:stretch}
+  .col>.rec>.moods.seg>button{min-height:36px!important;min-width:0;white-space:nowrap}
+  .col>.rec>.fields{min-width:0}
+  .col>.rec>#save-record{flex:0 0 auto}
+}
+@media (max-width:899px){
+  .top>div:first-child::before{content:none!important;display:none!important}
+  .top>div:first-child{display:grid!important;grid-template-columns:auto auto;justify-content:start;align-items:center;column-gap:8px;row-gap:2px}
+  .top>div:first-child h1{display:contents!important}
+  .top .brand-name{grid-column:1/3;grid-row:1}
+  .top #date{grid-column:1;grid-row:2;margin:0}
+  .top .countdown{grid-column:2;grid-row:2;font-size:11px;padding:0 7px;line-height:16px}
+}
+@media (max-width:899px),(max-height:559px){
+  body[data-tab=record] main [data-tab=record].rec{width:100%;min-width:0;overflow-x:hidden!important;overflow-y:auto!important}
+  body[data-tab=record] main [data-tab=record].rec>.rec-head,
+  body[data-tab=record] main [data-tab=record].rec>.prog,
+  body[data-tab=record] main [data-tab=record].rec>.focus,
+  body[data-tab=record] main [data-tab=record].rec>.moods.seg,
+  body[data-tab=record] main [data-tab=record].rec>#save-record{flex-shrink:0}
+  body[data-tab=record] main [data-tab=record].rec>.moods.seg{min-height:36px;flex-basis:36px;width:100%;align-self:stretch}
+  body[data-tab=record] main [data-tab=record].rec>.moods.seg>button{min-height:34px!important;min-width:0;white-space:nowrap}
+  body[data-tab=record] main [data-tab=record].rec>.fields{flex:1 0 auto;min-width:0;min-height:max-content}
+  body[data-tab=record] main [data-tab=record].rec>#save-record{flex:0 0 auto}
+  body[data-tab=record] .fc-subj{flex-shrink:0}
+}
+.n-tools{grid-template-columns:repeat(2,minmax(0,1fr))}
+
+/* Subject-specific capsule suffixes: color is reserved for study focus. */
+.task-subject-suffix{
+  --subject-ink:var(--mut);
+  display:inline-flex;align-items:center;justify-content:center;gap:3px;
+  margin-inline-start:5px;padding:1px 8px 2px;
+  border:1px solid color-mix(in srgb,var(--subject-ink) 48%,var(--line));
+  border-radius:999px;corner-shape:squircle;
+  color:var(--subject-ink);
+  background:color-mix(in srgb,var(--card) 91%,var(--subject-ink) 9%);
+  box-shadow:0 0 0 1px color-mix(in srgb,var(--subject-ink) 12%,transparent),
+    0 0 7px color-mix(in srgb,var(--subject-ink) 20%,transparent);
+  font-size:11px;font-weight:700;line-height:1.35;white-space:nowrap;
+  vertical-align:middle;flex:none;
+  animation:task-subject-glow 2.8s ease-in-out infinite;
+}
+.task-subject-suffix[data-subject="化學"]{--subject-ink:#985c08}
+.task-subject-suffix[data-subject="生化"]{--subject-ink:#167d83}
+.task-subject-suffix[data-subject="生物"]{--subject-ink:#3e7b43}
+.task-subject-suffix[data-subject="物理"]{--subject-ink:#536d9e}
+.task-subject-suffix[data-subject="英文"]{--subject-ink:#a5455f}
+.task-subject-suffix[data-subject="Anki"]{--subject-ink:#696969}
+@keyframes task-subject-glow{
+  0%,100%{box-shadow:0 0 0 1px color-mix(in srgb,var(--subject-ink) 12%,transparent),0 0 6px color-mix(in srgb,var(--subject-ink) 17%,transparent)}
+  50%{box-shadow:0 0 0 1.5px color-mix(in srgb,var(--subject-ink) 22%,transparent),0 0 10px color-mix(in srgb,var(--subject-ink) 30%,transparent)}
+}
+@media(prefers-color-scheme:dark){
+  .task-subject-suffix[data-subject="化學"]{--subject-ink:#e5b05f}
+  .task-subject-suffix[data-subject="生化"]{--subject-ink:#6fc7c4}
+  .task-subject-suffix[data-subject="生物"]{--subject-ink:#8cc788}
+  .task-subject-suffix[data-subject="物理"]{--subject-ink:#91aeea}
+  .task-subject-suffix[data-subject="英文"]{--subject-ink:#e99db0}
+}
+@media(prefers-reduced-motion:reduce){.task-subject-suffix{animation:none!important}}
+
+/* v103: clean, uncompressed mood controls in the progress card */
+.moods.seg{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;align-items:stretch;margin:10px 0 14px;padding:0;border:0;border-radius:0;overflow:visible;flex:0 0 auto;min-height:0}
+.moods.seg>button{min-width:0;min-height:44px!important;padding:0 10px;border:1px solid var(--line)!important;border-radius:999px!important;corner-shape:squircle;background:var(--card);color:var(--fg);font-size:14px;font-weight:650;line-height:1.2;white-space:nowrap;transition:background-color .16s ease,border-color .16s ease,box-shadow .16s ease}
+.moods.seg>button[aria-checked=true]{background:var(--acc)!important;border-color:var(--acc)!important;color:var(--accfg)!important;box-shadow:0 0 0 3px color-mix(in srgb,var(--acc) 18%,transparent)}
+.moods.seg>button:hover:not([aria-checked=true]){border-color:color-mix(in srgb,var(--fg) 45%,var(--line))!important;background:color-mix(in srgb,var(--card) 92%,var(--fg) 8%)}
+.moods.seg>button:focus-visible{outline:2px solid var(--acc);outline-offset:2px}
+@media (min-width:900px) and (min-height:560px){
+  .col>.rec>.moods.seg{flex:0 0 44px;min-height:44px;align-self:stretch}
+  .col>.rec>.moods.seg>button{min-height:44px!important}
+}
+@media (max-width:899px),(max-height:559px){
+  body[data-tab=record] main [data-tab=record].rec>.moods.seg{min-height:44px;flex:0 0 44px;width:100%;align-self:stretch}
+  body[data-tab=record] main [data-tab=record].rec>.moods.seg>button{min-height:44px!important;min-width:0;white-space:nowrap}
+}

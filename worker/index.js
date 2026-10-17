@@ -111,6 +111,8 @@ const shapeTask = (pg) => ({
   source: rd.select(pg.properties[P.task.source]) || "今日",
   order: rd.number(pg.properties[P.task.order]) ?? 999,
   type: rd.select(pg.properties[P.task.type]) || null,
+  estimatedMinutes: rd.number(pg.properties[P.task.estimatedMinutes]),
+  difficulty: rd.select(pg.properties[P.task.difficulty]),
   relatedLessonIds: rd.relation(pg.properties[P.task.lesson]),
   relatedSubjects: [],
   relatedCourses: [],
