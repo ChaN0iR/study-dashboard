@@ -502,3 +502,25 @@ button:active,a.icon-btn:active,.chk:active,.fc-hist:active{box-shadow:0 0 0 1px
 @media(prefers-reduced-motion:reduce){
  *,*::before,*::after{animation-duration:.01ms!important;animation-iteration-count:1!important;scroll-behavior:auto!important;transition-duration:.01ms!important}
 }
+
+
+/* v94 task phase badges */
+.task-copy .task-title{display:flex;align-items:center;gap:5px;min-width:0;overflow:hidden;white-space:nowrap;text-overflow:clip}
+.task-activity{display:block;flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.task-title .tag{flex:none;margin:0;padding:1px 7px;border-radius:999px;font-size:11px;font-weight:650;line-height:1.5;letter-spacing:.02em}
+.tag-prestudy{color:#1d4ed8;background:#eff6ff;border-color:#bfdbfe}
+.tag-learn{color:#166534;background:#f0fdf4;border-color:#bbf7d0}
+.tag-review{color:#92400e;background:#fffbeb;border-color:#fcd34d}
+.tag-practice{color:#6d28d9;background:#f5f3ff;border-color:#ddd6fe}
+.tag-recommended{color:#0f766e;background:#f0fdfa;border-color:#99f6e4}
+.tag-backup,.tag-neutral{color:#525252;background:#f4f4f5;border-color:#d4d4d8}
+.task-pack-list .task-title{flex-wrap:wrap;white-space:normal;overflow:visible}
+.task-pack-list .task-activity{white-space:normal;overflow:visible;text-overflow:clip}
+@media(prefers-color-scheme:dark){
+ .tag-prestudy{color:#93c5fd;background:#172554;border-color:#1e40af}
+ .tag-learn{color:#86efac;background:#052e16;border-color:#166534}
+ .tag-review{color:#fcd34d;background:#422006;border-color:#a16207}
+ .tag-practice{color:#c4b5fd;background:#2e1065;border-color:#6d28d9}
+ .tag-recommended{color:#5eead4;background:#042f2e;border-color:#0f766e}
+ .tag-backup,.tag-neutral{color:#d4d4d4;background:#292929;border-color:#555}
+}

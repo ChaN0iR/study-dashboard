@@ -137,16 +137,7 @@
   }
 
   const shortTitle = (s) => String(s || "").replace(/[\u{1F000}-\u{1FAFF}\u2600-\u27BF\uFE0F]/gu, "").replace(/[（(][^）)]*[）)]/g, "").replace(/｜.*$/, "").replace(/\s+/g, " ").trim();
-  function taskItem(t, options = {}) {
-    const title = el("span", { class: "task-title" }, options.activity || shortTitle(t.title), t.source !== "今日" ? el("span", { class: "tag" }, t.source) : null);
-    const copy = el("div", { class: "t task-copy", title: t.title }, title);
-    return el("li", { class: "item" + (t.done ? " done" : "") },
-      el("button", { class: "chk", role: "checkbox", "aria-checked": String(t.done), "aria-label": t.done ? "取消完成" : "標記完成", onclick: () => toggleTask(t) }),
-      copy,
-      t.skipped ? el("button", { class: "ghost", onclick: () => skipTask(t, false) }, "恢復")
-        : t.done ? null : el("button", { class: "ghost", onclick: () => skipTask(t, true) }, "跳過"));
-  }
-
+  const TASK_TAG_STYLES = { "預習": "tag-prestudy", "初學": "tag-learn", "複習": "tag-review", "練習": "tag-practice", "推薦": "tag-recommended", "備用": "tag-backup" };
   function taskSubject(t) {
     const title = String(t.title || "");
     if (/生化/.test(title)) return "生化";
@@ -157,28 +148,73 @@
     if (/anki/i.test(title)) return "Anki";
     return null;
   }
+  function taskStages(t) {
+    const title = String(t.title || "");
+    const stages = [];
+    const prep = /預習|課前/.test(title);
+    const explicitReview = /複習|回顧|錯題|到期卡/.test(title);
+    const newCardsOnly = /新卡|新單字/.test(title);
+    const review = explicitReview || (/anki/i.test(title) && !newCardsOnly);
+    const explicitLearning = /初學|入門|新卡|新單字|首次/.test(title);
+    const lessonCue = /看課|上課|課程|先修|主課|第\s*\d+(?:\s*[-－]\s*\d+)?\s*堂/.test(title);
+    if (prep) stages.push("預習");
+    if (explicitLearning || (!prep && !review && lessonCue)) stages.push("初學");
+    if (review) stages.push("複習");
+    if (/練習題|練習|題目|做題|解題/.test(title)) stages.push("練習");
+    return stages;
+  }
+  function reviewSuggestion(t) {
+    const ideas = {
+      "化學": "回想週期表第 1–30 號元素（名稱與符號）",
+      "生化": "背 20 種胺基酸（名稱與三字／單字縮寫）",
+      "生物": "默寫 10 個核心名詞，並各用一句話解釋",
+      "物理": "默寫 5 個常用公式，再各做 1 題",
+      "英文": "回想 20 個單字，並用其中 5 個造句",
+      "Anki": "完成 20 張到期卡，標記仍不熟的卡片",
+    };
+    return ideas[taskSubject(t)] || "默寫 10 個本週重點，再訂正 3 個易錯處";
+  }
+  function taskItem(t, options = {}) {
+    const activity = options.activity || taskActivity(t);
+    const labels = [];
+    labels.push(...taskStages(t));
+    const source = String(t.source || "");
+    if (source && source !== "今日") labels.push(source);
+    else if (/推薦/.test(String(t.title || "")) && !labels.includes("推薦")) labels.push("推薦");
+    const badges = labels.map((label) => el("span", { class: `tag ${TASK_TAG_STYLES[label] || "tag-neutral"}` }, label));
+    const title = el("span", { class: "task-title" }, el("span", { class: "task-activity" }, activity), badges);
+    const copy = el("div", { class: "t task-copy", title: [activity, ...labels].join(" · ") }, title);
+    return el("li", { class: "item" + (t.done ? " done" : "") },
+      el("button", { class: "chk", role: "checkbox", "aria-checked": String(t.done), "aria-label": t.done ? "取消完成" : "標記完成", onclick: () => toggleTask(t) }),
+      copy,
+      t.skipped ? el("button", { class: "ghost", onclick: () => skipTask(t, false) }, "恢復")
+        : t.done ? null : el("button", { class: "ghost", onclick: () => skipTask(t, true) }, "跳過"));
+  }
   function taskActivity(t) {
     const title = String(t.title || "");
     const lesson = title.match(/第\s*\d+(?:\s*[-－]\s*\d+)?\s*堂/);
     const lessonName = lesson ? lesson[0].replace(/\s+/g, "") : "";
     const actions = [];
+    const cleanStageWords = (s) => String(s || "").replace(/預習|初學|複習|推薦|備用/g, " ").replace(/\s+/g, " ").trim();
     if (/anki/i.test(title)) {
-      const detail = title.replace(/^.*?anki\s*[:：]?\s*/i, "").trim();
-      actions.push(detail ? `做 Anki：${shortTitle(detail)}` : "做 Anki");
+      const detail = cleanStageWords(title.replace(/^.*?anki\s*[:：]?\s*/i, ""));
+      actions.push(detail ? `做 Anki：${shortTitle(detail)}` : "完成 20 張 Anki 到期卡");
     }
-    if (/錯題/.test(title)) actions.push(lessonName ? `回顧${lessonName}錯題` : "回顧錯題");
-    else if (/複習/.test(title)) actions.push(lessonName ? `複習${lessonName}` : "複習");
+    if (/錯題/.test(title)) actions.push(lessonName ? `重做${lessonName}錯題` : "重做 5 題錯題");
+    else if (/複習|回顧/.test(title)) actions.push(lessonName ? `默寫${lessonName}重點` : reviewSuggestion(t));
     if (/講義/.test(title) && /(練習題|題目|做題|解題)/.test(title)) actions.push("做講義練習題");
     else if (/練習題/.test(title)) actions.push("做練習題");
     else if (/(題庫|題目|做題|解題)/.test(title)) actions.push("做題目");
-    if (!/錯題|複習/.test(title) && (lessonName || /(看課|上課|課程|先修|主課)/.test(title))) actions.push(lessonName ? `看${lessonName}` : "看課");
+    if (!/錯題|複習|回顧/.test(title) && (lessonName || /(看課|上課|課程|先修|主課)/.test(title))) actions.push(lessonName ? `看${lessonName}` : "看課");
     if (/閱讀|文章/.test(title)) actions.push(/文章/.test(title) ? "閱讀文章" : "閱讀");
     if (/單字|生字/.test(title)) actions.push("背單字");
+    if (!actions.length && /預習/.test(title)) actions.push("先讀本節綱要，列出 3 個問題");
+    if (!actions.length && /初學/.test(title)) actions.push("看 1 小節，寫下 3 個重點");
+    if (!actions.length && /練習/.test(title)) actions.push("做 5 題同主題題目，整理錯因");
     if (actions.length) return [...new Set(actions)].join("＋");
-
     const remainder = title
       .replace(/化學|普化|有機|生化|生物|物理|英文|英語|anki/gi, " ")
-      .replace(/今日|推薦|備用/g, " ")
+      .replace(/今日|推薦|備用|預習|初學|複習|練習/g, " ")
       .replace(/[：:＋+｜|]/g, " ").replace(/\s+/g, " ").trim();
     return remainder || "待補內容";
   }
