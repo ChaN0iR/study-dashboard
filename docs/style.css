@@ -888,4 +888,4 @@ button:active,a.icon-btn:active,.chk:active,.fc-hist:active{box-shadow:0 0 0 1px
 .task-detail-steps{margin:0;padding-inline-start:22px;color:var(--fg);font-size:16px;line-height:1.7}
 .task-detail-steps li{padding-inline-start:3px;white-space:pre-wrap;overflow-wrap:anywhere}
 .task-detail-note{margin:10px 0 0;color:var(--mut);font-size:13px;line-height:1.55}
-.item.task-item.is-current{border-radius:7px;background:color-mix(in srgb,var(--acc) 3%,transparent);box-shadow:0 0 10px color-mix(in srgb,var(--acc) 10%,transparent),inset 0 0 0 1px color-mix(in srgb,var(--acc) 8%,transparent)}
+.item.task-item.is-current{border-radius:7px;background:color-mix(in srgb,var(--acc) 3%,transparent);box-shadow:0 0 10px color-mix(in srgb,var(--acc) 10%,transparent)}
