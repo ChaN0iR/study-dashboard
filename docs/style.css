@@ -808,11 +808,13 @@ button:active,a.icon-btn:active,.chk:active,.fc-hist:active{box-shadow:0 0 0 1px
 }
 
 
-/* v109: keep task subjects, one-line descriptions and trailing badges in one row */
+/* v111: compact single-line task shells; keep metadata beside the semantic label */
+.item.task-item{gap:6px;flex-wrap:nowrap}
 .item>.task-subject-suffix{margin:0;flex:0 0 auto;align-self:center}
-.item.task-item .task-copy{flex:1 1 0;min-width:0;white-space:nowrap;overflow:visible;text-overflow:clip;overflow-wrap:normal}
+.item.task-item .task-copy{flex:1 1 0;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:clip;overflow-wrap:normal}
 .item.task-item .task-copy .task-title{display:flex;align-items:center;flex-wrap:nowrap;gap:4px;min-width:0;width:100%;white-space:nowrap;overflow:hidden}
-.item.task-item .task-copy .task-activity{display:block;flex:1 1 0;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;overflow-wrap:normal}
+.item.task-item .task-copy .task-activity{display:block;flex:0 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;overflow-wrap:normal;font-size:14px;cursor:pointer}
+.item.task-item .task-copy .task-title .tag{flex:0 0 auto}
 .item.task-item>.ghost{flex:0 0 auto}
 .item.task-item .task-activity:focus-visible{outline:2px solid var(--acc);outline-offset:-1px;border-radius:3px}
 @media(max-width:384px){
@@ -825,6 +827,7 @@ button:active,a.icon-btn:active,.chk:active,.fc-hist:active{box-shadow:0 0 0 1px
 }
 .item .task-copy .tag{margin:0;flex:none}
 .item.done>.task-subject-suffix{text-decoration:line-through}
+.item.task-item .task-activity:hover{text-decoration:underline;text-decoration-style:dotted;text-underline-offset:3px}
 
 
 /* v110: desktop-only floating subject picker */
@@ -882,9 +885,14 @@ button:active,a.icon-btn:active,.chk:active,.fc-hist:active{box-shadow:0 0 0 1px
 .task-detail-dialog .task-detail-block[hidden]{display:none!important}
 .task-detail-label{display:block;margin:0 0 5px;color:var(--mut);font-size:12px;font-weight:650;letter-spacing:.04em}
 .task-detail-text{margin:0;color:var(--fg);font-size:16px;line-height:1.7;white-space:pre-wrap;overflow-wrap:anywhere;word-break:normal}
-@media (max-width:899px),(max-height:559px){
-  .item.task-item .task-copy .task-activity{
-    display:flex;align-items:center;min-height:44px;cursor:pointer;
-    text-decoration:underline;text-decoration-style:dotted;text-underline-offset:3px
-  }
-}
+.task-detail-steps{margin:0;padding-inline-start:22px;color:var(--fg);font-size:16px;line-height:1.7}
+.task-detail-steps li{padding-inline-start:3px;white-space:pre-wrap;overflow-wrap:anywhere}
+.task-detail-note{margin:10px 0 0;color:var(--mut);font-size:13px;line-height:1.55}
+.task-nudge{display:flex;align-items:center;gap:8px;width:100%;min-height:38px;flex:0 0 auto;margin:4px 0 5px;padding:6px 10px;border:1px solid color-mix(in srgb,var(--acc) 28%,var(--line));border-radius:10px;background:color-mix(in srgb,var(--acc) 7%,var(--card));color:var(--fg);text-align:left;cursor:pointer}
+.task-nudge[hidden]{display:none!important}
+.task-nudge-label{flex:0 0 auto;color:var(--acc);font-size:11px;font-weight:750;white-space:nowrap}
+.task-nudge-title{flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:13px;font-weight:650}
+.task-nudge-slot{flex:0 0 auto;max-width:34%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--mut);font-size:11px}
+.task-nudge:hover{border-color:var(--acc);filter:brightness(1.02)}
+.item.task-item.is-current{border-radius:7px;background:color-mix(in srgb,var(--acc) 5%,transparent);box-shadow:inset 3px 0 var(--acc)}
+@media(max-width:384px){.task-nudge{gap:6px;min-height:34px;padding:5px 8px}.task-nudge-label,.task-nudge-slot{font-size:10px}}

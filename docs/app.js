@@ -18,6 +18,9 @@
   let state = { tasks: [], lessons: [], record: null, today: "" };
   let mood = null;
   let xpVerified = false;
+  let activeScheduleSlots = [];
+  let activeScheduleSlot = null;
+  let activeScheduleKey = "";
 
   // ---------- helpers ----------
   function el(tag, props = {}, ...kids) {
@@ -154,16 +157,20 @@
   }
 
   // ---------- render ----------
+  function scheduleSlots(now) {
+    const rest = ["Sun", "Thu"].includes(String(now.wd || "").slice(0, 3));
+    return rest ? C.SCHEDULE.map((x) => x.name === "重量訓練＋洗澡" ? { ...x, name: "輕度運動", keys: ["運動", "步數", "散步"] } : x) : C.SCHEDULE;
+  }
   function renderNow() {
     const now = taipeiNow();
     const box = $("now"); box.replaceChildren();
-    const rest = ["日", "四"].some((d) => String(now.wd || "").includes(d)) || [0, 4].includes(now.dow);
-    const slots = rest ? C.SCHEDULE.map((x) => x.name === "重量訓練＋洗澡" ? { ...x, name: "輕度運動", keys: ["運動", "步數", "散步"] } : x) : C.SCHEDULE;
+    const slots = activeScheduleSlots = scheduleSlots(now);
     const idx = slots.findIndex((s) => now.min >= toMin(s.start) && now.min < toMin(s.end));
+    const slot = activeScheduleSlot = idx >= 0 ? slots[idx] : null;
+    activeScheduleKey = `${now.date}|${slot?.start || "none"}|${slot?.name || ""}`;
     box.append(el("h2", {}, "現在"));
-    let slot = null, title, meta;
+    let title, meta;
     if (idx >= 0) {
-      slot = slots[idx];
       const left = toMin(slot.end) - now.min;
       title = slot.name;
       meta = `${slot.start}–${slot.end}　剩 ${left} 分鐘`;
@@ -181,17 +188,16 @@
     if (slot?.tips?.length) box.append(el("ul", { class: "list" }, slot.tips.map((x) => el("li", { class: "item" }, el("div", { class: "t" }, x)))));
   }
 
-  const shortTitle = (s) => String(s || "").replace(/[\u{1F000}-\u{1FAFF}\u2600-\u27BF\uFE0F]/gu, "").replace(/[（(][^）)]*[）)]/g, "").replace(/｜.*$/, "").replace(/\s+/g, " ").trim();
   const TASK_TAG_STYLES = { "預習": "tag-prestudy", "初學": "tag-learn", "複習": "tag-review", "週複習": "tag-review", "練習": "tag-practice", "推薦": "tag-recommended", "備用": "tag-backup", "生活": "tag-neutral" };
-  const SUBJECT_MARKS = { "化學": "🧪", "生化": "🧬", "生物": "🦠", "物理": "⚛️", "英文": "🔤" };
+  const SUBJECT_MARKS = { "化學": "🧪", "生化": "🧬", "生物": "🦠", "物理": "⚛️", "英文": "🔤", "Anki": "🗂️" };
   const SUBJECT_PATTERNS = { "化學": /化學|普化|有機/, "生化": /生化/, "生物": /生物/, "物理": /物理/, "英文": /英文|英語/ };
   function taskSubject(t) {
     const title = String(t.title || "");
     const direct = Object.entries(SUBJECT_PATTERNS).filter(([, pattern]) => pattern.test(title)).map(([subject]) => subject);
-    if (direct.length === 1) return direct[0];
     const linked = [...new Set((Array.isArray(t.relatedSubjects) ? t.relatedSubjects : []).filter((s) => SUBJECT_MARKS[s]))];
+    if (direct.length > 1 || linked.length > 1 || (direct.length === 1 && linked.length === 1 && direct[0] !== linked[0])) return null;
+    if (direct.length === 1) return direct[0];
     if (linked.length === 1) return linked[0];
-    if (direct.length > 1 || linked.length > 1) return null;
     if (/anki/i.test(title)) return "Anki";
     return null;
   }
@@ -234,59 +240,119 @@
   const formatPoints = (points) => Number((Number(points) || 0).toFixed(1));
   function taskStages(t) {
     const title = String(t.title || "");
+    const type = String(t.type || "").trim();
+    if (STUDY_TASK_TYPES.has(type)) return [type];
     const stages = [];
-    const type = ["預習", "初學", "複習", "週複習"].includes(t.type) ? t.type : "";
-    const prep = type ? type === "預習" : /預習|課前/.test(title);
-    const explicitReview = /複習|回顧|錯題|到期卡/.test(title);
-    const newCardsOnly = /新卡|新單字/.test(title);
-    const review = type ? type === "複習" || type === "週複習" : explicitReview || (/anki/i.test(title) && !newCardsOnly);
-    const explicitLearning = type ? type === "初學" : /初學|入門|新卡|新單字|首次/.test(title);
-    const lessonCue = /看課|上課|課程|先修|主課|第\s*\d+(?:\s*[-－]\s*\d+)?\s*堂/.test(title);
-    if (prep) stages.push("預習");
-    if (explicitLearning || (!prep && !review && lessonCue)) stages.push("初學");
-    if (review) stages.push("複習");
+    if (/預習|課前/.test(title)) stages.push("預習");
+    if (/初學|入門|新卡|新單字|首次/.test(title)) stages.push("初學");
+    if (/複習|回顧|錯題|到期卡/.test(title)) stages.push("複習");
     if (/練習題|練習|題目|做題|解題/.test(title)) stages.push("練習");
     return stages;
   }
-  function reviewSuggestion(t) {
-    const ideas = {
-      "化學": "回想週期表第 1–30 號元素（名稱與符號）",
-      "生化": "背 20 種胺基酸（名稱與三字／單字縮寫）",
-      "生物": "默寫 10 個核心名詞，並各用一句話解釋",
-      "物理": "默寫 5 個常用公式，再各做 1 題",
-      "英文": "回想 20 個單字，並用其中 5 個造句",
-      "Anki": "完成 20 張到期卡，標記仍不熟的卡片",
-    };
-    return ideas[taskSubject(t)] || "默寫 10 個本週重點，再訂正 3 個易錯處";
+  function taskSummary(t) {
+    const original = String(t.title || "");
+    let title = original.replace(/[\u{1F000}-\u{1FAFF}\u2600-\u27BF\uFE0F]/gu, "").replace(/\s+/g, " ").trim();
+    if (!title) return "未命名任務";
+    const type = String(t.type || "").trim();
+    if (STUDY_TASK_TYPES.has(type)) {
+      const escaped = type.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+      const withoutRepeatedType = title.replace(new RegExp(`^${escaped}(?=$|[\\s：:｜|＋+])\\s*[：:｜|]?\\s*`), "").trim();
+      if (withoutRepeatedType) title = withoutRepeatedType;
+    }
+    if (taskSubject(t) === "Anki") {
+      title = title.replace(/^Anki\s*[：:｜|]\s*/i, "") || title;
+      title = title.replace(/^清完到期卡/, "清到期").replace(/新卡\s*(\d+)\s*張/, "新卡$1");
+    }
+    title = title.replace(/^填\s*YPT\s*小時\s*[／/]\s*分鐘/, "填 YPT 時間");
+
+    const lesson = title.match(/第\s*(\d+(?:\s*[-－]\s*\d+)?)\s*堂/);
+    if (lesson) {
+      const prefix = title.slice(0, lesson.index).trim();
+      const knownPrefix = /^(?:(?:預習|初學|複習|週複習|錯題回顧|錯題|回顧|課前)\s*[：:｜|]?\s*)*(?:(?:化學|普化|有機|生化|生物學?|物理|英文|英語)\s*(?:先修|主課)?\s*)*$/u;
+      if (knownPrefix.test(prefix)) {
+        const cue = /錯題/.test(prefix) ? "錯題" : /有機/.test(prefix) ? "有機" : "";
+        let suffix = title.slice(lesson.index + lesson[0].length).replace(/\s+/g, "")
+          .replace(/[（(]\s*(約?\s*\d+\s*分)\s*[）)]/g, "$1");
+        if (taskStages(t).includes("練習")) suffix = suffix.replace(/^＋講義練習題/, "＋講義題");
+        const lessonLabel = lesson[0].replace(/\s+/g, "").replace(/^第/, "");
+        title = `${cue}${lessonLabel}${suffix}`;
+      }
+    }
+    return title;
   }
-  const taskDetailMq = window.matchMedia("(max-width:899px),(max-height:559px)");
+  function taskSlotScore(t, slot) {
+    const title = String(t.title || "").toLocaleLowerCase();
+    const related = Array.isArray(t.relatedSubjects) ? t.relatedSubjects.map((s) => String(s).toLocaleLowerCase()) : [];
+    const keys = [...new Set((Array.isArray(slot?.keys) ? slot.keys : []).map((key) => String(key || "").trim()).filter(Boolean))];
+    let score = 0;
+    for (const key of keys) {
+      const normalized = key.toLocaleLowerCase();
+      if (title.includes(normalized) || related.includes(normalized)) score += 10 + [...normalized].length;
+    }
+    const slotParts = String(slot?.name || "").split(/[＋+／/、・]/).map((part) => part.trim().toLocaleLowerCase()).filter(Boolean);
+    const leadingMatch = slotParts[0] && title.startsWith(slotParts[0]) ? slotParts[0] : "";
+    if (leadingMatch) score += 50 + [...leadingMatch].length;
+    return score;
+  }
+  function taskScheduleSlot(t, slots = activeScheduleSlots) {
+    const bestIn = (candidates) => {
+      let best = null, bestScore = 0;
+      for (const slot of candidates) {
+        const score = taskSlotScore(t, slot);
+        if (score > bestScore) { best = slot; bestScore = score; }
+      }
+      return best;
+    };
+    const lightSlot = slots.find((slot) => slot.name === "輕度運動");
+    if (isLifeTask(t) && lightSlot) {
+      if (taskSlotScore(t, lightSlot) > 0) return lightSlot;
+      const regularSlot = bestIn(C.SCHEDULE);
+      return regularSlot ? slots.find((slot) => slot.name === regularSlot.name) || null : null;
+    }
+    return bestIn(slots);
+  }
+  function nextTaskIdea(tasks) {
+    const available = (Array.isArray(tasks) ? tasks : [])
+      .filter((t) => t.done !== true && t.skipped !== true && ["今日", "推薦"].includes(String(t.source || "今日")))
+      .sort((a, b) => (a.order ?? 999) - (b.order ?? 999));
+    const pickFor = (slot) => available.find((t) => taskScheduleSlot(t) === slot) || null;
+    if (activeScheduleSlot) {
+      const nowTask = pickFor(activeScheduleSlot);
+      if (nowTask) return { task: nowTask, slot: activeScheduleSlot, when: "現在可做" };
+    }
+    const now = taipeiNow();
+    const upcoming = activeScheduleSlots.find((slot) => toMin(slot.start) > now.min);
+    const tomorrow = !upcoming;
+    const slot = upcoming || activeScheduleSlots[0];
+    const task = slot ? pickFor(slot) : null;
+    if (!task) return null;
+    return { task, slot, when: tomorrow ? `明早 ${slot.start}` : `下一段 ${slot.start}` };
+  }
+  function taskSteps(t) {
+    const original = String(t.title || "").trim();
+    if (!original) return [];
+    const parts = original.split(/\s*[＋+]\s*/u).map((part) => part.trim()).filter(Boolean);
+    return parts.length > 1 ? parts : [original];
+  }
   let taskDetailReturnFocus = null;
   function syncTaskActivityAccessibility(node) {
     const text = node.dataset.taskText || node.textContent || "";
-    if (taskDetailMq.matches) {
-      node.setAttribute("role", "button");
-      node.setAttribute("aria-haspopup", "dialog");
-      node.setAttribute("aria-controls", "task-detail-dialog");
-      node.setAttribute("aria-label", `${text}；查看完整任務說明`);
-    } else {
-      node.removeAttribute("role");
-      node.removeAttribute("aria-haspopup");
-      node.removeAttribute("aria-controls");
-      node.setAttribute("aria-label", text);
-    }
+    node.setAttribute("role", "button");
+    node.setAttribute("aria-haspopup", "dialog");
+    node.setAttribute("aria-controls", "task-detail-dialog");
+    node.setAttribute("aria-label", `${text}；查看完整任務原文與步驟`);
   }
-  function openTaskDetails(t, activity, trigger) {
-    const title = String(t.title || "").trim(), description = String(activity || "").trim();
+  function openTaskDetails(t, trigger) {
+    const title = String(t.title || "").trim(), steps = taskSteps(t);
     $("task-detail-origin").hidden = !title;
     $("task-detail-origin-text").textContent = title;
-    $("task-detail-description-block").hidden = !description;
-    $("task-detail-description").textContent = description;
+    $("task-detail-steps-block").hidden = !steps.length;
+    $("task-detail-steps").replaceChildren(...steps.map((step) => el("li", {}, step)));
     taskDetailReturnFocus = trigger;
     const dialog = $("task-detail-dialog");
     if (!dialog.open) dialog.showModal();
   }
-  function taskItem(t, options = {}) {
-    const activity = options.activity || taskActivity(t);
+  function taskItem(t) {
     const labels = [];
     labels.push(...taskStages(t));
     const source = String(t.source || "");
@@ -296,78 +362,57 @@
     const badges = labels.map((label) => el("span", { class: `tag ${TASK_TAG_STYLES[label] || "tag-neutral"}` }, label));
     const subject = isLifeTask(t) ? null : taskSubject(t);
     const suffix = SUBJECT_MARKS[subject] ? el("span", { class: "task-subject-suffix", "data-subject": subject, title: `科目：${subject}` }, `${subject} ${SUBJECT_MARKS[subject]}`) : null;
-    const taskText = String(activity);
+    const taskText = taskSummary(t);
+    const isCurrent = t.done !== true && activeScheduleSlot && taskScheduleSlot(t) === activeScheduleSlot;
     const activityNode = el("span", {
-      class: "task-activity", tabindex: "0", title: taskText, "aria-label": taskText, "data-task-text": taskText,
+      class: "task-activity", tabindex: "0", title: String(t.title || taskText), "aria-label": taskText, "data-task-text": taskText,
       onclick: (e) => {
-        if (!taskDetailMq.matches) return;
-        e.preventDefault(); e.stopPropagation(); openTaskDetails(t, taskText, e.currentTarget);
+        e.preventDefault(); e.stopPropagation(); openTaskDetails(t, e.currentTarget);
       },
       onkeydown: (e) => {
-        if (!taskDetailMq.matches || (e.key !== "Enter" && e.key !== " ")) return;
-        e.preventDefault(); e.stopPropagation(); openTaskDetails(t, taskText, e.currentTarget);
+        if (e.key !== "Enter" && e.key !== " ") return;
+        e.preventDefault(); e.stopPropagation(); openTaskDetails(t, e.currentTarget);
       },
     }, taskText);
     syncTaskActivityAccessibility(activityNode);
     const title = el("span", { class: "task-title" }, activityNode, badges);
     const copy = el("div", { class: "t task-copy" }, title);
-    return el("li", { class: "item task-item" + (t.done ? " done" : "") },
+    return el("li", { class: "item task-item" + (t.done ? " done" : "") + (isCurrent ? " is-current" : "") },
       el("button", { class: "chk", role: "checkbox", "aria-checked": String(t.done), "aria-label": t.done ? "取消完成" : "標記完成", onclick: () => toggleTask(t) }),
       suffix,
       copy,
       t.skipped ? el("button", { class: "ghost", onclick: () => skipTask(t, false) }, "恢復")
         : t.done ? null : el("button", { class: "ghost", onclick: () => skipTask(t, true) }, "跳過"));
   }
-  function taskActivity(t) {
-    const title = String(t.title || "");
-    const lesson = title.match(/第\s*\d+(?:\s*[-－]\s*\d+)?\s*堂/);
-    const lessonName = lesson ? lesson[0].replace(/\s+/g, "") : "";
-    const actions = [];
-    const cleanStageWords = (s) => String(s || "").replace(/預習|初學|複習|推薦|備用/g, " ").replace(/\s+/g, " ").trim();
-    if (/anki/i.test(title)) {
-      const detail = cleanStageWords(title.replace(/^.*?anki(?:\s*[｜|：:]\s*|\s+)?/i, "")).replace(/^(?:(?:製作|新增|建立)\s*)?(?:新卡|新單字)\s*[：:|]?\s*/, "");
-      const making = /新卡|新單字|製作|新增|建立/.test(title), reviewing = /到期卡|複習|回顧|重測|錯卡/.test(title);
-      const verb = making && reviewing ? "複習到期卡＋製作 Anki 新卡" : making ? "製作 Anki 新卡" : reviewing ? "複習 Anki 到期卡" : "先複習到期卡；若沒有，依本任務明示的備援方式處理";
-      actions.push(detail ? `${verb}：${shortTitle(detail)}` : verb);
-    }
-    if (/錯題/.test(title)) {
-      const detail = title.replace(/^錯題\s*[｜|：:]\s*/, "").trim();
-      actions.push(detail ? shortTitle(detail) : "從今日已有教材或錯題本挑 1 題尚未練過的題目，記下錯因與正確第一步，再遮住解答重測");
-    }
-    else if (/複習|回顧/.test(title)) actions.push(lessonName ? `默寫${lessonName}重點` : reviewSuggestion(t));
-    if (/講義/.test(title) && /(練習題|題目|做題|解題)/.test(title)) actions.push("做講義練習題");
-    else if (/練習題/.test(title)) actions.push("做練習題");
-    else if (/(題庫|題目|做題|解題)/.test(title)) actions.push("做題目");
-    const reviewType = t.type === "複習" || t.type === "週複習";
-    const explicitWatch = /看課|上課|看完|看前|看後|看影片|觀看|觀看片段|影片/.test(title);
-    const learningCourse = t.type === "初學" && (lessonName || /(課程|先修|主課)/.test(title));
-    if (!reviewType && !/錯題|複習|回顧/.test(title) && (explicitWatch || learningCourse)) {
-      const detail = title.replace(/^(化學|普化|有機|生化|生物|物理|英文|英語)\s*[｜|：:]?\s*/, "").trim();
-      actions.push(detail ? `推進課程進度：${shortTitle(detail)}` : "推進課程進度");
-    }
-    if (/閱讀|文章/.test(title)) actions.push(/文章/.test(title) ? "閱讀文章" : "閱讀");
-    if (!/anki/i.test(title) && /單字|生字/.test(title)) actions.push(/自測|測驗|回想/.test(title) ? "自測單字" : "背單字");
-    if (!actions.length && /預習/.test(title)) actions.push("先讀本節綱要，列出 3 個問題");
-    if (!actions.length && /初學/.test(title)) actions.push("看 1 小節，寫下 3 個重點");
-    if (!actions.length && /練習/.test(title)) actions.push("做 5 題同主題題目，整理錯因");
-    if (actions.length) return [...new Set(actions)].join("＋");
-    const remainder = title
-      .replace(/化學|普化|有機|生化|生物|物理|英文|英語|anki/gi, " ")
-      .replace(/今日|推薦|備用|預習|初學|複習|練習/g, " ")
-      .replace(/[：:＋+｜|]/g, " ").replace(/\s+/g, " ").trim();
-    return remainder || "待補內容";
-  }
   function renderTaskGroups(tasks) {
-    return tasks.map((t) => taskItem(t, { activity: taskActivity(t) }));
+    return tasks.map((t) => taskItem(t));
   }
 
   function renderTasks() {
-    const real = state.tasks.filter((t) => !t.skipped).sort((a, b) => a.done - b.done || a.order - b.order);
+    const real = state.tasks.filter((t) => !t.skipped).sort((a, b) => {
+      const unfinished = Number(a.done === true) - Number(b.done === true);
+      if (unfinished) return unfinished;
+      const current = Number(!(a.done !== true && activeScheduleSlot && taskScheduleSlot(a) === activeScheduleSlot))
+        - Number(!(b.done !== true && activeScheduleSlot && taskScheduleSlot(b) === activeScheduleSlot));
+      return current || ((Number(a.order) || 999) - (Number(b.order) || 999));
+    });
     const skipped = state.tasks.filter((t) => t.skipped);
     const done = real.filter((t) => t.done).length, pct = real.length ? Math.round(done / real.length * 100) : 0;
     $("task-count").textContent = real.length ? `${done}/${real.length}` : "";
     $("task-prog-i").style.width = pct + "%";
     $("tasks").replaceChildren(...(real.length ? renderTaskGroups(real) : [el("li", { class: "empty" }, "今天沒有任務")]));
+    const nudge = $("task-nudge"), idea = nextTaskIdea(state.tasks);
+    nudge.hidden = !idea;
+    nudge.replaceChildren();
+    if (idea) {
+      const text = taskSummary(idea.task);
+      nudge.append(el("span", { class: "task-nudge-label" }, idea.when),
+        el("span", { class: "task-nudge-title" }, text),
+        el("span", { class: "task-nudge-slot" }, idea.slot.name));
+      nudge.setAttribute("aria-label", `${idea.when}：${text}，${idea.slot.name}時段。點開看完整說明`);
+      nudge.title = String(idea.task.title || text);
+      nudge.onclick = () => openTaskDetails(idea.task, nudge);
+    }
     $("skipped-wrap").hidden = !skipped.length;
     updateProg();
     $("skipped").replaceChildren(...skipped.map(taskItem));
@@ -515,7 +560,6 @@
       const trigger = taskDetailReturnFocus; taskDetailReturnFocus = null;
       if (trigger?.isConnected) trigger.focus({ preventScroll: true });
     });
-    taskDetailMq.addEventListener?.("change", () => document.querySelectorAll(".task-activity").forEach(syncTaskActivityAccessibility));
     ["f-hours", "f-minutes"].forEach((id) => $(id).addEventListener("input", updateTotal));
     (function () {
       const el2 = $("countdown"); if (!el2 || !C.EXAM_DATE) return;
@@ -854,7 +898,11 @@
     fcLoad(); setInterval(fcRender, 1000); setInterval(fcLoad, 8000);
     document.addEventListener("visibilitychange", () => { if (!document.hidden) fcLoad(); });
     load();
-    setInterval(() => { renderNow(); }, 30000);
+    setInterval(() => {
+      const previousSlot = activeScheduleKey;
+      renderNow();
+      if (previousSlot !== activeScheduleKey) renderTasks();
+    }, 30000);
     document.addEventListener("visibilitychange", () => { if (!document.hidden) load(true); });
     if ("serviceWorker" in navigator && location.protocol.startsWith("http")) navigator.serviceWorker.register("sw.js").catch(() => {});
   }
