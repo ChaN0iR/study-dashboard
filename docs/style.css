@@ -641,3 +641,63 @@ button:active,a.icon-btn:active,.chk:active,.fc-hist:active{box-shadow:0 0 0 1px
   .top{max-width:none;margin:0;padding:14px 18px 8px}
   .top>div:first-child{margin-left:0}
 }
+
+
+/* v99: iPhone-style continuous rounded corners, replacing polygon chamfers */
+@media (min-width:900px) and (min-height:560px){
+  .top>div:first-child::before{clip-path:none;border-radius:18px;corner-shape:squircle}
+  .top-actions .icon-btn{border-radius:15px!important;corner-shape:squircle}
+  .top-actions .icon-btn::before,.top-actions .icon-btn::after{clip-path:none;border-radius:15px;corner-shape:squircle}
+  .top-actions .icon-btn::after{border-radius:14px}
+  .top>.focus{border-radius:22px!important;corner-shape:squircle}
+  .top>.focus::before,.top>.focus::after{clip-path:none;border-radius:22px;corner-shape:squircle}
+  .top>.focus::after{border-radius:21px}
+  .top>.focus .fc-main{border-radius:15px!important;corner-shape:squircle}
+  .top>.focus .fc-main::before,.top>.focus .fc-main::after{clip-path:none;border-radius:15px;corner-shape:squircle}
+  .top>.focus .fc-main::after{border-radius:14px}
+  .top>.focus .fc-hist{border-radius:13px!important;corner-shape:squircle}
+  .top>.focus .fc-hist::before,.top>.focus .fc-hist::after{clip-path:none;border-radius:13px;corner-shape:squircle}
+  .top>.focus .fc-hist::after{border-radius:12px}
+}
+
+
+/* v99 whole-panel repair: aligned shell, responsive columns, iPhone-like arcs */
+@supports (corner-shape:squircle){
+  .card,.banner,.icon-btn,.ghost,.primary,.fc-main,.fc-hist,.fc-subj button,.tabs,.tabs button{corner-shape:squircle}
+  .top>div:first-child::before,.top>div:first-child::after,.top-actions .icon-btn::before,.top-actions .icon-btn::after,.top>.focus::before,.top>.focus::after,.top>.focus .fc-main::before,.top>.focus .fc-main::after,.top>.focus .fc-hist::before,.top>.focus .fc-hist::after{corner-shape:squircle}
+}
+@media (min-width:900px) and (min-height:560px){
+  .top{width:100%;max-width:none;margin:0;padding:14px 18px 8px}
+  .top-actions{margin:0 18px 0 4px!important}
+  .banner{width:calc(100% - 36px);max-width:none;margin:8px 18px 0}
+  main{width:100%;max-width:none!important;margin:0!important;padding:12px 18px 8px!important;grid-template-columns:minmax(0,1.1fr) minmax(0,1fr) minmax(0,1fr);gap:12px}
+  main>.col,.col,.col>.card{min-width:0}
+}
+@media (min-width:900px) and (max-width:1099px) and (min-height:560px){
+  .top{grid-template-columns:minmax(0,1fr) minmax(300px,340px) minmax(0,1fr);column-gap:10px}
+  .top>.focus{width:100%;max-width:340px;min-width:0;justify-self:center}
+  .top-actions{grid-template-columns:repeat(5,40px)!important;gap:6px!important;margin:0 12px 0 4px!important}
+  .top-actions .icon-btn{width:40px!important;min-width:40px!important;height:40px!important;min-height:40px!important}
+  .top-actions svg{width:20px!important;height:20px!important}
+  main{grid-template-columns:repeat(2,minmax(0,1fr));grid-template-rows:none;grid-auto-rows:minmax(min-content,auto);align-content:start;overflow-x:hidden;overflow-y:auto!important}
+  #now{grid-column:1;grid-row:1}
+  .tasks-card{grid-column:1;grid-row:2}
+  .rec{grid-column:2;grid-row:1}
+  .note-card{grid-column:2;grid-row:2}
+  .col:nth-child(3)>[data-tab=lessons]{grid-column:1/-1;grid-row:3}
+  main>footer[data-tab]{grid-column:1/-1;grid-row:4}
+}
+@media (max-width:899px){
+  .top{width:100%;max-width:640px;margin:0 auto;padding-left:14px;padding-right:14px;gap:8px}
+  .top>div:first-child{position:relative;flex:1 1 auto;min-width:0}
+  .top>div:first-child::before{content:"";position:absolute;left:-7px;top:6px;width:2px;height:34px;border-radius:2px;background:var(--line);pointer-events:none}
+  .top-actions{width:max-content;grid-template-columns:repeat(5,34px)!important;gap:6px!important;margin:0 8px 0 0!important}
+  .top-actions .icon-btn{width:34px!important;min-width:34px!important;height:34px!important;min-height:34px!important}
+  .top-actions svg{width:20px!important;height:20px!important}
+}
+@media (max-width:384px){
+  .top{padding-left:12px;padding-right:14px;gap:6px}
+  .top-actions{grid-template-columns:repeat(5,30px)!important;gap:5px!important;margin-right:6px!important}
+  .top-actions .icon-btn{width:30px!important;min-width:30px!important;height:30px!important;min-height:30px!important}
+  .top-actions svg{width:18px!important;height:18px!important}
+}
