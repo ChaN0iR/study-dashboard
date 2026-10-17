@@ -259,7 +259,16 @@
       const withoutRepeatedType = title.replace(new RegExp(`^${escaped}(?=$|[\\s：:｜|＋+])\\s*[：:｜|]?\\s*`), "").trim();
       if (withoutRepeatedType) title = withoutRepeatedType;
     }
-    if (taskSubject(t) === "Anki") {
+    const subject = taskSubject(t);
+    if (subject) {
+      const escapedSubject = subject.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+      const repeatedSubject = title.match(new RegExp(`^${escapedSubject}\\s*[｜|:：]\\s*`, subject === "Anki" ? "i" : ""));
+      if (repeatedSubject) {
+        const withoutRepeatedSubject = title.slice(repeatedSubject[0].length).trim();
+        if (withoutRepeatedSubject) title = withoutRepeatedSubject;
+      }
+    }
+    if (subject === "Anki") {
       title = title.replace(/^Anki\s*[：:｜|]\s*/i, "") || title;
       title = title.replace(/^清完到期卡/, "清到期").replace(/新卡\s*(\d+)\s*張/, "新卡$1");
     }
