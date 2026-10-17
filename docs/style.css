@@ -491,7 +491,7 @@ body{background:var(--bg);color:var(--fg)}
 .tabs button[aria-selected=true]{color:var(--fg);background:var(--soft);box-shadow:inset 0 2px 0 var(--acc)}
 .banner{border-color:var(--signal);background:var(--signal-soft);color:var(--fg)}
 .fc-time:focus-visible,.fc-tog:focus-visible{outline:2px solid var(--fg);outline-offset:3px}
-.fc-notebook-icon{display:block;flex:none;color:currentColor}
+.fc-subject-icon{display:block;flex:none;color:currentColor}
 @media(hover:hover){
  .icon-btn:hover,.ghost:hover,.primary:hover,.moods button:hover,.tabs button:hover,.fc-subj button:hover,.fc-hist:hover{
   border-color:var(--fg);box-shadow:0 0 0 2px color-mix(in srgb,var(--fg) 18%,transparent);transform:translateY(-1px)
@@ -523,4 +523,69 @@ button:active,a.icon-btn:active,.chk:active,.fc-hist:active{box-shadow:0 0 0 1px
  .tag-practice{color:#c4b5fd;background:#2e1065;border-color:#6d28d9}
  .tag-recommended{color:#5eead4;background:#042f2e;border-color:#0f766e}
  .tag-backup,.tag-neutral{color:#d4d4d4;background:#292929;border-color:#555}
+}
+
+
+/* v95 timer standby stationery and lively subject reflections */
+.fc-heading{display:flex;align-items:center;gap:8px;flex:1;min-width:0}
+.fc-heading h2{margin:0;min-width:0}
+.fc-heading .fc-subject-icon{display:block;flex:none;width:22px;height:22px;overflow:visible;transform-origin:50% 60%;transition:filter .25s ease}
+.fc-heading .fc-glint{stroke:var(--fc-subject-glow,var(--mut));stroke-width:2;stroke-dasharray:2 1.5;opacity:.62;transition:opacity .2s ease}
+#fc-heading-wrap[data-subject="英文"]{--fc-subject-glow:#cf657d}
+#fc-heading-wrap[data-subject="化學"]{--fc-subject-glow:#c78a24}
+#fc-heading-wrap[data-subject="生物"]{--fc-subject-glow:#57945d}
+#fc-heading-wrap[data-subject="物理"]{--fc-subject-glow:#6f8fc9}
+#fc-heading-wrap[data-subject="生化"]{--fc-subject-glow:#3899a4}
+#fc-heading-wrap[data-subject="Anki"]{--fc-subject-glow:#886ab7}
+#fc-heading-wrap[data-subject="其他"]{--fc-subject-glow:#898989}
+#fc-heading-wrap[data-subject] .fc-subject-icon{filter:drop-shadow(0 0 2px color-mix(in srgb,var(--fc-subject-glow) 38%,transparent))}
+#fc-mode[hidden],.fc-goal[hidden]{display:none!important}
+#focus.is-running #fc-heading-wrap .fc-glint{animation:fc-reflect 1.1s ease-in-out infinite alternate;opacity:1}
+@keyframes fc-effort{0%,100%{transform:translateY(0) rotate(-2deg)}50%{transform:translateY(-1.2px) rotate(2deg)}}
+@keyframes fc-reflect{0%{stroke-dashoffset:5;opacity:.35}100%{stroke-dashoffset:0;opacity:1}}
+@media(prefers-reduced-motion:reduce){#focus.is-running #fc-heading-wrap .fc-subject-icon,#focus.is-running #fc-heading-wrap .fc-glint{animation:none!important}}
+
+
+/* v96: single-control timer flow */
+.fc-head{display:flex;align-items:center;gap:10px;margin-bottom:8px}
+.fc-heading{display:flex;align-items:center;gap:8px;min-width:0}
+.fc-heading .fc-subject-icon{width:24px;height:24px;overflow:visible;transform-origin:50% 60%;transition:filter .25s ease}
+.fc-hist{margin-left:auto}
+.fc-main{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;width:100%;min-height:112px;padding:14px 12px;border:1px solid var(--line);border-radius:14px;background:linear-gradient(145deg,var(--card),var(--soft));color:var(--fg);cursor:pointer;transition:border-color .18s ease,background-color .18s ease,transform .16s ease,box-shadow .18s ease}
+.fc-main-title{font-size:16px;font-weight:700;line-height:1.25}
+.fc-main:hover{border-color:var(--mut);box-shadow:0 4px 16px rgba(0,0,0,.08)}
+.fc-main:active{transform:scale(.992)}
+.fc-main:focus-visible{outline:3px solid color-mix(in srgb,var(--acc) 52%,transparent);outline-offset:3px}
+.fc-main[aria-busy="true"]{cursor:wait}
+.fc-main .fc-time{cursor:inherit;user-select:none}
+.fc-goal{display:flex;align-items:center;gap:10px;margin-top:9px}
+.fc-goal .fc-prog{flex:1;min-width:0}
+.fc-goal[hidden],.fc-subj[hidden]{display:none!important}
+.fc-subj{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:6px;margin-top:10px}
+.fc-subj button{min-width:0;min-height:46px;padding:8px 4px;border:1px solid var(--line);border-radius:11px;background:var(--card);color:var(--fg);font-size:14px;font-weight:650;transition:transform .14s ease,border-color .18s ease,background .18s ease}
+.fc-subj button:hover{border-color:var(--mut);background:var(--soft)}
+.fc-subj button:active{transform:scale(.96)}
+.fc-subj button:focus-visible{outline:3px solid color-mix(in srgb,var(--acc) 52%,transparent);outline-offset:2px}
+#focus.is-choosing #fc-heading-wrap .fc-subject-icon{animation:fc-pencil-bounce .46s cubic-bezier(.2,.8,.25,1)}
+#focus.is-choosing #fc-main{animation:fc-choice-pop .42s cubic-bezier(.2,.8,.25,1)}
+#focus.is-choosing #fc-subj:not([hidden]){animation:fc-picker-in .22s ease-out}
+#focus.is-running #fc-heading-wrap .fc-subject-icon{animation:fc-effort 1.05s ease-in-out infinite;filter:drop-shadow(0 0 5px color-mix(in srgb,var(--fc-subject-glow,var(--signal)) 68%,transparent))}
+#focus.is-running .fc-main{border-color:color-mix(in srgb,var(--signal) 32%,var(--line))}
+@keyframes fc-pencil-bounce{0%{transform:rotate(0) scale(1)}38%{transform:rotate(-12deg) scale(1.18)}72%{transform:rotate(7deg) scale(.96)}100%{transform:rotate(0) scale(1)}}
+@keyframes fc-choice-pop{0%{transform:scale(1)}42%{transform:scale(1.025)}100%{transform:scale(1)}}
+@keyframes fc-picker-in{from{opacity:0;transform:translateY(-5px)}to{opacity:1;transform:translateY(0)}}
+@media(max-width:899px){.fc-main{min-height:100px}.fc-main .fc-time{font-size:40px}.fc-subj{gap:5px}.fc-subj button{font-size:13px}}
+@media(min-width:900px) and (min-height:560px){
+  .top>.focus{display:flex!important;flex:0 1 360px;flex-direction:column;align-items:stretch!important;justify-content:flex-start!important;justify-items:stretch!important;gap:8px;width:min(360px,100%);max-width:360px;margin:0!important;padding:12px 14px}
+  .top>.focus .fc-head{display:flex!important;grid-area:auto;justify-content:space-between;margin:0}
+  .top>.focus .fc-main-title{font-size:15px}
+  .top>.focus .fc-main{grid-area:auto;width:100%;min-height:100px}
+  .top>.focus .fc-main .fc-time{grid-area:auto;font-size:32px}
+  .top>.focus .fc-goal{grid-area:auto;width:100%;margin-top:2px}
+  .top>.focus .fc-subj{display:grid;grid-area:auto;grid-template-columns:repeat(5,minmax(0,1fr));width:100%;margin-top:0}
+  .top>.focus .fc-subj[hidden]{display:none!important}
+}
+@media(prefers-reduced-motion:reduce){
+  .fc-main,.fc-subj button{transition:none!important}
+  #focus.is-choosing #fc-heading-wrap .fc-subject-icon,#focus.is-choosing #fc-main,#focus.is-choosing #fc-subj:not([hidden]),#focus.is-running #fc-heading-wrap .fc-subject-icon,#focus.is-running #fc-time{animation:none!important}
 }

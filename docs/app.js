@@ -4,6 +4,14 @@
   const $ = (id) => document.getElementById(id);
   const qs = new URLSearchParams(location.search);
   const DEMO = qs.get("demo") === "1";
+  if (DEMO) {
+    const nativeFetch = window.fetch.bind(window);
+    window.fetch = (input, init) => {
+      const url = new URL(input instanceof Request ? input.url : String(input), location.href);
+      if (url.origin !== location.origin || url.pathname.startsWith("/api/")) return Promise.reject(new Error("DEMO_NETWORK_BLOCKED"));
+      return nativeFetch(input, init);
+    };
+  }
   if (qs.get("api")) localStorage.setItem("apiBase", qs.get("api"));
   const apiBase = () => (localStorage.getItem("apiBase") || C.API_BASE || "").replace(/\/+$/, "");
 
@@ -24,7 +32,7 @@
   const ankiCall = (action, params) => fetch("http://127.0.0.1:8765", { method: "POST", body: JSON.stringify({ action, version: 6, params: params || {} }) })
     .then((r) => r.json()).then((j) => { if (j.error) throw new Error(j.error); return j.result; });
   function ankiBadge() {
-    if (/iPhone|iPad|iPod|Android/i.test(navigator.userAgent || "")) return;
+    if (DEMO || /iPhone|iPad|iPod|Android/i.test(navigator.userAgent || "")) return;
     ankiCall("findCards", { query: "is:due" }).then((ids) => {
       const a = $("anki-link"); let b = a.querySelector(".badge");
       if (!b) { b = document.createElement("span"); b.className = "badge"; a.append(b); }
@@ -54,6 +62,7 @@
   let demoDb = null;
   function demoInit() {
     const d = taipeiNow().date;
+    const now = Date.now();
     demoDb = {
       today: d,
       tasks: [
@@ -74,6 +83,14 @@
         { id: "l3", title: "生化先修 第01-2堂", done: false, status: "未開始", subject: "生化", minutes: 82, week: "W01 10/14–10/18", reviews: 0, order: 3 },
         { id: "l4", title: "物理先修 第01-1堂", done: true, status: "完成", subject: "物理", minutes: 45, week: "W01 10/14–10/18", reviews: 0, order: 4 },
       ],
+      focus: {
+        now, today: d, active: null, todayDoneSec: 6000,
+        sessions: [
+          { id: "demo-focus-chem", status: "完成", start: now - 7200000, end: now - 3600000, acc: 3600, subject: "化學", date: d },
+          { id: "demo-focus-eng", status: "完成", start: now - 3000000, end: now - 600000, acc: 2400, subject: "英文", date: d },
+        ],
+        history: [], days: [{ date: d, sec: 6000, count: 2 }],
+      },
     };
   }
   async function api(path, body) {
@@ -82,6 +99,32 @@
       await new Promise((r) => setTimeout(r, 120));
       const [, , kind, id] = path.split("/");
       const db = demoDb;
+      if (kind === "focus") {
+        const f = db.focus, at = Date.now();
+        const complete = () => {
+          const a = f.active;
+          if (!a) return;
+          const acc = Math.max(0, a.acc + (a.status === "進行中" && a.start ? Math.round((at - a.start) / 1000) : 0));
+          const done = { ...a, acc, end: at, status: "完成" };
+          f.sessions.push(done); f.history.unshift(done); f.todayDoneSec += acc; f.active = null; f.now = at;
+          const day = f.days.find((x) => x.date === f.today);
+          if (day) { day.sec += acc; day.count++; }
+        };
+        if (!body) { f.now = at; return structuredClone(f); }
+        if (body.action === "start" || body.action === "switch") {
+          if (body.action === "switch") complete();
+          if (!f.active) f.active = { id: `demo-focus-${at}`, status: "進行中", start: at, acc: 0, subject: body.subject || null, date: f.today };
+        } else if (body.action === "stop") complete();
+        else if (body.action === "pause" && f.active?.status === "進行中") {
+          f.active = { ...f.active, acc: f.active.acc + Math.max(0, Math.round((at - f.active.start) / 1000)), start: null, status: "暫停" };
+        } else if (body.action === "resume" && f.active?.status === "暫停") {
+          f.active = { ...f.active, start: at, status: "進行中" };
+        } else if (body.action !== "start" && body.action !== "switch") {
+          throw new Error(`DEMO_API_UNSUPPORTED:${path}:${body.action}`);
+        }
+        f.now = at;
+        return structuredClone(f);
+      }
       if (kind === "state") return structuredClone(db);
       if (kind === "task") { const t = db.tasks.find((x) => x.id === id); if ("done" in body) t.done = body.done; if ("skip" in body) t.skipped = body.skip; return t; }
       if (kind === "lesson") { const l = db.lessons.find((x) => x.id === id); if ("done" in body) { l.done = body.done; l.status = body.done ? "完成" : "未開始"; } if (body.review) l.reviews++; return l; }
@@ -92,6 +135,7 @@
         r.ypt = fmtYpt(r.hours, r.minutes); return r;
       }
       if (kind === "note") return { id: "n1", title: body.title };
+      throw new Error(`DEMO_API_UNSUPPORTED:${path}`);
     }
     const base = apiBase();
     if (!base) throw new Error("NO_API");
@@ -458,71 +502,169 @@
     }, "筆記已送出");
 
     // ---------- focus timer ----------
-    const fc = { st: null, off: 0, mode: "total", busy: false };
+    const fc = { st: null, off: 0, busy: false, pickerOpen: false, anchor: null };
     const fmtHMS = (s) => { s = Math.max(0, Math.floor(s)); return `${Math.floor(s / 3600)}:${String(Math.floor(s / 60) % 60).padStart(2, "0")}:${String(s % 60).padStart(2, "0")}`; };
     const fmtHM = (s) => `${Math.floor(s / 3600)}時${String(Math.floor(s / 60) % 60).padStart(2, "0")}分`;
     const fmtFull = (s) => { s = Math.max(0, Math.floor(s)); return `${Math.floor(s / 86400)}天 ${Math.floor(s / 3600) % 24}時 ${Math.floor(s / 60) % 60}分 ${s % 60}秒`; };
+
+    const FC_ICON_ART = {
+      idle: `<g>
+        <path d="M3.5 5.5a2 2 0 0 1 2-2h10.6v17H5.5a2 2 0 0 1-2-2v-13Z"/>
+        <path d="M7.2 3.5v17M10 8h3.5M10 11.2h3.5"/>
+        <path d="M19 5.2 22.2 5.5 21.3 17l-1.7 2-1.2-2.2L19 5.2Z"/>
+        <path d="m18.8 7.5 3.2.3M19.6 16.2l1.8.2"/>
+        <rect x="19.8" y="21" width="5" height="2.6" rx=".8"/>
+        <path class="fc-glint" d="M20.6 21.8h3.4"/>
+      </g>`,
+      "英文": `<g>
+        <path d="M4.2 4.5h15.6a2 2 0 0 1 2 2v9.3a2 2 0 0 1-2 2h-8l-5.2 3v-3H4.2a2 2 0 0 1-2-2V6.5a2 2 0 0 1 2-2Z"/>
+        <path d="m8.1 14 2.6-7 2.6 7M9 11.8h3.3"/>
+        <path class="fc-glint" d="M17.2 7.5h1.4"/>
+      </g>`,
+      "化學": `<g>
+        <path d="M9 3.5h6M10.5 3.5v6.2l-5.1 8.2A2.1 2.1 0 0 0 7.2 21h9.6a2.1 2.1 0 0 0 1.8-3.1l-5.1-8.2V3.5"/>
+        <path d="M7.2 16.2h9.6"/>
+        <circle cx="10" cy="14.2" r=".7"/><circle cx="14.4" cy="12.7" r=".55"/>
+        <path class="fc-glint" d="M16.4 15.2h.8"/>
+      </g>`,
+      "生物": `<g>
+        <path d="M21 4.2C12.8 4.2 6 7.5 6 13.1c0 3.1 2.2 5.2 5.2 5.2C16.8 18.3 20.6 11.7 21 4.2Z"/>
+        <path d="M4 21c4.1-5.7 8.3-9.1 15.2-13.5M9.1 15.2l-.4-3.1M13.3 11.7l.2-3M14.7 13.6l3 .4"/>
+        <path class="fc-glint" d="M18.4 6.4 19.6 5.8"/>
+      </g>`,
+      "物理": `<g>
+        <ellipse cx="12" cy="12" rx="9.2" ry="3.6" transform="rotate(-30 12 12)"/>
+        <ellipse cx="12" cy="12" rx="9.2" ry="3.6" transform="rotate(30 12 12)"/>
+        <ellipse cx="12" cy="12" rx="9.2" ry="3.6" transform="rotate(90 12 12)"/>
+        <circle cx="12" cy="12" r="1.55" fill="currentColor"/>
+        <circle class="fc-glint" cx="19.1" cy="8.1" r=".8"/>
+      </g>`,
+      "生化": `<g>
+        <path d="M7 3.5c7 4.3 7 12.7 0 17M17 3.5c-7 4.3-7 12.7 0 17"/>
+        <path d="M8.2 5.1h7.6M6.9 8.2h10.2M6.5 12h11M6.9 15.8h10.2M8.2 18.9h7.6"/>
+        <path class="fc-glint" d="M16.8 5.4 18 4.7"/>
+      </g>`,
+      "Anki": `<g>
+        <rect x="4" y="5.5" width="12" height="16" rx="2"/><rect x="8" y="3" width="12" height="16" rx="2"/>
+        <path d="M11 8h5M11 11h5M7 10v7M7 19h5"/>
+        <path class="fc-glint" d="M16.5 5h1.4"/>
+      </g>`,
+      "其他": `<g>
+        <circle cx="12" cy="12" r="8.6"/><path d="M12 7v5l3.2 2"/>
+        <path class="fc-glint" d="M6.5 6.5 7.5 5.7"/>
+      </g>`
+    };
+    let fcVisualSubject = null;
+    function fcUpdateVisual(subject) {
+      const label = subject || "";
+      if (label === fcVisualSubject) return;
+      fcVisualSubject = label;
+      const known = Object.prototype.hasOwnProperty.call(FC_ICON_ART, label);
+      const iconKey = known ? label : (label ? "其他" : "idle");
+      $("fc-subject-icon").innerHTML = FC_ICON_ART[iconKey];
+      $("fc-heading").textContent = label || "열품타";
+      $("fc-heading").setAttribute("lang", label ? "zh-Hant" : "ko");
+      const heading = $("fc-heading-wrap");
+      if (label) heading.dataset.subject = iconKey;
+      else delete heading.dataset.subject;
+    }
     const segSec = () => { const a = fc.st?.active; if (!a) return 0; const st0 = fc.anchor && fc.anchor.id === a.id && a.acc < 5 ? fc.anchor.start : a.start; return Math.max(0, a.acc + (a.status === "進行中" && st0 ? (Date.now() + fc.off - st0) / 1000 : 0)); };
     const totalSec = () => (fc.st?.todayDoneSec || 0) + segSec();
     function fcRender() {
       const a = fc.st?.active, running = a?.status === "進行中";
       const selected = a?.subject;
-      const collapsed = !!selected && C.SUBJECTS.includes(selected);
-      $("fc-subj").dataset.collapsed = String(collapsed);
-      $("fc-subj").setAttribute("aria-label", collapsed ? `${selected}；點選結束計時` : "選擇計時科目");
-      const t = fc.mode === "total" ? totalSec() : segSec();
+      fcUpdateVisual(selected);
+      const choosing = !!fc.pickerOpen && !a;
+      const main = $("fc-main"), picker = $("fc-subj");
+      picker.hidden = !choosing;
+      main.dataset.state = a ? "active" : choosing ? "choosing" : "idle";
+      main.setAttribute("aria-expanded", String(choosing));
+      main.setAttribute("aria-busy", String(fc.busy));
+      $("focus").classList.toggle("is-choosing", choosing);
+      const t = a ? segSec() : totalSec();
       $("focus").classList.toggle("is-running", !!running);
       $("fc-time").textContent = fmtHMS(t);
       $("fc-time").classList.toggle("run", !!running);
-      const by = {};
-      (fc.st?.sessions || []).forEach((x) => { const k = x.subject || "其他"; by[k] = (by[k] || 0) + x.acc; });
-      if (a) { const k = a.subject || "其他"; by[k] = (by[k] || 0) + segSec(); }
       document.querySelectorAll("#fc-subj button").forEach((b) => {
         const k = b.dataset.s;
-        b.hidden = collapsed && k !== selected;
-        b.classList.toggle("on", !!a && (a.subject || "其他") === k);
-        b.classList.toggle("run", !!running && (a.subject || "其他") === k);
-        b.setAttribute("aria-pressed", String(!!a && (a.subject || "其他") === k));
-        b.querySelector("i").textContent = by[k] ? fmtHM(by[k]) : "";
-        b.title = collapsed ? "點選結束計時" : by[k] ? `${k} ${fmtHM(by[k])}` : k;
-        b.setAttribute("aria-label", collapsed ? `${k}，點選結束計時` : `${k}，開始計時`);
+        b.hidden = !choosing;
+        b.classList.toggle("on", false);
+        b.classList.toggle("run", false);
+        b.setAttribute("aria-pressed", "false");
+        b.title = `${k}，開始新的計時段`;
+        b.setAttribute("aria-label", `${k}，開始新的計時段`);
       });
-      $("fc-sub").textContent = a ? (running ? "進行中" : "已暫停") : "尚未開始";
       const assigned = (state.tasks || []).filter((x) => x.source === "今日" && !x.skipped).length;
       const goalH = Math.min(10, Math.max(3, 3 + assigned * 0.5)), pct = Math.round(totalSec() / (goalH * 3600) * 100);
       $("fc-prog-i").style.width = Math.min(100, pct) + "%"; $("fc-prog-i").parentNode.classList.toggle("over", pct > 100);
       $("fc-goal-t").textContent = `目標 ${goalH} 時　${pct}%`;
+      $("fc-goal").hidden = !!a;
+      main.setAttribute("aria-label", a ? `${selected || "專注"}；本段時間 ${fmtHMS(t)}；點擊結束計時` : choosing ? `今日總時間 ${fmtHMS(t)}；請選擇科目開始計時` : `열품타；今日總時間 ${fmtHMS(t)}；點擊選擇科目`);
       document.title = running ? `${fmtHMS(t)} 專注 ${a.subject || "其他"}` : "清大後醫";
     }
     async function fcLoad() {
-      if (fc.busy) return; try { const d = await api("/api/focus"); const pn = fc.pin; if (pn && Date.now() < pn.until && ((d.active ? d.active.id : null) !== pn.id || (d.active ? d.active.status : null) !== pn.status)) return; fc.st = d; fc.off = d.now - Date.now(); fcRender(); fcSyncYpt(); } catch (e) { /* offline or not deployed */ }
+      if (fc.busy) return;
+      try {
+        const d = await api("/api/focus");
+        const pn = fc.pin;
+        if (pn && Date.now() < pn.until && ((d.active ? d.active.id : null) !== pn.id || (d.active ? d.active.status : null) !== pn.status)) return;
+        fc.st = d; fc.off = d.now - Date.now(); fcRender(); fcSyncYpt();
+      } catch (e) { /* offline or not deployed */ }
     }
     async function fcAct(body) {
-      if (fc.busy) return; fc.busy = true;
+      if (fc.busy) return;
+      fc.busy = true;
       const clickAt = Date.now() + fc.off;
-      if (body.action !== "switch" && body.action !== "start") fc.anchor = null;
-      if ((body.action === "switch" || body.action === "start") && fc.st) { // optimistic: zero immediately, previous segment folded into today's total
-        const p = fc.st.active, prev = p ? segSec() : 0;
-        fc.st = { ...fc.st, todayDoneSec: (fc.st.todayDoneSec || 0) + prev, sessions: [...(fc.st.sessions || []), ...(p ? [{ ...p, acc: Math.round(prev), status: "完成" }] : [])], active: { id: "local", subject: body.subject, acc: 0, start: clickAt, status: "進行中" } };
-        fc.anchor = { id: "local", start: clickAt }; fcRender();
+      const previousState = fc.st, previousAnchor = fc.anchor, previousPicker = fc.pickerOpen;
+      const previousActive = fc.st?.active, previousSec = previousActive ? Math.round(segSec()) : 0;
+      const base = fc.st || { todayDoneSec: 0, sessions: [], history: [], days: [], active: null };
+      if (body.action === "start" || body.action === "switch") {
+        const closed = previousActive ? [{ ...previousActive, acc: previousSec, end: clickAt, status: "完成" }] : [];
+        fc.st = { ...base, todayDoneSec: (base.todayDoneSec || 0) + previousSec, sessions: [...(base.sessions || []), ...closed], active: { id: "local", subject: body.subject, acc: 0, start: clickAt, status: "進行中", date: base.today || taipeiNow().date }, now: clickAt };
+        fc.anchor = { id: "local", start: clickAt };
+        fc.pickerOpen = false;
+      } else if (body.action === "stop") {
+        const closed = previousActive ? [{ ...previousActive, acc: previousSec, end: clickAt, status: "完成" }] : [];
+        fc.st = { ...base, todayDoneSec: (base.todayDoneSec || 0) + previousSec, sessions: [...(base.sessions || []), ...closed], active: null, now: clickAt };
+        fc.anchor = null;
+        fc.pickerOpen = false;
       }
-      try { const d = await api("/api/focus", body); if (body.action === "switch" || body.action === "start") fc.anchor = d.active ? { id: d.active.id, start: clickAt } : null; fc.st = d; fc.off = d.now - Date.now(); fc.pin = { id: d.active ? d.active.id : null, status: d.active ? d.active.status : null, until: Date.now() + 40000 }; fcRender(); }
-      catch (e) { fc.anchor = null; setTimeout(fcLoad, 300); toast("無法連線：" + (e.message || "")); } finally { fc.busy = false; }
+      fcRender();
+      try {
+        const d = await api("/api/focus", body);
+        if (body.action === "switch" || body.action === "start") fc.anchor = d.active ? { id: d.active.id, start: clickAt } : null;
+        else if (body.action === "stop") fc.anchor = null;
+        fc.st = d; fc.off = d.now - Date.now(); fc.pin = { id: d.active ? d.active.id : null, status: d.active ? d.active.status : null, until: Date.now() + 40000 };
+        fcRender();
+        if (body.action === "stop") { toast("已記錄這一段"); fcSyncYpt(); }
+        return d;
+      } catch (e) {
+        fc.st = previousState; fc.anchor = previousAnchor; fc.pickerOpen = body.action === "start" ? true : previousPicker;
+        fcRender(); setTimeout(fcLoad, 300); toast("無法連線：" + (e.message || ""));
+      } finally { fc.busy = false; fcRender(); }
     }
-    $("fc-subj").onclick = async (e) => {
-      const b = e.target.closest("button"); if (!b) return; const s = b.dataset.s, a = fc.st?.active;
-      if (!a) return fcAct({ action: "start", subject: s });
-      if ((a.subject || "其他") === s) return fcAct({ action: "stop" }).then(() => { toast("已記錄這一段"); fcSyncYpt(); });
-      fcAct({ action: "switch", subject: s });
+    $("fc-main").onclick = () => {
+      if (fc.busy) return;
+      if (fc.st?.active) { fcAct({ action: "stop" }); return; }
+      fc.pickerOpen = !fc.pickerOpen; fcRender();
+      if (fc.pickerOpen) requestAnimationFrame(() => $("fc-subj").querySelector("button:not([hidden])")?.focus({ preventScroll: true }));
     };
+    $("fc-subj").onclick = (e) => {
+      const b = e.target.closest("button[data-s]");
+      if (!b || fc.busy || fc.st?.active) return;
+      fc.pickerOpen = false; $("fc-main").focus({ preventScroll: true });
+      fcAct({ action: "start", subject: b.dataset.s });
+    };
+    $("fc-subj").addEventListener("keydown", (e) => {
+      if (e.key !== "Escape") return;
+      fc.pickerOpen = false; fcRender(); $("fc-main").focus({ preventScroll: true });
+    });
     async function fcSyncYpt(force) {
       const t = fc.st?.todayDoneSec || 0; if (fc.st?.active || (!t && !force)) return;
       const h = Math.floor(t / 3600), m = Math.round((t % 3600) / 60);
       if (state.record && state.record.hours === h && state.record.minutes === m) return;
       try { state.record = await api("/api/record", { hours: h, minutes: m }); renderRecord(); } catch (e) {}
     }
-    const fcToggleMode = () => { fc.mode = fc.mode === "total" ? "seg" : "total"; fcRender(); };
-    $("fc-mode").onclick = fcToggleMode;
     function fcHistory() {
       const st = fc.st || { days: [], history: [] };
       const hm = (ms) => new Date(ms + 8 * 3600e3).toISOString().slice(11, 16);
