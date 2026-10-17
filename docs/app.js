@@ -311,23 +311,6 @@
     }
     return bestIn(slots);
   }
-  function nextTaskIdea(tasks) {
-    const available = (Array.isArray(tasks) ? tasks : [])
-      .filter((t) => t.done !== true && t.skipped !== true && ["今日", "推薦"].includes(String(t.source || "今日")))
-      .sort((a, b) => (a.order ?? 999) - (b.order ?? 999));
-    const pickFor = (slot) => available.find((t) => taskScheduleSlot(t) === slot) || null;
-    if (activeScheduleSlot) {
-      const nowTask = pickFor(activeScheduleSlot);
-      if (nowTask) return { task: nowTask, slot: activeScheduleSlot, when: "現在可做" };
-    }
-    const now = taipeiNow();
-    const upcoming = activeScheduleSlots.find((slot) => toMin(slot.start) > now.min);
-    const tomorrow = !upcoming;
-    const slot = upcoming || activeScheduleSlots[0];
-    const task = slot ? pickFor(slot) : null;
-    if (!task) return null;
-    return { task, slot, when: tomorrow ? `明早 ${slot.start}` : `下一段 ${slot.start}` };
-  }
   function taskSteps(t) {
     const original = String(t.title || "").trim();
     if (!original) return [];
@@ -401,18 +384,6 @@
     $("task-count").textContent = real.length ? `${done}/${real.length}` : "";
     $("task-prog-i").style.width = pct + "%";
     $("tasks").replaceChildren(...(real.length ? renderTaskGroups(real) : [el("li", { class: "empty" }, "今天沒有任務")]));
-    const nudge = $("task-nudge"), idea = nextTaskIdea(state.tasks);
-    nudge.hidden = !idea;
-    nudge.replaceChildren();
-    if (idea) {
-      const text = taskSummary(idea.task);
-      nudge.append(el("span", { class: "task-nudge-label" }, idea.when),
-        el("span", { class: "task-nudge-title" }, text),
-        el("span", { class: "task-nudge-slot" }, idea.slot.name));
-      nudge.setAttribute("aria-label", `${idea.when}：${text}，${idea.slot.name}時段。點開看完整說明`);
-      nudge.title = String(idea.task.title || text);
-      nudge.onclick = () => openTaskDetails(idea.task, nudge);
-    }
     $("skipped-wrap").hidden = !skipped.length;
     updateProg();
     $("skipped").replaceChildren(...skipped.map(taskItem));

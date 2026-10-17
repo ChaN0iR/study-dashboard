@@ -888,11 +888,4 @@ button:active,a.icon-btn:active,.chk:active,.fc-hist:active{box-shadow:0 0 0 1px
 .task-detail-steps{margin:0;padding-inline-start:22px;color:var(--fg);font-size:16px;line-height:1.7}
 .task-detail-steps li{padding-inline-start:3px;white-space:pre-wrap;overflow-wrap:anywhere}
 .task-detail-note{margin:10px 0 0;color:var(--mut);font-size:13px;line-height:1.55}
-.task-nudge{display:flex;align-items:center;gap:8px;width:100%;min-height:38px;flex:0 0 auto;margin:4px 0 5px;padding:6px 10px;border:1px solid color-mix(in srgb,var(--acc) 28%,var(--line));border-radius:10px;background:color-mix(in srgb,var(--acc) 7%,var(--card));color:var(--fg);text-align:left;cursor:pointer}
-.task-nudge[hidden]{display:none!important}
-.task-nudge-label{flex:0 0 auto;color:var(--acc);font-size:11px;font-weight:750;white-space:nowrap}
-.task-nudge-title{flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:13px;font-weight:650}
-.task-nudge-slot{flex:0 0 auto;max-width:34%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--mut);font-size:11px}
-.task-nudge:hover{border-color:var(--acc);filter:brightness(1.02)}
-.item.task-item.is-current{border-radius:7px;background:color-mix(in srgb,var(--acc) 5%,transparent);box-shadow:inset 3px 0 var(--acc)}
-@media(max-width:384px){.task-nudge{gap:6px;min-height:34px;padding:5px 8px}.task-nudge-label,.task-nudge-slot{font-size:10px}}
+.item.task-item.is-current{border-radius:7px;background:color-mix(in srgb,var(--acc) 3%,transparent);box-shadow:0 0 10px color-mix(in srgb,var(--acc) 10%,transparent),inset 0 0 0 1px color-mix(in srgb,var(--acc) 8%,transparent)}

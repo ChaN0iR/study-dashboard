@@ -1,5 +1,5 @@
-const CACHE = "sd-v112";
-const SHELL = ["./", "index.html", "style.css?v=112", "app.js?v=109", "config.js?v=89", "manifest.webmanifest", "icons/icon.svg"];
+const CACHE = "sd-v113";
+const SHELL = ["./", "index.html", "style.css?v=113", "app.js?v=110", "config.js?v=89", "manifest.webmanifest", "icons/icon.svg"];
 self.addEventListener("install", (e) => { e.waitUntil(caches.open(CACHE).then((c) => c.addAll(SHELL))); self.skipWaiting(); });
 self.addEventListener("activate", (e) => {
   e.waitUntil(caches.keys().then((ks) => Promise.all(ks.filter((k) => k !== CACHE).map((k) => caches.delete(k)))).then(() => self.clients.claim()));
