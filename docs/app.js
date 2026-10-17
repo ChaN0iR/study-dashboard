@@ -270,9 +270,10 @@
     const badges = labels.map((label) => el("span", { class: `tag ${TASK_TAG_STYLES[label] || "tag-neutral"}` }, label));
     const subject = isLifeTask(t) ? null : taskSubject(t);
     const suffix = SUBJECT_MARKS[subject] ? el("span", { class: "task-subject-suffix", "data-subject": subject, title: `科目：${subject}` }, `${subject} ${SUBJECT_MARKS[subject]}`) : null;
-    const title = el("span", { class: "task-title" }, el("span", { class: "task-activity" }, activity), badges);
-    const copy = el("div", { class: "t task-copy", title: [activity, ...labels].join(" · ") }, title);
-    return el("li", { class: "item" + (t.done ? " done" : "") },
+    const taskText = String(activity);
+    const title = el("span", { class: "task-title" }, el("span", { class: "task-activity", tabindex: "0", title: taskText, "aria-label": taskText }, taskText), badges);
+    const copy = el("div", { class: "t task-copy" }, title);
+    return el("li", { class: "item task-item" + (t.done ? " done" : "") },
       el("button", { class: "chk", role: "checkbox", "aria-checked": String(t.done), "aria-label": t.done ? "取消完成" : "標記完成", onclick: () => toggleTask(t) }),
       suffix,
       copy,
