@@ -22,7 +22,9 @@ export const P = {
     skip: "»",
     date: "日期",
     order: "順序",
+    type: "類型",
     source: "來源",       // 今日 / 推薦 / 備用
+    lesson: "對應堂次",
     reward: "獎勵文字",
     record: "每日紀錄",
   },

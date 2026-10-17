@@ -110,6 +110,10 @@ const shapeTask = (pg) => ({
   skipped: rd.check(pg.properties[P.task.skip]),
   source: rd.select(pg.properties[P.task.source]) || "今日",
   order: rd.number(pg.properties[P.task.order]) ?? 999,
+  type: rd.select(pg.properties[P.task.type]) || null,
+  relatedLessonIds: rd.relation(pg.properties[P.task.lesson]),
+  relatedSubjects: [],
+  relatedCourses: [],
 });
 
 const shapeRecord = (pg) => {
@@ -140,6 +144,7 @@ const shapeLesson = (pg) => {
     course: rd.select(p[L.course]),
     minutes: rd.number(p[L.length]),
     week: rd.text(p[L.weekLabel]),
+    weekStart: rd.date(p[L.weekStart]),
     reviews: rd.number(p[L.reviews]) ?? 0,
     next: rd.formula(p[L.nextReview]),
     due: rd.formula(p[L.due]),
@@ -171,30 +176,70 @@ async function getOrCreateRecord(env, today) {
 async function getState(env) {
   const today = taipeiDate();
   const weekFloor = taipeiDate(-7);
-  const [tasks, rec, lessons] = await Promise.all([
+  const [taskRows, rec, lessonRows] = await Promise.all([
     queryAll(env, DB.tasks, {
       filter: { property: P.task.date, date: { equals: today } },
       sorts: [{ property: P.task.order, direction: "ascending" }],
     }),
     findTodayRecord(env, today),
     queryAll(env, DB.lessons, {
-      filter: {
-        and: [
-          { property: P.lesson.weekStart, date: { on_or_before: today } },
-          { or: [
-            { property: P.lesson.status, select: { does_not_equal: STATUS_DONE } },
-            { property: P.lesson.weekStart, date: { after: weekFloor } },
-          ] },
-        ],
-      },
       sorts: [{ property: P.lesson.order, direction: "ascending" }],
     }),
   ]);
+  const allLessons = lessonRows.map(shapeLesson);
+  const lessons = allLessons.filter((l) =>
+    l.weekStart && l.weekStart <= today && (!l.done || l.weekStart > weekFloor)
+  );
+  const lessonsById = new Map(allLessons.map((l) => [l.id, l]));
+  const tasks = taskRows.map(shapeTask).map((t) => {
+    const related = t.relatedLessonIds.map((id) => lessonsById.get(id)).filter(Boolean);
+    return {
+      ...t,
+      relatedSubjects: [...new Set(related.map((l) => l.subject).filter(Boolean))],
+      relatedCourses: [...new Set(related.map((l) => l.course).filter(Boolean))],
+    };
+  });
+  const byCourse = new Map();
+  for (const l of allLessons) {
+    const key = l.course || `未設定課程:${l.subject || "未知科目"}`;
+    let g = byCourse.get(key);
+    if (!g) {
+      g = { course: l.course, subjects: new Set(), total: 0, done: 0, unscheduled: 0, order: l.order, nextUpcoming: null };
+      byCourse.set(key, g);
+    }
+    if (l.subject) g.subjects.add(l.subject);
+    g.order = Math.min(g.order, l.order);
+    g.total++;
+    if (l.done) g.done++;
+    else if (!l.weekStart) g.unscheduled++;
+    else if (l.weekStart > today) {
+      const current = g.nextUpcoming;
+      if (!current || l.weekStart < current.weekStart || (l.weekStart === current.weekStart && l.order < current.order)) {
+        g.nextUpcoming = { title: l.title, weekStart: l.weekStart, order: l.order };
+      }
+    }
+  }
+  const courseStats = [...byCourse.values()].map((g) => {
+    const subjects = [...g.subjects];
+    const subject = subjects.length === 1 ? subjects[0] : null;
+    return {
+      course: g.course,
+      name: g.course || `${subject || "未分類"}（未設定課程）`,
+      subject,
+      subjects,
+      total: g.total,
+      done: g.done,
+      unscheduled: g.unscheduled,
+      order: g.order,
+      nextUpcoming: g.nextUpcoming ? { title: g.nextUpcoming.title, weekStart: g.nextUpcoming.weekStart } : null,
+    };
+  }).sort((a, b) => a.order - b.order || a.name.localeCompare(b.name));
   return {
     today,
-    tasks: tasks.map(shapeTask),
+    tasks,
     record: rec ? shapeRecord(rec) : null,
-    lessons: lessons.map(shapeLesson),
+    lessons,
+    courseStats,
   };
 }
 

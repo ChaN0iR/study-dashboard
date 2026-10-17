@@ -415,6 +415,13 @@ body{background:radial-gradient(circle at 92% -10%,rgba(57,73,171,.08),transpare
 .task-pack-list .item{min-height:42px;padding:4px 0}
 .task-pack-list .item:first-child{border-top:0}
 .task-pack-list .task-title{white-space:normal;overflow:visible;text-overflow:clip}
+.task-copy .task-title,.task-pack-list .task-title{display:flex;align-items:center;gap:6px;min-width:0;overflow:hidden;white-space:nowrap;text-overflow:clip}
+.task-title .task-activity{flex:1 1 auto;min-width:0;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+.task-title .tag,.task-subject-suffix{flex:0 0 auto}
+.task-subject-suffix{color:var(--mut);font-size:11px;font-weight:750;white-space:nowrap}
+.lv-bar{height:8px;border:1px solid var(--line);box-sizing:border-box;border-radius:99px;background:color-mix(in srgb,var(--line) 20%,transparent);overflow:hidden}
+.lv-bar i{border-radius:inherit;transition:width .3s ease}
+.lv-upcoming{list-style:none;margin:0 2px 6px;font-size:11px}
 
 .fc-subj[data-collapsed=true]{display:flex;justify-content:center}
 .fc-subj[data-collapsed=true] button{flex:none;min-width:82px}
@@ -701,3 +708,17 @@ button:active,a.icon-btn:active,.chk:active,.fc-hist:active{box-shadow:0 0 0 1px
   .top-actions .icon-btn{width:30px!important;min-width:30px!important;height:30px!important;min-height:30px!important}
   .top-actions svg{width:18px!important;height:18px!important}
 }
+
+
+/* v100: desktop timer keeps one shell and contains its progress track */
+@media (min-width:900px) and (min-height:560px){
+  .top>.focus .fc-main{border:0!important;border-radius:0!important;background:transparent!important;box-shadow:none!important}
+  .top>.focus .fc-main::before,.top>.focus .fc-main::after{content:none!important;display:none!important}
+  .top>.focus .fc-goal{position:static!important;inset:auto!important;left:auto!important;right:auto!important;bottom:auto!important;width:100%;min-width:0;margin:0!important;align-self:stretch}
+  .top>.focus .fc-goal .fc-prog{width:auto;min-width:0;flex:1 1 auto;margin:0}
+}
+.top .medical-mark{display:block;flex:none;width:20px;height:20px;color:var(--mut);transform:translateY(2px)}
+@media(max-width:899px){.top .medical-mark{width:18px;height:18px;transform:none}}
+.xp-explanation{margin:0 0 8px;font-size:12px}
+.xp-explanation summary{color:var(--mut);cursor:pointer}
+.xp-explanation p{margin:6px 0 10px;line-height:1.55}

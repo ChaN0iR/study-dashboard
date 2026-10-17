@@ -181,25 +181,48 @@
   }
 
   const shortTitle = (s) => String(s || "").replace(/[\u{1F000}-\u{1FAFF}\u2600-\u27BF\uFE0F]/gu, "").replace(/[（(][^）)]*[）)]/g, "").replace(/｜.*$/, "").replace(/\s+/g, " ").trim();
-  const TASK_TAG_STYLES = { "預習": "tag-prestudy", "初學": "tag-learn", "複習": "tag-review", "練習": "tag-practice", "推薦": "tag-recommended", "備用": "tag-backup" };
+  const TASK_TAG_STYLES = { "預習": "tag-prestudy", "初學": "tag-learn", "複習": "tag-review", "週複習": "tag-review", "練習": "tag-practice", "推薦": "tag-recommended", "備用": "tag-backup", "生活": "tag-neutral" };
+  const SUBJECT_MARKS = { "化學": "🧪", "生化": "🧬", "生物": "🦠", "物理": "⚛️", "英文": "🔤" };
+  const SUBJECT_PATTERNS = { "化學": /化學|普化|有機/, "生化": /生化/, "生物": /生物/, "物理": /物理/, "英文": /英文|英語/ };
   function taskSubject(t) {
     const title = String(t.title || "");
-    if (/生化/.test(title)) return "生化";
-    if (/化學|普化|有機/.test(title)) return "化學";
-    if (/生物/.test(title)) return "生物";
-    if (/物理/.test(title)) return "物理";
-    if (/英文|英語/.test(title)) return "英文";
+    const direct = Object.entries(SUBJECT_PATTERNS).filter(([, pattern]) => pattern.test(title)).map(([subject]) => subject);
+    if (direct.length === 1) return direct[0];
+    const linked = [...new Set((Array.isArray(t.relatedSubjects) ? t.relatedSubjects : []).filter((s) => SUBJECT_MARKS[s]))];
+    if (linked.length === 1) return linked[0];
+    if (direct.length > 1 || linked.length > 1) return null;
     if (/anki/i.test(title)) return "Anki";
     return null;
   }
+  function isLifeTask(t) {
+    return /^(早餐|午餐|晚餐|用餐|飯後散步|散步|步數|肌酸|蛋白粉|重量訓練|重訓|運動|洗澡|晚間簡單整理|簡單清潔|清潔收尾|睡前)(?:[｜|：:\s＋+]|$)/.test(String(t.title || ""));
+  }
+  const XP_PER_COMPLETED_TASK = 10;
+  function coursePointAllocation(tasks) {
+    const byCourse = new Map();
+    let eligibleTasks = 0;
+    for (const t of Array.isArray(tasks) ? tasks : []) {
+      if (t.done !== true || t.skipped === true || isLifeTask(t)) continue;
+      const courses = [...new Set((Array.isArray(t.relatedCourses) ? t.relatedCourses : [])
+        .filter((course) => typeof course === "string" && course.trim())
+        .map((course) => course.trim()))];
+      if (courses.length !== 1) continue;
+      eligibleTasks++;
+      const course = courses[0];
+      byCourse.set(course, (byCourse.get(course) || 0) + XP_PER_COMPLETED_TASK);
+    }
+    return { byCourse, eligibleTasks, total: eligibleTasks * XP_PER_COMPLETED_TASK };
+  }
+  const formatPoints = (points) => Number((Number(points) || 0).toFixed(1));
   function taskStages(t) {
     const title = String(t.title || "");
     const stages = [];
-    const prep = /預習|課前/.test(title);
+    const type = ["預習", "初學", "複習", "週複習"].includes(t.type) ? t.type : "";
+    const prep = type ? type === "預習" : /預習|課前/.test(title);
     const explicitReview = /複習|回顧|錯題|到期卡/.test(title);
     const newCardsOnly = /新卡|新單字/.test(title);
-    const review = explicitReview || (/anki/i.test(title) && !newCardsOnly);
-    const explicitLearning = /初學|入門|新卡|新單字|首次/.test(title);
+    const review = type ? type === "複習" || type === "週複習" : explicitReview || (/anki/i.test(title) && !newCardsOnly);
+    const explicitLearning = type ? type === "初學" : /初學|入門|新卡|新單字|首次/.test(title);
     const lessonCue = /看課|上課|課程|先修|主課|第\s*\d+(?:\s*[-－]\s*\d+)?\s*堂/.test(title);
     if (prep) stages.push("預習");
     if (explicitLearning || (!prep && !review && lessonCue)) stages.push("初學");
@@ -225,8 +248,11 @@
     const source = String(t.source || "");
     if (source && source !== "今日") labels.push(source);
     else if (/推薦/.test(String(t.title || "")) && !labels.includes("推薦")) labels.push("推薦");
+    if (isLifeTask(t)) labels.push("生活");
     const badges = labels.map((label) => el("span", { class: `tag ${TASK_TAG_STYLES[label] || "tag-neutral"}` }, label));
-    const title = el("span", { class: "task-title" }, el("span", { class: "task-activity" }, activity), badges);
+    const subject = isLifeTask(t) ? null : taskSubject(t);
+    const suffix = SUBJECT_MARKS[subject] ? el("span", { class: "task-subject-suffix", title: `科目：${subject}` }, `${subject} ${SUBJECT_MARKS[subject]}`) : null;
+    const title = el("span", { class: "task-title" }, el("span", { class: "task-activity" }, activity), badges, suffix);
     const copy = el("div", { class: "t task-copy", title: [activity, ...labels].join(" · ") }, title);
     return el("li", { class: "item" + (t.done ? " done" : "") },
       el("button", { class: "chk", role: "checkbox", "aria-checked": String(t.done), "aria-label": t.done ? "取消完成" : "標記完成", onclick: () => toggleTask(t) }),
@@ -241,17 +267,28 @@
     const actions = [];
     const cleanStageWords = (s) => String(s || "").replace(/預習|初學|複習|推薦|備用/g, " ").replace(/\s+/g, " ").trim();
     if (/anki/i.test(title)) {
-      const detail = cleanStageWords(title.replace(/^.*?anki\s*[:：]?\s*/i, ""));
-      actions.push(detail ? `做 Anki：${shortTitle(detail)}` : "完成 20 張 Anki 到期卡");
+      const detail = cleanStageWords(title.replace(/^.*?anki(?:\s*[｜|：:]\s*|\s+)?/i, "")).replace(/^(?:(?:製作|新增|建立)\s*)?(?:新卡|新單字)\s*[：:|]?\s*/, "");
+      const making = /新卡|新單字|製作|新增|建立/.test(title), reviewing = /到期卡|複習|回顧|重測|錯卡/.test(title);
+      const verb = making && reviewing ? "複習到期卡＋製作 Anki 新卡" : making ? "製作 Anki 新卡" : reviewing ? "複習 Anki 到期卡" : "先複習到期卡；若沒有，依本任務明示的備援方式處理";
+      actions.push(detail ? `${verb}：${shortTitle(detail)}` : verb);
     }
-    if (/錯題/.test(title)) actions.push(lessonName ? `重做${lessonName}錯題` : "重做 5 題錯題");
+    if (/錯題/.test(title)) {
+      const detail = title.replace(/^錯題\s*[｜|：:]\s*/, "").trim();
+      actions.push(detail ? shortTitle(detail) : "從今日已有教材或錯題本挑 1 題尚未練過的題目，記下錯因與正確第一步，再遮住解答重測");
+    }
     else if (/複習|回顧/.test(title)) actions.push(lessonName ? `默寫${lessonName}重點` : reviewSuggestion(t));
     if (/講義/.test(title) && /(練習題|題目|做題|解題)/.test(title)) actions.push("做講義練習題");
     else if (/練習題/.test(title)) actions.push("做練習題");
     else if (/(題庫|題目|做題|解題)/.test(title)) actions.push("做題目");
-    if (!/錯題|複習|回顧/.test(title) && (lessonName || /(看課|上課|課程|先修|主課)/.test(title))) actions.push(lessonName ? `看${lessonName}` : "看課");
+    const reviewType = t.type === "複習" || t.type === "週複習";
+    const explicitWatch = /看課|上課|看完|看前|看後|看影片|觀看|觀看片段|影片/.test(title);
+    const learningCourse = t.type === "初學" && (lessonName || /(課程|先修|主課)/.test(title));
+    if (!reviewType && !/錯題|複習|回顧/.test(title) && (explicitWatch || learningCourse)) {
+      const detail = title.replace(/^(化學|普化|有機|生化|生物|物理|英文|英語)\s*[｜|：:]?\s*/, "").trim();
+      actions.push(detail ? `推進課程進度：${shortTitle(detail)}` : "推進課程進度");
+    }
     if (/閱讀|文章/.test(title)) actions.push(/文章/.test(title) ? "閱讀文章" : "閱讀");
-    if (/單字|生字/.test(title)) actions.push("背單字");
+    if (!/anki/i.test(title) && /單字|生字/.test(title)) actions.push(/自測|測驗|回想/.test(title) ? "自測單字" : "背單字");
     if (!actions.length && /預習/.test(title)) actions.push("先讀本節綱要，列出 3 個問題");
     if (!actions.length && /初學/.test(title)) actions.push("看 1 小節，寫下 3 個重點");
     if (!actions.length && /練習/.test(title)) actions.push("做 5 題同主題題目，整理錯因");
@@ -263,17 +300,7 @@
     return remainder || "待補內容";
   }
   function renderTaskGroups(tasks) {
-    const groups = new Map();
-    tasks.forEach((t, index) => {
-      const subject = taskSubject(t), key = subject || `task:${t.id || index}`;
-      if (!groups.has(key)) groups.set(key, { subject, items: [] });
-      groups.get(key).items.push(t);
-    });
-    return [...groups.values()].flatMap((group) => group.subject
-      ? [el("li", { class: "task-pack" },
-        el("div", { class: "task-pack-name" }, group.subject),
-        el("ul", { class: "list task-pack-list" }, group.items.map((t) => taskItem(t, { activity: taskActivity(t) }))))]
-      : group.items.map((t) => taskItem(t)));
+    return tasks.map((t) => taskItem(t, { activity: taskActivity(t) }));
   }
 
   function renderTasks() {
@@ -318,44 +345,44 @@
   }
   function updateTotal() { $("ypt").textContent = fmtYpt($("f-hours").value, $("f-minutes").value); }
 
-  const RANKS = ["見習", "進階", "熟練", "精通"], PER = 10, BASE = (C.BASE_DONE || {});
-  const TOP = {
-    "化學": ["拉瓦節", "道耳吞", "門得列夫", "鮑林", "居禮夫人"],
-    "生物": ["虎克", "孟德爾", "達爾文", "華生與克里克", "巴斯德"],
-    "生化": ["克雷布斯", "桑格", "鮑林", "華生與克里克", "多德納"],
-    "物理": ["伽利略", "牛頓", "馬克士威", "愛因斯坦", "費曼"],
-    "英文": ["莎士比亞", "狄更斯", "喬治歐威爾", "海明威", "牛津大師"],
-  };
-  const titleFor = (name, subject, ri) => {
-    if (ri < RANKS.length) return RANKS[ri];
-    const key = Object.keys(TOP).find((k) => (name + (subject || "")).includes(k));
-    const list = key ? TOP[key] : ["大師", "宗師", "傳奇", "泰斗", "殿堂"];
-    return list[Math.min(ri - RANKS.length, list.length - 1)];
-  };
   function renderLessons() {
-    const ls = state.lessons;
-    $("lesson-count").textContent = ls.length ? `${ls.filter((l) => l.done).length}/${ls.length}` : "";
-    if (!ls.length) { $("lessons").replaceChildren(el("li", { class: "empty" }, "本週沒有課程")); return; }
+    const ls = state.lessons || [];
+    const hasCourseStats = Array.isArray(state.courseStats) && state.courseStats.length > 0;
     const seriesOf = (l) => (l.title || "").replace(/\s*第?\s*\d+[-－]\d+\s*堂?.*$/, "").trim() || l.subject || "課程";
-    const groups = new Map();
-    ls.forEach((l) => { const k = seriesOf(l); if (!groups.has(k)) groups.set(k, []); groups.get(k).push(l); });
-    const ord = (l) => (l.order == null ? 9999 : l.order);
-    const list = [...groups.entries()].map(([name, items]) => {
-      items.sort((x, y) => (x.done - y.done) || (ord(x) - ord(y)));
-      const done = items.filter((x) => x.done).length, pct = Math.round((done / items.length) * 100);
-      const next = items.find((x) => !x.done);
-      return { name, items, done, pct, key: (next ? ord(next) : 99999) + (name.includes("先修") ? 0 : 50000) };
-    }).sort((x, y) => x.key - y.key);
+    const keyOf = (l) => l.course || (hasCourseStats ? `${l.subject || "未分類"}（未設定課程）` : seriesOf(l));
+    const visible = new Map();
+    ls.forEach((l) => { const k = keyOf(l); if (!visible.has(k)) visible.set(k, []); visible.get(k).push(l); });
+    const stats = hasCourseStats ? state.courseStats : [...visible.entries()].map(([name, items]) => ({
+      course: name, name, subject: items[0]?.subject || null, total: items.length,
+      done: items.filter((l) => l.done).length, unscheduled: 0,
+      order: Math.min(...items.map((l) => l.order ?? 9999)), nextUpcoming: null,
+    }));
+    const total = stats.reduce((n, g) => n + (Number(g.total) || 0), 0);
+    const doneTotal = stats.reduce((n, g) => n + (Number(g.done) || 0), 0);
+    const pointAllocation = coursePointAllocation(state.tasks);
+    $("lesson-count").textContent = total ? `${doneTotal}/${total} 堂` : "";
+    $("xp-total").textContent = DEMO ? "示範資料不計分" : state.today ? `今日可分配 ${pointAllocation.total} 點` : "今日可分配 — 點";
+    if (!stats.length) { $("lessons").replaceChildren(el("li", { class: "empty" }, "目前沒有課程進度資料")); return; }
+    const list = stats.map((g) => {
+      const name = g.name || g.course || "未設定課程";
+      const items = visible.get(g.course || name) || [];
+      items.sort((x, y) => (x.done - y.done) || ((x.order ?? 9999) - (y.order ?? 9999)));
+      const courseTotal = Number(g.total) || items.length;
+      const courseDone = Number(g.done) || 0;
+      const pct = courseTotal ? Math.round(courseDone / courseTotal * 100) : 0;
+      const coursePoints = DEMO ? 0 : pointAllocation.byCourse.get(g.course || name) || 0;
+      return { ...g, name, items, courseTotal, courseDone, pct, coursePoints };
+    }).sort((a, b) => (Number(a.order) || 0) - (Number(b.order) || 0) || a.name.localeCompare(b.name));
     const rows = [];
     list.forEach((g) => {
-      const sk = "lvdone:" + g.name; let seen = [];
-      try { seen = JSON.parse(localStorage.getItem(sk) || "[]"); } catch (e) { seen = []; }
-      const set = new Set([...seen, ...((C.DONE_TITLES || {})[g.name] || [])]); g.items.forEach((l) => { if (l.done) set.add(l.title); });
-      localStorage.setItem(sk, JSON.stringify([...set]));
-      const n = (BASE[g.name] || 0) + set.size, lv = n + 1, ri = Math.floor((lv - 1) / PER), inRank = (lv - 1) % PER;
       rows.push(el("li", { class: "lv-head" },
-        el("div", { class: "lv-top" }, el("span", { class: "lv-name" }, g.name), el("span", { class: "lv-tag" }, `${titleFor(g.name, g.items[0].subject, ri)}　Lv.${lv}`), el("span", { class: "muted" }, `${g.done}/${g.items.length}`)),
-        el("div", { class: "lv-bar" }, el("i", { style: `width:${inRank * 10}%` }))));
+        el("div", { class: "lv-top" }, el("span", { class: "lv-name" }, g.name), el("span", { class: "lv-tag" }, g.subject || "課程"), el("span", { class: "muted lv-stat" }, `${g.courseDone}/${g.courseTotal} 堂 · ${g.pct}%${g.coursePoints > 0 ? ` · +${formatPoints(g.coursePoints)} 點` : ""}`)),
+        el("div", { class: "lv-bar", role: "progressbar", "aria-valuemin": "0", "aria-valuemax": "100", "aria-valuenow": String(g.pct), "aria-label": `${g.name}課程完成度` }, el("i", { style: `width:${g.pct}%` }))));
+      if (!g.items.length) {
+        const upcoming = g.nextUpcoming;
+        const note = upcoming ? `下一堂：${upcoming.weekStart} · ${upcoming.title}` : g.unscheduled ? `${g.unscheduled} 堂尚未排週次` : "目前沒有待完成課次";
+        rows.push(el("li", { class: "lv-upcoming muted" }, note));
+      }
       g.items.forEach((l) => rows.push(
         el("li", { class: "item lesson" + (l.done ? " done" : "") },
           el("button", { class: "chk", role: "checkbox", "aria-checked": String(l.done), "aria-label": l.done ? "取消完成" : "標記完成", onclick: () => toggleLesson(l) }),
@@ -385,7 +412,14 @@
   function banner(msg) { const b = $("banner"); b.textContent = msg; b.hidden = !msg; }
   const toggleTask = (t) => guarded(async () => { t.done = !t.done; renderAll(); await api(`/api/task/${t.id}`, { done: t.done }); });
   const skipTask = (t, v) => guarded(async () => { t.skipped = v; renderAll(); await api(`/api/task/${t.id}`, { skip: v }); });
-  const toggleLesson = (l) => guarded(async () => { l.done = !l.done; renderAll(); await api(`/api/lesson/${l.id}`, { done: l.done }); });
+  const toggleLesson = (l) => guarded(async () => {
+    l.done = !l.done;
+    const groupName = l.course || `${l.subject || "未分類"}（未設定課程）`;
+    const group = (state.courseStats || []).find((g) => g.course === l.course && (l.course || g.name === groupName));
+    if (group) group.done = Math.max(0, Math.min(group.total, group.done + (l.done ? 1 : -1)));
+    renderAll();
+    await api(`/api/lesson/${l.id}`, { done: l.done });
+  });
   const reviewLesson = (l) => guarded(async () => { l.reviews++; renderAll(); await api(`/api/lesson/${l.id}`, { review: true }); }, "已記錄複習");
 
   async function load(silent) {
