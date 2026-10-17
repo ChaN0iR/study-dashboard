@@ -16,6 +16,7 @@
   const apiBase = () => (localStorage.getItem("apiBase") || C.API_BASE || "").replace(/\/+$/, "");
 
   let state = { tasks: [], lessons: [], record: null, today: "" };
+  const pendingTaskWrites = new Set();
   let mood = null;
   let xpVerified = false;
   let activeScheduleSlots = [];
@@ -28,6 +29,7 @@
     for (const [k, v] of Object.entries(props)) {
       if (k === "class") n.className = v;
       else if (k.startsWith("on")) n.addEventListener(k.slice(2), v);
+      else if (k === "disabled") n.disabled = v === true;
       else n.setAttribute(k, v);
     }
     for (const k of kids.flat()) if (k != null) n.append(k);
@@ -332,6 +334,41 @@
       }),
     };
   }
+  function taskBlocked(t, tasks = state.tasks) {
+    const relation = t?.prerequisiteTaskIds;
+    if (relation != null && !Array.isArray(relation)) return true;
+    const ids = Array.isArray(relation) ? relation : [];
+    if (!ids.length) return t?.blocked === true;
+    const byId = new Map(TaskPolicy.uniqueTasks(tasks, state.today || taipeiNow().date).filter((task) => task.id).map((task) => [task.id, task]));
+    return ids.some((id) => {
+      if (typeof id !== "string" || !id.trim()) return true;
+      const prerequisite = byId.get(id);
+      return !prerequisite || prerequisite.skipped === true || prerequisite.done !== true || pendingTaskWrites.has(id);
+    });
+  }
+  function taskWriteTarget(t) {
+    if (!t?.id) return null;
+    return TaskPolicy.uniqueTasks(state.tasks, state.today || taipeiNow().date).find((task) => task.id === t.id) || null;
+  }
+  function taskCanSetDone(t, done) {
+    return done === false || !taskBlocked(t);
+  }
+  function taskCheckboxDisabled(t, pending) {
+    return pending === true || (t.done !== true && !taskCanSetDone(t, true));
+  }
+  function taskDisplayIsCurrent(t, options) {
+    if (taskBlocked(t) || t.skipped === true || t.carryover === true || (t.date && options.today && t.date < options.today)) return false;
+    return TaskPolicy.taskIsCurrent({ ...t, blocked: false }, options);
+  }
+  function compareTaskDisplay(a, b, options) {
+    const blockedA = taskBlocked(a), blockedB = taskBlocked(b);
+    // Current fixed life (including dinner) is not a study bucket, but stays actionable.
+    const currentA = taskDisplayIsCurrent(a, options), currentB = taskDisplayIsCurrent(b, options);
+    if (currentA !== currentB) return currentA ? -1 : 1;
+    const taskA = { ...a, blocked: blockedA };
+    const taskB = { ...b, blocked: blockedB };
+    return TaskPolicy.compareTasks(taskA, taskB, options);
+  }
   function taskSteps(t) {
     const original = String(t.title || "").trim();
     if (!original) return [];
@@ -360,7 +397,8 @@
     const labels = [];
     labels.push(...taskStages(t));
     if (t.carryover === true) labels.push("補做");
-    if (t.blocked === true) labels.push("等待前置");
+    const blocked = taskBlocked(t);
+    if (blocked) labels.push("等待前置");
     const source = String(t.source || "");
     if (source && source !== "今日") labels.push(source);
     else if (/推薦/.test(String(t.title || "")) && !labels.includes("推薦")) labels.push("推薦");
@@ -371,7 +409,8 @@
     const taskText = taskSummary(t);
     const schedule = taskViewNow();
     const currentSlot = schedule.slots.find((s) => schedule.now.min >= toMin(s.start) && schedule.now.min < toMin(s.end)) || null;
-    const isCurrent = TaskPolicy.taskIsCurrent(t, {
+    const isCurrent = taskDisplayIsCurrent(t, {
+      today: state.today || schedule.now.date,
       activeSlot: currentSlot, weekday: schedule.now.wd, nowMin: schedule.now.min,
       slots: schedule.slots, bedMinute: toMin(C.BED), isStudyTask,
       getSlot: (task) => taskScheduleSlot(task, schedule.slots),
@@ -389,12 +428,13 @@
     syncTaskActivityAccessibility(activityNode);
     const title = el("span", { class: "task-title" }, activityNode, badges);
     const copy = el("div", { class: "t task-copy" }, title);
-    return el("li", { class: "item task-item" + (t.done ? " done" : "") + (t.blocked ? " blocked" : "") + (isCurrent ? " is-current" : "") },
-      el("button", { class: "chk", role: "checkbox", "aria-checked": String(t.done), "aria-label": t.blocked ? "等待前置任務完成" : t.done ? "取消完成" : "標記完成", disabled: t.blocked === true, onclick: () => toggleTask(t) }),
+    const pending = pendingTaskWrites.has(t.id);
+    return el("li", { class: "item task-item" + (t.done ? " done" : "") + (blocked ? " blocked" : "") + (isCurrent ? " is-current" : "") },
+      el("button", { class: "chk", role: "checkbox", "aria-checked": String(t.done), "aria-label": t.done ? "取消完成" : blocked ? "等待前置任務完成" : "標記完成", disabled: taskCheckboxDisabled(t, pending), onclick: () => toggleTask(t) }),
       suffix,
       copy,
-      t.skipped ? el("button", { class: "ghost", onclick: () => skipTask(t, false) }, "恢復")
-        : t.done ? null : el("button", { class: "ghost", onclick: () => skipTask(t, true) }, "跳過"));
+      t.skipped ? el("button", { class: "ghost", disabled: pending, onclick: () => skipTask(t, false) }, "恢復")
+        : t.done ? null : el("button", { class: "ghost", disabled: pending, onclick: () => skipTask(t, true) }, "跳過"));
   }
   function renderTaskGroups(tasks) {
     return tasks.map((t) => taskItem(t));
@@ -403,12 +443,13 @@
   function renderTasks() {
     const schedule = taskViewNow(), slots = schedule.slots;
     const sortOptions = {
+      today: state.today || schedule.now.date,
       nowMin: schedule.now.min, weekday: schedule.now.wd, slots, bedMinute: toMin(C.BED),
-      activeSlot: activeScheduleSlot, isStudyTask, isLifeTask,
+      activeSlot: slots.find((s) => schedule.now.min >= toMin(s.start) && schedule.now.min < toMin(s.end)) || null, isStudyTask, isLifeTask,
       getSlot: (task) => taskScheduleSlot(task, slots),
     };
-    const real = schedule.view.tasks.filter((t) => !t.skipped).sort((a, b) => TaskPolicy.compareTasks(a, b, sortOptions));
-    const skipped = state.tasks.filter((t) => t.skipped && t.carryover !== true);
+    const real = schedule.view.tasks.filter((t) => !t.skipped).sort((a, b) => compareTaskDisplay(a, b, sortOptions));
+    const skipped = schedule.view.skipped;
     const note = $("task-policy-note");
     note.hidden = !schedule.view.suppression;
     note.textContent = schedule.view.suppression === "rest" ? "週日休息日：今天不提示未完成的學習任務。"
@@ -520,18 +561,47 @@
     toast(m.length > 60 ? "失敗，請重試" : m); banner(m);
   }
   function banner(msg) { const b = $("banner"); b.textContent = msg; b.hidden = !msg; }
-  const toggleTask = (t) => guarded(async () => {
-    const previous = t.done === true;
-    t.done = !previous;
-    try { renderAll(); await api(`/api/task/${t.id}`, { done: t.done }); }
-    catch (e) { t.done = previous; renderAll(); throw e; }
-  }, null, false);
-  const skipTask = (t, v) => guarded(async () => {
+  const toggleTask = (t) => {
+    t = taskWriteTarget(t);
+    if (!t || pendingTaskWrites.has(t.id)) return;
+    const id = t.id;
+    const previous = t.done === true, next = !previous;
+    if (!taskCanSetDone(t, next)) { toast("前置任務尚未完成或已略過，請先處理前置任務"); return; }
+    pendingTaskWrites.add(id);
+    return guarded(async () => {
+      t.done = next;
+      try {
+        renderAll();
+        await api(`/api/task/${id}`, { done: next });
+        const current = taskWriteTarget({ id });
+        if (current) current.done = next;
+      } catch (e) {
+        const current = taskWriteTarget({ id });
+        if (current) current.done = previous;
+        throw e;
+      } finally { pendingTaskWrites.delete(id); renderAll(); }
+    }, null, false);
+  };
+  const skipTask = (t, v) => {
+    t = taskWriteTarget(t);
+    if (!t || pendingTaskWrites.has(t.id)) return;
+    const id = t.id;
     const previous = t.skipped === true;
-    t.skipped = v;
-    try { renderAll(); await api(`/api/task/${t.id}`, { skip: v }); }
-    catch (e) { t.skipped = previous; renderAll(); throw e; }
-  }, null, false);
+    pendingTaskWrites.add(id);
+    return guarded(async () => {
+      t.skipped = v;
+      try {
+        renderAll();
+        await api(`/api/task/${id}`, { skip: v });
+        const current = taskWriteTarget({ id });
+        if (current) current.skipped = v;
+      } catch (e) {
+        const current = taskWriteTarget({ id });
+        if (current) current.skipped = previous;
+        throw e;
+      } finally { pendingTaskWrites.delete(id); renderAll(); }
+    }, null, false);
+  };
   const toggleLesson = (l) => guarded(async () => {
     l.done = !l.done;
     const groupName = l.course || `${l.subject || "未分類"}（未設定課程）`;

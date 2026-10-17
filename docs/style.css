@@ -825,6 +825,11 @@ button:active,a.icon-btn:active,.chk:active,.fc-hist:active{box-shadow:0 0 0 1px
   .item.task-item .task-copy .task-title{gap:2px}
   .item.task-item .task-copy .tag{font-size:10px;padding-left:4px;padding-right:4px}
 }
+/* Expand only the checkbox hit target; preserve the visible box and row layout. */
+@media(max-width:899px){
+  .item.task-item>.chk::before{content:"";position:absolute;width:calc(100% + 4px);height:44px;left:-2px;top:50%;transform:translateY(-50%)}
+  .item.task-item>.chk:has(+.task-subject-suffix)::before{width:44px}
+}
 .item .task-copy .tag{margin:0;flex:none}
 .item.done>.task-subject-suffix{text-decoration:line-through}
 .item.task-item .task-activity:hover{text-decoration:underline;text-decoration-style:dotted;text-underline-offset:3px}

@@ -5,7 +5,8 @@
     const match = String(value || "").match(/^(\d{2}):(\d{2})$/);
     return match ? Number(match[1]) * 60 + Number(match[2]) : null;
   };
-  const isCarryover = (task, today) => task.carryover === true || (!!task.date && !!today && task.date < today);
+  const isCarryover = (task, today) => task.date && task.date === today ? false
+    : task.carryover === true || (!!task.date && !!today && task.date < today);
   const bedtimePattern = /睡前|睡覺|入睡|甘胺酸|wind.?down/i;
   const quietStart = (slots, bedMinute) => {
     const slot = (slots || []).find((item) => bedtimePattern.test(`${item.name || ""} ${(item.keys || []).join(" ")}`));
@@ -17,29 +18,37 @@
     return null;
   };
 
+  // Return original rows: display, prerequisites and writes must choose the same ID owner.
+  function uniqueTasks(tasks, today = "") {
+    const rank = (task) => task.date && task.date === today ? 0 : !isCarryover(task, today) ? 1 : 2;
+    const ordered = (Array.isArray(tasks) ? tasks : []).filter((task) => task && typeof task === "object")
+      .map((task, index) => ({ task, index }))
+      .sort((a, b) => rank(a.task) - rank(b.task)
+        || String(b.task.date || "").localeCompare(String(a.task.date || "")) || a.index - b.index);
+    const seen = new Set();
+    return ordered.filter(({ task }) => {
+      if (!task.id) return true;
+      if (seen.has(task.id)) return false;
+      seen.add(task.id);
+      return true;
+    }).map(({ task }) => task);
+  }
+
   function taskView(tasks, options = {}) {
     const {
       today = "", weekday = "", nowMin = 0, slots = [], bedMinute = 22 * 60,
       isStudyTask = () => false, isLifeTask = () => false,
     } = options;
-    const input = Array.isArray(tasks) ? tasks : [];
-    // Prefer today's canonical row if a server response ever contains the same ID twice.
-    const ordered = input.map((task, index) => ({ task, index, carryover: isCarryover(task, today) }))
-      .sort((a, b) => Number(a.carryover) - Number(b.carryover) || a.index - b.index);
-    const seen = new Set();
     const unique = [];
-    for (const item of ordered) {
-      const task = item.task || {};
-      if (task.id && seen.has(task.id)) continue;
-      if (task.id) seen.add(task.id);
-      const carryover = item.carryover;
+    for (const task of uniqueTasks(tasks, today)) {
+      const carryover = isCarryover(task, today);
       if (carryover && (task.makeup !== true || task.done === true || task.skipped === true || isLifeTask(task) || !isStudyTask(task))) continue;
       unique.push({ ...task, carryover });
     }
 
     const suppressed = suppressionReason({ weekday, nowMin, slots, bedMinute });
     const visible = unique.filter((task) => !(suppressed && task.done !== true && isStudyTask(task)));
-    return { tasks: visible, suppression: suppressed };
+    return { tasks: visible, skipped: unique.filter((task) => task.skipped === true), suppression: suppressed };
   }
 
   function taskIsCurrent(task, options = {}) {
@@ -81,5 +90,5 @@
     return orderOf(a) - orderOf(b);
   }
 
-  globalThis.TaskPolicy = { taskView, taskIsCurrent, compareTasks, quietStart, suppressionReason, toMinute };
+  globalThis.TaskPolicy = { uniqueTasks, taskView, taskIsCurrent, compareTasks, quietStart, suppressionReason, toMinute };
 })();
