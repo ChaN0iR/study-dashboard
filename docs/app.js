@@ -304,10 +304,8 @@
     $("hevy-link").addEventListener("click", (e) => {
       const ua = navigator.userAgent || "", web = "https://hevy.com/";
       if (/iPhone|iPad|iPod/i.test(ua)) {
-        e.preventDefault(); let left = false; const onHide = () => { left = true; };
-        document.addEventListener("visibilitychange", onHide, { once: true });
-        location.href = "hevy://";
-        setTimeout(() => { document.removeEventListener("visibilitychange", onHide); if (!left && !document.hidden) window.open(web, "_blank", "noopener"); }, 1800);
+        e.currentTarget.href = "https://hevy.go.link/home?adj_t=20au7x2d&adj_deep_link=com.hevy%3A%2F%2Fhome&adj_redirect_macos=https%3A%2F%2Fapps.apple.com%2Fapp%2Fid1458862350";
+        e.currentTarget.target = "_self";
       } else if (/Android/i.test(ua)) { e.preventDefault(); location.href = "intent://#Intent;scheme=hevy;package=com.hevy;S.browser_fallback_url=" + encodeURIComponent(web) + ";end"; }
     });
     $("reset-key").onclick = (e) => {
