@@ -1066,8 +1066,6 @@ body[data-tab] .achievements-card #lessons{max-height:none!important;overflow:vi
   .desktop-card-toggle:hover{color:var(--acc)}
   .desktop-card-toggle:active{transform:none;box-shadow:none}
   .desktop-card-toggle:focus-visible{outline:2px solid var(--fg);outline-offset:3px}
-  .desktop-card-chevron{width:7px;height:7px;flex:none;margin-right:3px;border:solid currentColor;border-width:0 1.5px 1.5px 0;transform:rotate(45deg)}
-  .desktop-card-toggle[aria-expanded=false] .desktop-card-chevron{transform:rotate(-45deg)}
   .col>.rec.desktop-collapsed,.col>.note-card.desktop-collapsed{flex:0 0 auto}
   .rec.desktop-collapsed>.rec-content{flex:0 0 auto;overflow:visible}
   .rec.desktop-collapsed>.rec-content>:not(.prog),

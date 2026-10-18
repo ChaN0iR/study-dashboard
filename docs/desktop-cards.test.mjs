@@ -1,6 +1,26 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { spawnSync } from 'node:child_process';
+import { existsSync, readFileSync } from 'node:fs';
+
+const html = readFileSync(new URL('./index.html', import.meta.url), 'utf8');
+const sw = readFileSync(new URL('./sw.js', import.meta.url), 'utf8');
+const shell = JSON.parse(sw.match(/^const SHELL = (\[[^\n]+\]);$/m)[1]);
+
+test('index.html references the updated desktop card assets exactly once', () => {
+  assert.deepEqual([...html.matchAll(/<script\b[^>]*\bsrc="(app\.js[^\"]*)"/g)].map(m => m[1]), ['app.js?v=119']);
+  assert.deepEqual([...html.matchAll(/<link\b[^>]*\bhref="(style\.css[^\"]*)"/g)].map(m => m[1]), ['style.css?v=123']);
+});
+
+test('SW cache and shell match the index.html static asset references', () => {
+  assert.match(sw, /^const CACHE = "sd-v131";$/m);
+  assert.equal(new Set(shell).size, shell.length, 'shell has no duplicate entries');
+  for (const entry of ['./', 'index.html', 'app.js?v=119', 'style.css?v=123']) assert.ok(shell.includes(entry), entry);
+  assert.deepEqual(shell.filter(entry => /^(app\.js|style\.css)(\?|$)/.test(entry)), ['style.css?v=123', 'app.js?v=119']);
+  const references = [...html.matchAll(/<(?:script|link)\b[^>]*\b(?:src|href)="([^\"]+)"/g)].map(m => m[1]);
+  for (const reference of references) assert.ok(shell.includes(reference), `shell includes ${reference}`);
+  for (const entry of shell) assert.ok(existsSync(new URL(entry.split('?')[0], import.meta.url)), `shell file exists: ${entry}`);
+});
 
 const available = spawnSync('chromium', ['--version']).status === 0 &&
   spawnSync('python3', ['-c', 'import playwright.sync_api, PIL']).status === 0;
@@ -19,7 +39,7 @@ clock = """(() => {
   localStorage.setItem('sd-tab', 'record');
 })()"""
 with tempfile.TemporaryDirectory(prefix='desktop-cards-') as temp:
-    archive = subprocess.check_output(['git', 'archive', '4ff8cf0', 'docs'])
+    archive = subprocess.check_output(['git', 'archive', '7b2d6dabb54f9a3183171c67e024c0b5939fcd8c', 'docs'])
     baseline = pathlib.Path(temp) / 'baseline'
     baseline.mkdir()
     with tarfile.open(fileobj=io.BytesIO(archive)) as bundle: bundle.extractall(baseline, filter='data')
@@ -31,10 +51,12 @@ with tempfile.TemporaryDirectory(prefix='desktop-cards-') as temp:
     origin = 'http://127.0.0.1:' + str(server.server_port)
     with sync_playwright() as p:
         browser = p.chromium.launch(executable_path=shutil.which('chromium'), headless=True, args=['--no-sandbox','--disable-gpu','--disable-lcd-text','--font-render-hinting=none'])
-        def open_page(width, height, variant='candidate', theme='light'):
+        def open_page(width, height, variant='candidate', theme='light', saved_collapsed=False):
             context = browser.new_context(viewport={'width':width,'height':height}, color_scheme=theme,
                 reduced_motion='reduce', service_workers='block', timezone_id='Asia/Taipei', has_touch=width < 900)
             context.add_init_script(clock)
+            if saved_collapsed:
+                context.add_init_script("localStorage.setItem('sd-desktop-record-collapsed','true'); localStorage.setItem('sd-desktop-note-collapsed','true')")
             page = context.new_page()
             page.errors = []
             page.on('pageerror', lambda err: page.errors.append(str(err)))
@@ -56,8 +78,43 @@ with tempfile.TemporaryDirectory(prefix='desktop-cards-') as temp:
             nt = page.get_by_role('button', name='快速筆記', exact=True)
             assert not page.locator('.recall-room-card').is_visible()
             assert page.locator('#recall-room-shortcut').is_visible()
+            assert rt.get_attribute('aria-expanded') == 'false'
+            assert nt.get_attribute('aria-expanded') == 'true'
+            assert not page.locator('#f-review').is_visible()
+            assert page.locator('#n-title').is_visible()
+            expect(page.locator('.desktop-card-chevron')).to_have_count(0)
+            for button in [rt,nt]:
+                assert button.get_attribute('type') == 'button'
+                for target in button.get_attribute('aria-controls').split():
+                    expect(page.locator('#' + target)).to_have_count(1)
+            if width == 1440: shot(page, 'desktop-default-progress-collapsed-note-open-1440x900')
+            # Each card persists independently; changing one must not reset the other.
+            rt.focus(); page.keyboard.press('Enter')
+            assert rt.evaluate('(e) => e === document.activeElement')
+            assert rt.evaluate('(e) => getComputedStyle(e).outlineStyle') == 'solid'
+            page.reload(wait_until='networkidle')
             assert rt.get_attribute('aria-expanded') == 'true'
             assert nt.get_attribute('aria-expanded') == 'true'
+            nt.focus(); page.keyboard.press('Space')
+            page.reload(wait_until='networkidle')
+            assert rt.get_attribute('aria-expanded') == 'true'
+            assert nt.get_attribute('aria-expanded') == 'false'
+            rt.click()
+            page.reload(wait_until='networkidle')
+            assert rt.get_attribute('aria-expanded') == 'false'
+            assert nt.get_attribute('aria-expanded') == 'false'
+            if width == 1440: shot(page, 'desktop-reloaded-both-collapsed-1440x900')
+            nt.click()
+            page.reload(wait_until='networkidle')
+            assert rt.get_attribute('aria-expanded') == 'false'
+            assert nt.get_attribute('aria-expanded') == 'true'
+            # A new tab shares the preferences, not just this document's memory.
+            other = context.new_page()
+            other.goto(page.url, wait_until='networkidle')
+            assert other.get_by_role('button',name='今日進度',exact=True).get_attribute('aria-expanded') == 'false'
+            assert other.get_by_role('button',name='快速筆記',exact=True).get_attribute('aria-expanded') == 'true'
+            other.close()
+            rt.click()
             page.locator('#f-review').fill('進度草稿：保留日記')
             page.locator('#n-title').fill('筆記草稿')
             page.locator('#n-points').fill('保留筆記內容')
@@ -115,11 +172,38 @@ with tempfile.TemporaryDirectory(prefix='desktop-cards-') as temp:
             assert not page.errors, page.errors
             results.append({'desktop':[width,height], 'toggle_keyboard_draft_resize_save':'PASS'})
             context.close()
-        # Compare every mobile tab to exactly 4ff8cf0, including short-wide fallback.
+        # Invalid values and unavailable storage must not break the controls.
+        for mode in ['invalid','read-blocked','write-blocked']:
+            context,page = open_page(1440,900)
+            context.add_init_script('''(() => {
+                const keys = ['sd-desktop-record-collapsed','sd-desktop-note-collapsed'];
+                const mode = "''' + mode + '''";
+                for (const key of keys) localStorage.setItem(key, 'invalid');
+                if (mode !== 'invalid') {
+                    const method = mode === 'read-blocked' ? 'getItem' : 'setItem';
+                    const original = Storage.prototype[method];
+                    Storage.prototype[method] = function(key,...args) {
+                        if (keys.includes(key)) throw new DOMException('blocked','SecurityError');
+                        return original.call(this,key,...args);
+                    };
+                }
+            })()''')
+            page.reload(wait_until='networkidle')
+            rt = page.get_by_role('button', name='今日進度', exact=True)
+            nt = page.get_by_role('button', name='快速筆記', exact=True)
+            assert rt.get_attribute('aria-expanded') == 'false'
+            assert nt.get_attribute('aria-expanded') == 'true'
+            rt.click(); nt.click()
+            assert rt.get_attribute('aria-expanded') == 'true'
+            assert nt.get_attribute('aria-expanded') == 'false'
+            assert not page.errors, page.errors
+            results.append({'storage':mode,'fallback':'PASS'})
+            context.close()
+        # Compare every mobile tab to the exact release base, including short-wide fallback.
         for width,height in [(375,667),(390,844),(430,932),(899,844),(1100,559)]:
             for theme in (['light','dark'] if width == 390 else ['light']):
                 bc,bp = open_page(width,height,'baseline',theme)
-                cc,cp = open_page(width,height,'candidate',theme)
+                cc,cp = open_page(width,height,'candidate',theme,saved_collapsed=True)
                 for tab in ['today','record','notes','lessons']:
                     for page in [bp,cp]:
                         page.locator('#tabs button[data-t="' + tab + '"]').click()

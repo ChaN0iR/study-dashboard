@@ -840,9 +840,9 @@
   function initDesktopCardToggles() {
     const media = matchMedia("(min-width:900px) and (min-height:560px)");
     const cards = [
-      { card: document.querySelector(".rec"), content: document.querySelector(".rec-content"), id: "record-card-content", controls: "record-card-content save-record" },
-      { card: document.querySelector(".note-card"), content: document.querySelector(".note-content"), id: "note-card-content", controls: "note-card-content save-note" },
-    ].map((item) => ({ ...item, heading: item.card.querySelector("h2"), collapsed: false }));
+      { card: document.querySelector(".rec"), content: document.querySelector(".rec-content"), id: "record-card-content", controls: "record-card-content save-record", storageKey: "sd-desktop-record-collapsed", collapsed: true },
+      { card: document.querySelector(".note-card"), content: document.querySelector(".note-content"), id: "note-card-content", controls: "note-card-content save-note", storageKey: "sd-desktop-note-collapsed", collapsed: false },
+    ].map((item) => ({ ...item, heading: item.card.querySelector("h2") }));
     const sync = () => cards.forEach((item) => {
       if (!media.matches) {
         if (item.button) {
@@ -854,11 +854,23 @@
         return;
       }
       if (!item.button) {
+        if (!item.initialized) {
+          // Missing/invalid/blocked storage keeps this card's desktop default.
+          try {
+            const saved = localStorage.getItem(item.storageKey);
+            if (saved === "true" || saved === "false") item.collapsed = saved === "true";
+          } catch (_) { /* Keep the toggle usable without persistent storage. */ }
+          item.initialized = true;
+        }
         item.originalHeading = [...item.heading.childNodes];
         item.content.id = item.id;
         item.button = el("button", { type: "button", class: "desktop-card-toggle", "aria-controls": item.controls },
-          ...item.originalHeading, el("span", { class: "desktop-card-chevron", "aria-hidden": "true" }));
-        item.button.addEventListener("click", () => { item.collapsed = !item.collapsed; sync(); });
+          ...item.originalHeading);
+        item.button.addEventListener("click", () => {
+          item.collapsed = !item.collapsed;
+          try { localStorage.setItem(item.storageKey, String(item.collapsed)); } catch (_) { /* Session-only fallback. */ }
+          sync();
+        });
         item.heading.replaceChildren(item.button);
       }
       item.button.setAttribute("aria-expanded", String(!item.collapsed));
