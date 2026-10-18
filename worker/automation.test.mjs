@@ -240,7 +240,6 @@ try {
   await worker.scheduled(controller, env, { waitUntil() {} });
   assert.equal(pages.get(ids.doneDate).properties[P.lesson.doneDate].date.start, preserved);
   assert.equal(pages.get(ids.doneDate).properties[P.lesson.status].select.name, STATUS_DONE);
-
   // A direct Notion completion is reconciled using its Taipei edit date, and
   // still consumes today's subject slot even when a later lesson is eligible.
   const nextBio = lesson(710, { subject: "生物", weekStart: TODAY, order: 9 });

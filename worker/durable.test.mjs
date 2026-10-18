@@ -212,7 +212,35 @@ try {
     assert.equal((await h.journal.get(`slot:${day()}:物理`)).state, "created");
     scenarios++; totalCalls += h.calls.length; h.close();
   }
-  // 18: crash after durable sending, before POST, must not cause a first/replay POST.
+  // 18: skipping an auto task lets the same lesson get a new task ID tomorrow.
+  {
+    const subject = "化學", lessonId = id(24), tomorrow = day(1);
+    const h = harness([lesson(24, { subject })]);
+    const first = await h.run(); assert.equal(first.created, 1);
+    const firstTask = autoRows(h).find((p) => p.properties[P.task.date].date.start === day());
+    assert.ok(firstTask);
+    assert.deepEqual(firstTask.properties[P.task.lesson].relation.map((x) => x.id), [lessonId]);
+    assert.equal((await h.journal.get(`slot:${day()}:${subject}`)).taskId, firstTask.id);
+
+    firstTask.properties[P.task.skip] = checkbox(true);
+    firstTask.last_edited_time = "2026-10-19T16:10:00.000Z";
+    h.ns.recreate();
+    const next = await h.run(NOW + DAY); assert.equal(next.created, 1);
+    const secondTask = autoRows(h).find((p) => p.properties[P.task.date].date.start === tomorrow);
+    assert.ok(secondTask);
+    assert.notEqual(secondTask.id, firstTask.id, "the skipped task page is not reused");
+    assert.deepEqual(secondTask.properties[P.task.lesson].relation.map((x) => x.id), [lessonId]);
+    assert.equal(!!secondTask.properties[P.task.skip]?.checkbox, false);
+    assert.equal(firstTask.properties[P.task.skip].checkbox, true);
+    assert.equal((await h.journal.get(`slot:${day()}:${subject}`)).state, "skipped");
+    const nextSlot = await h.journal.get(`slot:${tomorrow}:${subject}`);
+    assert.equal(nextSlot.state, "created"); assert.equal(nextSlot.taskId, secondTask.id);
+    assert.equal((await h.journal.getTask(firstTask.id)).observedSkipped, true);
+    assert.equal((await h.journal.getTask(secondTask.id)).createdDate, tomorrow);
+    assert.equal(count(h, "POST", "/pages"), 2, "exactly one task is created per day");
+    scenarios++; totalCalls += h.calls.length; h.close();
+  }
+  // 19: crash after durable sending, before POST, must not cause a first/replay POST.
   {
     const l = lesson(23); const h = harness([l]);
     const r = await h.journal.reserve(day(), "化學", l.id, null);
