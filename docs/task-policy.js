@@ -18,6 +18,24 @@
     return null;
   };
 
+  // No dedicated daily-required field exists: infer routines, not completion or reminder cards.
+  function isDailyRequired(task) {
+    const title = String(task.title || "").trim();
+    if (/設定|安裝|同步|匯入|匯出|登入|帳號|密碼|整理|管理|排程|安排|教學/.test(title)) return false;
+    if (/(?:每日|每天|天天)\s*必(?:做|讀|背|練)/.test(title)) return true;
+    // Course/lesson work and one-off administration are not the daily Anki/vocabulary routine.
+    if ((task.relatedCourses || []).length || (task.relatedLessonIds || []).length
+      || /週複習|周複習|每週|每周|課程|先修|主課|微課|影片|看課|上課|講義|章節|第\s*\d+.*堂/.test(title)) return false;
+    const routineTitle = title.replace(/^(?:每日|每天|天天)\s*/, "");
+    return (/^Anki(?:\b|[＋+：:｜|・])/i.test(routineTitle) && /到期卡|單字|生字|字彙/.test(routineTitle))
+      || /^(?:清完|清空|複習)?到期卡/.test(routineTitle)
+      || /^(?:(?:英文|英語)\s*)?(?:(?:背誦|背|複習)\s*)?(?:單字|生字|字彙)(?:[｜|：:\s＋+・\d]|$|複習|背誦)/.test(routineTitle);
+  }
+  function studyIsSuppressed(task, options, reason) {
+    if (!reason || options.isLifeTask?.(task) || !options.isStudyTask?.(task)) return false;
+    return reason !== "rest" || !isDailyRequired(task);
+  }
+
   // Return original rows: display, prerequisites and writes must choose the same ID owner.
   function uniqueTasks(tasks, today = "") {
     const rank = (task) => task.date && task.date === today ? 0 : !isCarryover(task, today) ? 1 : 2;
@@ -47,7 +65,7 @@
     }
 
     const suppressed = suppressionReason({ weekday, nowMin, slots, bedMinute });
-    const visible = unique.filter((task) => !(suppressed && task.done !== true && isStudyTask(task)));
+    const visible = unique.filter((task) => !(task.done !== true && studyIsSuppressed(task, options, suppressed)));
     return { tasks: visible, skipped: unique.filter((task) => task.skipped === true), suppression: suppressed };
   }
 
@@ -57,7 +75,7 @@
       isStudyTask = () => false,
     } = options;
     if (!activeSlot || task.done === true || task.blocked === true) return false;
-    if (isStudyTask(task) && suppressionReason({ weekday, nowMin, slots, bedMinute })) return false;
+    if (studyIsSuppressed(task, options, suppressionReason({ weekday, nowMin, slots, bedMinute }))) return false;
     return options.getSlot ? options.getSlot(task) === activeSlot : false;
   }
 
@@ -80,7 +98,7 @@
     const bucket = (task) => {
       if (task.done === true || task.skipped === true) return 4;
       if (isOverdueStudy(task)) return 0;
-      if (taskIsCurrent(task, { activeSlot, weekday, nowMin, slots, bedMinute, isStudyTask, getSlot })) return 1;
+      if (taskIsCurrent(task, { activeSlot, weekday, nowMin, slots, bedMinute, isStudyTask, isLifeTask, getSlot })) return 1;
       if (task.blocked === true) return 3;
       return 2;
     };
@@ -90,5 +108,5 @@
     return orderOf(a) - orderOf(b);
   }
 
-  globalThis.TaskPolicy = { uniqueTasks, taskView, taskIsCurrent, compareTasks, quietStart, suppressionReason, toMinute };
+  globalThis.TaskPolicy = { uniqueTasks, taskView, taskIsCurrent, compareTasks, quietStart, suppressionReason, toMinute, isDailyRequired };
 })();

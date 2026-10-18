@@ -494,7 +494,7 @@
     const skipped = schedule.view.skipped;
     const note = $("task-policy-note");
     note.hidden = !schedule.view.suppression;
-    note.textContent = schedule.view.suppression === "rest" ? "週日休息日：今天不提示未完成的學習任務。"
+    note.textContent = schedule.view.suppression === "rest" ? "週日休息日：生活與每日必做任務照常顯示，其餘未完成的學習任務暫不提示。"
       : schedule.view.suppression === "quiet" ? "睡前時段：未完成的學習任務暫不顯示，明天再處理。" : "";
     const done = real.filter((t) => t.done).length, pct = real.length ? Math.round(done / real.length * 100) : 0;
     $("task-count").textContent = real.length ? `${done}/${real.length}` : "";
