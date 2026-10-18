@@ -1,3 +1,4 @@
+import {readFile} from "node:fs/promises";
 import assert from "node:assert/strict";
 import worker from "./index.js";
 
@@ -44,3 +45,5 @@ const wrongKey = await worker.fetch(new Request("https://dashboard.example/api/s
 assert.equal(wrongKey.status, 401);
 assert.equal(wrongKey.headers.get("access-control-allow-origin"), "https://chan0ir.github.io");
 console.log("recall integration routes/security: ok");
+
+assert.match(await readFile(new URL("./recall/auth.js", import.meta.url), "utf8"), /PASSWORD_ITERATIONS = 100_000/);
