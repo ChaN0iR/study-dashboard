@@ -193,6 +193,15 @@
   const TASK_TAG_STYLES = { "預習": "tag-prestudy", "初學": "tag-learn", "複習": "tag-review", "週複習": "tag-review", "練習": "tag-practice", "推薦": "tag-recommended", "備用": "tag-backup", "生活": "tag-neutral" };
   const SUBJECT_MARKS = { "化學": "🧪", "生化": "🧬", "生物": "🦠", "物理": "⚛️", "英文": "🔤", "Anki": "🗂️" };
   const SUBJECT_PATTERNS = { "化學": /化學|普化|有機/, "生化": /生化/, "生物": /生物/, "物理": /物理/, "英文": /英文|英語/ };
+  const FIXED_COURSE_WINDOWS = { "化學": "08:30–12:00", "生物": "13:30–15:30", "生化": "13:30–15:30", "物理": "15:45–16:30", "英文": "19:00–20:00" };
+  function mapFixedCourseSlot(subjects, slots) {
+    const uniqueSubjects = [...new Set((Array.isArray(subjects) ? subjects : []).filter(Boolean))];
+    const windows = new Set(uniqueSubjects.map((subject) => FIXED_COURSE_WINDOWS[subject]));
+    if (!uniqueSubjects.length || windows.size !== 1 || windows.has(undefined)) return { slot: null, reason: "科目缺失或跨時段，未配時" };
+    const [start, end] = [...windows][0].split("–");
+    const slot = slots.find((item) => item.start === start && item.end === end) || null;
+    return { slot, reason: slot ? "" : "固定時段缺失，未配時" };
+  }
   function taskSubject(t) {
     const title = String(t.title || "");
     const direct = Object.entries(SUBJECT_PATTERNS).filter(([, pattern]) => pattern.test(title)).map(([subject]) => subject);
@@ -317,14 +326,9 @@
       const stat = (state.courseStats || []).find((g) => g.course === course);
       for (const subject of stat?.subjects || (stat?.subject ? [stat.subject] : [])) subjects.add(subject);
     }
-    // Presentation only: these are the owner's existing fixed windows, not new task dates.
-    const windows = { "化學": "08:30–12:00", "生物": "13:30–15:30", "生化": "13:30–15:30", "物理": "15:45–16:30", "英文": "19:00–20:00" };
-    const starts = [...new Set([...subjects].map((subject) => windows[subject]))];
     const applies = subjects.size > 0 || courses.length > 0 || (t.relatedLessonIds || []).length > 0;
     if (!applies) return { applies: false, slot: null };
-    if (starts.length !== 1 || !starts[0]) return { applies: true, slot: null, reason: "科目缺失或跨時段，未配時" };
-    const slot = slots.find((item) => `${item.start}–${item.end}` === starts[0]);
-    return { applies: true, slot: slot || null, reason: slot ? "" : "固定時段缺失，未配時" };
+    return { applies: true, ...mapFixedCourseSlot([...subjects], slots) };
   }
   function taskScheduleSlot(t, slots = activeScheduleSlots) {
     const course = taskCourseSlot(t, slots);
@@ -570,8 +574,12 @@
     for (const g of data.rows) {
       const progress = g.complete ? `${g.done}/${g.total} 堂 · ${g.pct === null ? "無課次" : g.pct + "%"}` : `已載入 ${g.done}/${g.total} 堂 · 全課進度未驗證`;
       const xp = DEMO ? "示範不計分" : verified ? `${formatPoints(g.points)} XP` : "XP 未驗證";
+      const subjects = Array.isArray(g.subjects) && g.subjects.length ? g.subjects : g.subject ? [g.subject] : [];
+      const courseSlot = mapFixedCourseSlot(subjects, C.SCHEDULE).slot;
+      const subjectLabel = subjects.length ? [...new Set(subjects)].join("／") : "科目未提供";
+      const courseTag = courseSlot ? `${subjectLabel} · 固定 ${courseSlot.start}–${courseSlot.end}` : `${subjectLabel} · 未配時`;
       rows.push(el("li", { class: "lv-head" },
-        el("div", { class: "lv-top" }, el("span", { class: "lv-name" }, g.name), el("span", { class: "lv-tag" }, g.subject || "科目未提供")),
+        el("div", { class: "lv-top" }, el("span", { class: "lv-name" }, g.name), el("span", { class: "lv-tag" }, courseTag)),
         el("div", { class: "achievement-course-stat" }, progress, el("span", {}, `今日 ${xp}`)),
         g.complete && g.pct !== null ? el("div", { class: "lv-bar", role: "progressbar", "aria-valuemin": "0", "aria-valuemax": "100", "aria-valuenow": String(g.pct), "aria-label": `${g.name}課程完成度` }, el("i", { style: `width:${g.pct}%` })) : null));
       if (g.unscheduled > 0) rows.push(el("li", { class: "lv-upcoming muted" }, `${g.unscheduled} 堂尚未排週次`));

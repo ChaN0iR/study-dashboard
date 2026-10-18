@@ -65,6 +65,40 @@ test('完整統計採後端總堂數，零完成不能被 fallback 取代', () =
   const { api } = harness({ courseStats: [{ course: '普化', subject: '化學', total: 10, done: 0 }], lessons: [{ course: '普化', done: false }] });
   const d = api.achievementData(); assert.equal(d.complete, true); assert.equal(d.total, 10); assert.equal(d.done, 0); assert.equal(d.rows[0].pct, 0);
 });
+test('成就頁下一堂依明確課程科目顯示既定固定時段', () => {
+  const { api, nodes } = harness({ courseStats: [
+    { course: '物理先修', subjects: ['物理'], total: 42, done: 0, nextUpcoming: { title: '物理第01-1堂', weekStart: '2026-11-30' } },
+    { course: '有機先修', subjects: ['化學'], total: 23, done: 0, nextUpcoming: { title: '有機先修第01堂', weekStart: '2027-01-25' } },
+  ] });
+  api.renderLessons();
+  assert.match(nodes.get('lessons').textContent, /物理先修物理 · 固定 15:45–16:30/);
+  assert.match(nodes.get('lessons').textContent, /有機先修化學 · 固定 08:30–12:00/);
+  assert.match(nodes.get('lessons').textContent, /下一堂：2026-11-30 · 物理第01-1堂/);
+  assert.match(nodes.get('lessons').textContent, /下一堂：2027-01-25 · 有機先修第01堂/);
+  assert.doesNotMatch(nodes.get('lessons').textContent, /下一堂：2026-11-30 · 物理第01-1堂 · \d{2}:\d{2}/);
+});
+test('沒有 nextUpcoming 的課程仍顯時段，同一窗口的多科目共用时段', () => {
+  const { api, nodes } = harness({ courseStats: [
+    { course: '生物／生化', subjects: ['生物', '生化'], total: 12, done: 0, nextUpcoming: null },
+  ] });
+  api.renderLessons();
+  const text = nodes.get('lessons').textContent;
+  assert.match(text, /生物／生化生物／生化 · 固定 13:30–15:30/);
+  assert.doesNotMatch(text, /下一堂：/);
+});
+test('课程标签缺少科目或存在跨时段科目时显示未配时，不猜固定时间', () => {
+  const { api, nodes } = harness({ courseStats: [
+    { course: '未知課程', subjects: [], total: 2, done: 0, nextUpcoming: { title: '第01堂', weekStart: '2026-10-20' } },
+    { course: '混合課程', subjects: ['化學', '物理'], total: 2, done: 0, nextUpcoming: { title: '第01堂', weekStart: '2026-10-21' } },
+  ] });
+  api.renderLessons();
+  const text = nodes.get('lessons').textContent;
+  assert.match(text, /未知課程科目未提供 · 未配時/);
+  assert.match(text, /混合課程化學／物理 · 未配時/);
+  assert.match(text, /下一堂：2026-10-20 · 第01堂/);
+  assert.match(text, /下一堂：2026-10-21 · 第01堂/);
+  assert.doesNotMatch(text, /(?:科目未提供|化學／物理) · 固定 \d{2}:\d{2}/);
+});
 test('異常統計和只有 XP 沒有統計的課程均標未驗證', () => {
   const { api } = harness({ courseStats: [{ course: '普化', total: 1, done: 2 }], tasks: [task({ relatedCourses: ['物理'] })] });
   const d = api.achievementData(); assert.equal(d.complete, false);
