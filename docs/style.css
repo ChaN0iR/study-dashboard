@@ -1056,3 +1056,36 @@ body[data-tab] .achievements-card #lessons{max-height:none!important;overflow:vi
 .reschedule-head{display:flex;justify-content:space-between;gap:10px;align-items:baseline}.reschedule-head h3{font-size:15px;margin:0 0 6px}
 .reschedule-list{list-style:none;margin:4px 0;padding:0}.reschedule-item{border-top:1px solid var(--line);padding:9px 0}.reschedule-item:first-child{border-top:0}
 .reschedule-item strong{display:block}.reschedule-item .meta{font-size:13px;color:var(--mut);margin-top:2px}.reschedule-approve{margin-top:8px}.reschedule-conflict{font-size:13px;color:var(--mut);border-left:3px solid var(--fg);padding-left:8px}
+/* Desktop card toggles: mobile markup and layout remain unchanged. */
+@media(min-width:900px) and (min-height:560px){
+  body[data-tab] main>.col>.recall-room-card:not(#now){display:none!important}
+  .rec-head{align-items:center}
+  .rec-head h2{flex:1;min-width:0}
+  .desktop-card-toggle{display:flex;align-items:center;justify-content:space-between;gap:12px;width:100%;min-height:32px;padding:0;border:0;border-radius:4px;background:none;color:inherit;font:inherit;letter-spacing:inherit;text-align:left;cursor:pointer}
+  .rec-head .desktop-card-toggle{padding-right:12px}
+  .desktop-card-toggle:hover{color:var(--acc)}
+  .desktop-card-toggle:active{transform:none;box-shadow:none}
+  .desktop-card-toggle:focus-visible{outline:2px solid var(--fg);outline-offset:3px}
+  .desktop-card-chevron{width:7px;height:7px;flex:none;margin-right:3px;border:solid currentColor;border-width:0 1.5px 1.5px 0;transform:rotate(45deg)}
+  .desktop-card-toggle[aria-expanded=false] .desktop-card-chevron{transform:rotate(-45deg)}
+  .col>.rec.desktop-collapsed,.col>.note-card.desktop-collapsed{flex:0 0 auto}
+  .rec.desktop-collapsed>.rec-content{flex:0 0 auto;overflow:visible}
+  .rec.desktop-collapsed>.rec-content>:not(.prog),
+  .rec.desktop-collapsed>#save-record,
+  .note-card.desktop-collapsed>:not(h2){display:none!important}
+  .rec.desktop-collapsed>.rec-content>.prog{margin-bottom:0}
+  .note-card.desktop-collapsed>h2{margin-bottom:0}
+}
+
+/* Compact desktop timer: flexible space belongs outside the three controls. */
+@media(min-width:900px) and (min-height:560px){
+  .top>.focus,.top>.focus.is-choosing{
+    grid-template-columns:minmax(0,1fr) 44px max-content 44px minmax(0,1fr)!important;
+    grid-template-areas:". timer-icon timer-main timer-history .";
+    column-gap:8px;transform:none!important
+  }
+  .top>.focus.is-choosing{grid-template-areas:". timer-icon timer-main timer-history ." "timer-subjects timer-subjects timer-subjects timer-subjects timer-subjects"}
+  .top>.focus .fc-main,.top>.focus.is-choosing .fc-main{width:max-content}
+  /* Match visible icon sizes while preserving both 44px hit areas. */
+  .top>.focus .fc-hist svg{width:24px;height:24px}
+}

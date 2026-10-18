@@ -14,9 +14,9 @@ test('static PWA shell references and CSS cache-bust', async () => {
   const refs = [...html.matchAll(/<(?:link|script)\b[^>]*\b(?:href|src)="([^"]+)"/g)]
     .map(match => match[1]);
   const cssRefs = refs.filter(ref => /^style\.css(?:\?|$)/.test(ref));
-  assert.deepEqual(cssRefs, ['style.css?v=121']);
+  assert.deepEqual(cssRefs, ['style.css?v=122']);
   assert.deepEqual(shell.filter(ref => /^style\.css(?:\?|$)/.test(ref)), cssRefs);
-  assert.equal(cache, 'sd-v129');
+  assert.equal(cache, 'sd-v130');
   assert.equal(new Set(shell).size, shell.length, 'duplicate shell reference');
   assert.ok(!sw.includes('style.css?v=119') && !html.includes('style.css?v=119'), 'stale CSS URL');
   for (const ref of refs) assert.ok(shell.includes(ref), `index reference missing from shell: ${ref}`);
@@ -139,11 +139,19 @@ const cssChecks = String.raw`
     check(Math.abs(visual.offset) < .25, 'visible timer group is not viewport centered: ' + visual.offset + 'px');
     const iconSlot = box($('fc-heading-wrap')), historySlot = box(hist), focusBox = box(focus);
     check(near(iconSlot.width, 44) && near(historySlot.width, 44), 'desktop side hit areas changed');
-    check(near((iconSlot.left + iconSlot.right) / 2, focusBox.left + 22), 'subject icon slot left its grid track');
-    check(near((historySlot.left + historySlot.right) / 2, focusBox.right - 22), 'history slot left its grid track');
+    check(near(box(main).left - iconSlot.right, 8), 'subject hit area is not close to timer');
+    check(near(historySlot.left - box(main).right, 8), 'history hit area is not close to timer');
+    const central = [heading, time].filter(visible).map(box);
+    const centralLeft = Math.min(...central.map(rect => rect.left));
+    const centralRight = Math.max(...central.map(rect => rect.right));
+    const gaps = {left:centralLeft - box($('fc-subject-icon')).right, right:box(hist.querySelector('svg')).left - centralRight};
+    check(gaps.left > 0 && gaps.right > 0 && gaps.left <= 32 && gaps.right <= 32, 'visible timer gaps are not compact: ' + JSON.stringify(gaps));
+    check(Math.abs(gaps.left - gaps.right) < 1, 'visible timer gaps are not symmetric: ' + JSON.stringify(gaps));
+    window.__timerCompact = {gaps, centerError:visual.offset, hitAreas:[iconSlot.width,historySlot.width]};
+    check(Math.abs(visual.offset) < 1, 'compact visible group left the viewport center');
     const cols = style(focus).gridTemplateColumns;
     const trackSizes = cols.split(' ').filter(Boolean);
-    check(trackSizes[0] === '44px' && trackSizes.at(-1) === '44px' && trackSizes.length >= 3, 'focus does not reserve 44px side columns');
+    check(trackSizes.length === 5 && trackSizes[1] === '44px' && trackSizes[3] === '44px', 'focus does not reserve 44px side columns');
   };
   const mobileChecks = () => {
     // These values mirror the unchanged mobile rules in git HEAD: stacked main and 40px clock.
@@ -199,7 +207,7 @@ const cssChecks = String.raw`
     window.__timerGeometry ||= [];
     window.__timerGeometry.push({state, viewport:innerWidth, viewportCenter:innerWidth/2,
       centers:Object.fromEntries([focus,main,heading,time].map(el => [el.id,(box(el).left+box(el).right)/2])),
-      ...(desktop ? {visual:desktopVisualGeometry()} : {}),
+      ...(desktop ? {visual:desktopVisualGeometry(), compact:window.__timerCompact} : {}),
       shortcuts:{group:box(actions).toJSON(), buttons:shortcuts.map(el => ({id:el.id,...box(el).toJSON()})), columns:style(actions).gridTemplateColumns},
       goalDisplay:style($('fc-goal')).display, trackHeight:box($('fc-prog-i').parentElement).height});
   };

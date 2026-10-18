@@ -835,8 +835,41 @@
     } catch (e) { xpVerified = false; if (!silent) showError(e); renderAll(); }
   }
 
+  // Desktop-only enhancement: collapse the entire card, not just its editor.
+  // Restore the original heading/DOM when leaving the desktop breakpoint.
+  function initDesktopCardToggles() {
+    const media = matchMedia("(min-width:900px) and (min-height:560px)");
+    const cards = [
+      { card: document.querySelector(".rec"), content: document.querySelector(".rec-content"), id: "record-card-content", controls: "record-card-content save-record" },
+      { card: document.querySelector(".note-card"), content: document.querySelector(".note-content"), id: "note-card-content", controls: "note-card-content save-note" },
+    ].map((item) => ({ ...item, heading: item.card.querySelector("h2"), collapsed: false }));
+    const sync = () => cards.forEach((item) => {
+      if (!media.matches) {
+        if (item.button) {
+          item.heading.replaceChildren(...item.originalHeading);
+          item.content.removeAttribute("id");
+          item.button = null;
+        }
+        item.card.classList.remove("desktop-collapsed");
+        return;
+      }
+      if (!item.button) {
+        item.originalHeading = [...item.heading.childNodes];
+        item.content.id = item.id;
+        item.button = el("button", { type: "button", class: "desktop-card-toggle", "aria-controls": item.controls },
+          ...item.originalHeading, el("span", { class: "desktop-card-chevron", "aria-hidden": "true" }));
+        item.button.addEventListener("click", () => { item.collapsed = !item.collapsed; sync(); });
+        item.heading.replaceChildren(item.button);
+      }
+      item.button.setAttribute("aria-expanded", String(!item.collapsed));
+      item.card.classList.toggle("desktop-collapsed", item.collapsed);
+    });
+    sync();
+    media.addEventListener("change", sync);
+  }
   // ---------- init ----------
   function init() {
+    initDesktopCardToggles();
     $("n-subject").append(...C.SUBJECTS.map((s) => el("option", { value: s }, s)));
     $("mode").textContent = DEMO ? "示範模式" : "";
     const taskDetailDialog = $("task-detail-dialog");
