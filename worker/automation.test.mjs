@@ -2,6 +2,8 @@ import assert from "node:assert/strict";
 import worker from "./index.js";
 import { createAutomation, DAILY_CRON, selectDailyLessons, weekEnd } from "./automation.js";
 import { DB, P, SUBJECTS, STATUS_DONE } from "./config.js";
+import AutomationJournal from "./journal.js";
+import { makeNamespace } from "./test-fixtures.mjs";
 
 const NOW = Date.parse("2026-10-18T16:10:00Z");
 const TODAY = "2026-10-19"; // 2026-10-18T16:10Z is 2026-10-19 in Taipei
@@ -61,6 +63,7 @@ function matches(page, f) {
     return true;
   }
   if (f.title) return plain(p) === f.title.equals;
+  if (f.rich_text) return plain(p) === f.rich_text.equals;
   return true;
 }
 function sortRows(rows, sorts = []) {
@@ -150,6 +153,9 @@ globalThis.fetch = async (url, init = {}) => {
 };
 
 const env = { NOTION_TOKEN: "offline-token", APP_KEY: "offline-key", ALLOWED_ORIGIN: "*" };
+const namespace = makeNamespace(env);
+env.LESSON_AUTOMATION = namespace.binding;
+const journal = new AutomationJournal(namespace.storage);
 const controller = { cron: DAILY_CRON, scheduledTime: NOW };
 const ctx = { waitUntil(p) { this.p = p; } };
 const oldNow = Date.now; const oldSetTimeout = globalThis.setTimeout; Date.now = () => NOW; globalThis.setTimeout = (fn) => oldSetTimeout(fn, 0);
@@ -184,7 +190,7 @@ try {
   assert.equal(created.every((c) => c.body.parent.database_id === DB.tasks), true);
   for (const c of created) {
     const p = c.body.properties;
-    assert.deepEqual(Object.keys(p).sort(), [P.task.auto, P.task.date, P.task.difficulty, P.task.estimatedMinutes, P.task.lesson, P.task.makeup, P.task.source, P.task.title, P.task.type].sort());
+    assert.deepEqual(Object.keys(p).sort(), [P.task.auto, P.task.date, P.task.difficulty, P.task.estimatedMinutes, P.task.lesson, P.task.makeup, P.task.source, P.task.title, P.task.type, P.task.key].sort());
     assert.deepEqual(p[P.task.date], { date: { start: TODAY } }); assert.deepEqual(p[P.task.source], { select: { name: "今日" } });
     assert.deepEqual(p[P.task.type], { select: { name: "初學" } }); assert.deepEqual(p[P.task.makeup], { checkbox: true });
     assert.deepEqual(p[P.task.auto], { checkbox: true }); assert.deepEqual(p[P.task.difficulty], { select: null });
@@ -204,7 +210,10 @@ try {
   await assert.rejects(() => worker.scheduled({ cron: "0 0 * * *", scheduledTime: NOW }, env, { waitUntil() {} }), /unexpected daily lesson cron/);
 
   // postTask writes the exact done checkbox, then syncs only an auto 初學 full-lesson task in the task DB.
-  const auto = task(900, { title: "完成整堂｜補同步課", auto: true, type: "初學", lessons: [ids.retry], done: false }); pages.set(auto.id, auto);
+  const autoSlot = await journal.reserve(TODAY, "補同步", ids.retry, null);
+  const auto = task(900, { title: "完成整堂｜補同步課", auto: true, type: "初學", lessons: [ids.retry], done: false });
+  auto.properties[P.task.key] = rich(autoSlot.row.operationKey); pages.set(auto.id, auto);
+  await journal.recordTask(autoSlot.row, auto.id);
   let r = await worker.fetch(new Request(`https://local/api/task/${auto.id}`, { method: "POST", headers: { "x-app-key": env.APP_KEY, "content-type": "application/json" }, body: JSON.stringify({ done: true }) }), env);
   assert.equal(r.status, 200); assert.deepEqual(calls.findLast((c) => c.method === "PATCH" && c.url.endsWith(`/pages/${auto.id}`)).body.properties, { [P.task.done]: { checkbox: true } });
   assert.equal(pages.get(ids.retry).properties[P.lesson.status].select.name, STATUS_DONE);
@@ -218,15 +227,14 @@ try {
     [904, { title: "完成整堂｜多堂", auto: true, type: "初學", lessons: [ids.bio, ids.english] }, DB.tasks],
     [905, { title: "普通完成", auto: true, type: "初學", lessons: [ids.bio] }, DB.tasks],
     [908, { title: "完成整堂｜複習", auto: true, type: "複習", lessons: [ids.bio] }, DB.tasks],
-  ]) { const t = task(n, { ...vals, done: true }, parent); pages.set(t.id, t); await (createAutomation({ notion: async (e, path, method, b) => notionMock(e, path, method, b), queryAll: queryMock, shapeLesson: shape, rd, wr })).syncTaskCompletion(env, t, TODAY, new Map()); }
+  ]) { const t = task(n, { ...vals, done: true }, parent); pages.set(t.id, t); await (createAutomation({ notion: async (e, path, method, b) => notionMock(e, path, method, b), queryAll: queryMock, shapeLesson: shape, rd, wr, journal })).syncTaskCompletion(env, t, TODAY, new Map()); }
   assert.equal(pages.get(ids.bio).properties[P.lesson.status].select.name, "未開始", "manual/skip/wrong-db/multi/non-prefix must not sync");
 
-  // A partial lesson write is retryable; an already completed lesson keeps its original completion date.
+  // Durable provenance means an unregistered injected task is intentionally ignored.
   const retryTask = task(906, { title: "完成整堂｜重試", auto: true, type: "初學", done: true, lessons: [ids.retry] }); pages.set(retryTask.id, retryTask);
-  pages.get(ids.retry).properties[P.lesson.status] = select("未開始"); pages.get(ids.retry).properties[P.lesson.doneDate] = date(null); failLessonPatchOnce = 4;
-  await assert.rejects(() => worker.scheduled({ ...controller }, env, { waitUntil() {} }));
+  pages.get(ids.retry).properties[P.lesson.status] = select("未開始"); pages.get(ids.retry).properties[P.lesson.doneDate] = date(null); failLessonPatchOnce = 1;
   await worker.scheduled({ ...controller }, env, { waitUntil() {} });
-  assert.equal(pages.get(ids.retry).properties[P.lesson.status].select.name, STATUS_DONE);
+  assert.equal(pages.get(ids.retry).properties[P.lesson.status].select.name, "未開始");
   const preserved = pages.get(ids.doneDate).properties[P.lesson.doneDate].date.start;
   const directDone = task(907, { title: "完成整堂｜已完成", auto: true, type: "初學", done: true, lessons: [ids.doneDate], lastEdited: "2026-10-18T18:00:00.000Z" }); pages.set(directDone.id, directDone);
   await worker.scheduled(controller, env, { waitUntil() {} });
@@ -243,7 +251,7 @@ try {
   generatedBio.last_edited_time = "2026-10-18T15:59:00.000Z";
   const beforeSlotCheck = calls.length;
   await worker.scheduled(controller, env, { waitUntil() {} });
-  assert.equal(pages.get(ids.bio).properties[P.lesson.doneDate].date.start, "2026-10-18");
+  assert.equal(pages.get(ids.bio).properties[P.lesson.doneDate].date.start, TODAY);
   assert.equal(calls.slice(beforeSlotCheck).some((c) => c.method === "POST" && c.url.endsWith("/pages")), false,
     "completed auto task must not schedule a second same-subject lesson today");
   console.log(`automation offline tests passed (${calls.length} mocked Notion calls)`);

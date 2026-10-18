@@ -4,7 +4,16 @@ compatibility_date = "2026-01-01"
 
 [triggers]
 # Cloudflare Cron uses UTC: 16:10 UTC = next day 00:10 Asia/Taipei.
+# Enabled only after durable tests and independent review pass.
 crons = ["10 16 * * *"]
+
+[[durable_objects.bindings]]
+name = "LESSON_AUTOMATION"
+class_name = "LessonAutomationCoordinator"
+
+[[migrations]]
+tag = "lesson-automation-v1"
+new_sqlite_classes = ["LessonAutomationCoordinator"]
 
 [vars]
 # Origin of the GitHub Pages site, e.g. https://chan0ir.github.io  ("*" = any)

@@ -27,6 +27,7 @@ export const P = {
     lesson: "對應堂次",
     makeup: "可補做",
     auto: "自動課次任務",
+    key: "自動任務鍵",
     prerequisites: "前置任務",
     estimatedMinutes: "預估分鐘",
     difficulty: "難度",

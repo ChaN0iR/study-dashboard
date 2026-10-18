@@ -2,6 +2,7 @@
 import worker from "./index.js";
 import { DB } from "./config.js";
 import assert from "node:assert/strict";
+import { makeNamespace } from "./test-fixtures.mjs";
 
 const calls = [];
 const taskId = "11111111-1111-1111-1111-111111111111";
@@ -100,6 +101,7 @@ globalThis.fetch = async (url, init = {}) => {
 };
 
 const env = { NOTION_TOKEN: "t", APP_KEY: "k", ALLOWED_ORIGIN: "*" };
+Object.assign(env, { LESSON_AUTOMATION: makeNamespace(env).binding });
 const call = (m, p, b, key = "k") => worker.fetch(new Request("https://x" + p, {
   method: m, headers: { "x-app-key": key, "content-type": "application/json" }, body: b ? JSON.stringify(b) : undefined,
 }), env);

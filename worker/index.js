@@ -1,5 +1,6 @@
 import { DB, P, MOODS, SUBJECTS, STATUS_DONE, STATUS_TODO } from "./config.js";
 import { createAutomation, DAILY_CRON } from "./automation.js";
+import { AutomationJournal } from "./journal.js";
 
 const NOTION = "https://api.notion.com/v1";
 const NOTION_VERSION = "2022-06-28";
@@ -48,15 +49,17 @@ async function notion(env, path, method = "GET", body) {
     });
     const data = await res.json().catch(() => ({}));
     if (res.ok) return data;
-    // An explicit 429 rejects the write. A 5xx/network failure creating a page
-    // is ambiguous: do not blindly replay it and risk making a duplicate.
-    if (attempt < 3 && (res.status === 429 || safeRetry && res.status >= 500)) {
+    // Creation has no server-enforced idempotency key. Send it once only,
+    // including a 429 response; reconcile any unknown outcome in durable state.
+    if (safeRetry && attempt < 3 && (res.status === 429 || res.status >= 500)) {
       const retryAfter = Number(res.headers.get("retry-after"));
       const delay = Math.min(60, Math.max(1, retryAfter || 2 ** attempt));
       await new Promise((resolve) => setTimeout(resolve, delay * 1000));
       continue;
     }
-    throw new HttpError(502, `Notion ${res.status}: ${data.message || "error"}`);
+    const error = new HttpError(502, `Notion ${res.status}: ${data.message || "error"}`);
+    error.notionStatus = res.status;
+    throw error;
   }
 }
 
@@ -171,7 +174,16 @@ const shapeLesson = (pg) => {
   };
 };
 
-const automation = createAutomation({ notion, queryAll, shapeLesson, rd, wr });
+async function durableCall(env, path, body) {
+  if (!env.LESSON_AUTOMATION) throw new HttpError(503, "durable automation binding not configured");
+  const id = env.LESSON_AUTOMATION.idFromName("study-dashboard-lessons-v1");
+  const response = await env.LESSON_AUTOMATION.get(id).fetch(`https://automation.internal${path}`, {
+    method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body),
+  });
+  const result = await response.json();
+  if (!response.ok) throw new HttpError(response.status, result.error || "durable automation failed");
+  return result;
+}
 
 // ---------- data ops ----------
 async function findTodayRecord(env, today) {
@@ -288,8 +300,9 @@ async function getState(env) {
   };
 }
 
-async function postTask(env, id, body) {
+async function postTask(env, id, body, automation) {
   const props = {};
+  if (body.done === true && body.skip === true) throw new HttpError(400, "done and skip cannot both be true");
   if (typeof body.done === "boolean") props[P.task.done] = wr.check(body.done);
   if (typeof body.skip === "boolean") props[P.task.skip] = wr.check(body.skip);
   if (!Object.keys(props).length) throw new HttpError(400, "need done or skip (boolean)");
@@ -302,6 +315,9 @@ async function postTask(env, id, body) {
     if (prerequisites.some((prerequisite) =>
       !rd.check(prerequisite.properties?.[P.task.done]) || rd.check(prerequisite.properties?.[P.task.skip])
     )) throw new HttpError(409, "prerequisites incomplete");
+    await automation.prepareCompletion(env, {
+      ...task, properties: { ...task.properties, ...(typeof body.skip === "boolean" ? { [P.task.skip]: wr.check(body.skip) } : {}) },
+    }, taipeiDate());
   }
   const updated = await notion(env, `/pages/${id}`, "PATCH", { properties: props });
   if (body.done === true) await automation.syncTaskCompletion(env, updated, taipeiDate());
@@ -507,11 +523,52 @@ async function postFocus(env, body) {
   return getFocus(env, [], { justDone: shapeFocus(upd) });
 }
 
+// One named actor owns all automatic creates and task completion writes. The
+// promise queue serializes fetch awaits; durable journal state protects restarts.
+// No network I/O runs inside a storage transaction / blockConcurrencyWhile.
+export class LessonAutomationCoordinator {
+  constructor(ctx, env) {
+    this.env = env;
+    this.queue = Promise.resolve();
+    this.journal = new AutomationJournal(ctx.storage);
+    this.automation = createAutomation({ notion, queryAll, shapeLesson, rd, wr, journal: this.journal });
+  }
+  fetch(request) {
+    const run = this.queue.catch(() => {}).then(async () => {
+      try {
+        if (request.method !== "POST") throw new HttpError(405, "method not allowed");
+        const body = await request.json();
+        const path = new URL(request.url).pathname;
+        if (path === "/audit") {
+          if (body.taskId && !ID_RE.test(body.taskId)) throw new HttpError(400, "bad task id");
+          if (body.taskId) return Response.json({ task: await this.journal.getTask(body.taskId) || null });
+          const slots = (await this.journal.listSlots()).sort((a, b) => a.key.localeCompare(b.key));
+          const page = slots.filter((row) => !body.cursor || row.key > body.cursor).slice(0, 100);
+          return Response.json({ storage: "durable-object", version: 1, slots: page,
+            nextCursor: page.length === 100 ? page[page.length - 1].key : null });
+        }
+        if (path === "/daily") {
+          if (body.cron !== DAILY_CRON || !Number.isFinite(body.scheduledTime)) throw new HttpError(400, "invalid cron event");
+          return Response.json(await this.automation.runDaily(this.env, body.scheduledTime));
+        }
+        if (path === "/task" && ID_RE.test(body.id || "")) {
+          return Response.json(await postTask(this.env, body.id, body.patch || {}, this.automation));
+        }
+        throw new HttpError(404, "not found");
+      } catch (error) {
+        return Response.json({ error: error.message || "durable automation failed" }, { status: error instanceof HttpError ? error.status : 500 });
+      }
+    });
+    this.queue = run;
+    return run;
+  }
+}
+
 // ---------- router ----------
 export default {
   async scheduled(controller, env, ctx) {
     if (controller.cron !== DAILY_CRON) throw new Error("unexpected daily lesson cron");
-    const run = automation.runDaily(env, controller.scheduledTime);
+    const run = durableCall(env, "/daily", { cron: controller.cron, scheduledTime: controller.scheduledTime });
     ctx.waitUntil(run);
     await run;
   },
@@ -521,8 +578,10 @@ export default {
       const url = new URL(request.url);
       const path = url.pathname.replace(/\/+$/, "") || "/";
       if (path === "/" || path === "/health") return json({ ok: true }, 200, env);
-      if (!env.APP_KEY || !env.NOTION_TOKEN) throw new HttpError(500, "worker secrets not configured");
+      if (!env.APP_KEY) throw new HttpError(500, "worker secrets not configured");
       if (!safeEqual(request.headers.get("x-app-key") || "", env.APP_KEY)) throw new HttpError(401, "bad app key");
+      if (!env.NOTION_TOKEN && !(request.method === "GET" && path === "/api/automation/audit"))
+        throw new HttpError(500, "worker secrets not configured");
 
       const readBody = async () => {
         try { return (await request.json()) || {}; } catch { throw new HttpError(400, "invalid JSON"); }
@@ -532,6 +591,11 @@ export default {
 
       if (request.method === "GET" && seg[1] === "state" && seg.length === 2)
         return json(await getState(env), 200, env, { "cache-control": "no-store" });
+
+      if (request.method === "GET" && seg[1] === "automation" && seg[2] === "audit" && seg.length === 3)
+        return json(await durableCall(env, "/audit", {
+          taskId: url.searchParams.get("taskId"), cursor: url.searchParams.get("cursor"),
+        }), 200, env, { "cache-control": "no-store" });
 
       if (request.method === "GET" && seg[1] === "focus" && seg.length === 2)
         return json(await getFocus(env), 200, env, { "cache-control": "no-store" });
@@ -543,7 +607,7 @@ export default {
         if ((seg[1] === "task" || seg[1] === "lesson") && seg.length === 3) {
           if (!ID_RE.test(seg[2])) throw new HttpError(400, "bad id");
           const body = await readBody();
-          return json(seg[1] === "task" ? await postTask(env, seg[2], body) : await postLesson(env, seg[2], body), 200, env);
+          return json(seg[1] === "task" ? await durableCall(env, "/task", { id: seg[2], patch: body }) : await postLesson(env, seg[2], body), 200, env);
         }
       }
       throw new HttpError(404, "not found");
