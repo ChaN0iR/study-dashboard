@@ -10,7 +10,7 @@
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="apple-touch-icon" href="icons/icon-192.png">
 <link rel="icon" href="icons/icon.svg" type="image/svg+xml">
-<link rel="stylesheet" href="style.css?v=117">
+<link rel="stylesheet" href="style.css?v=118">
 <title>清大後醫</title>
 </head>
 <body>
@@ -98,8 +98,8 @@
 <dialog id="task-detail-dialog" class="fc-dialog task-detail-dialog" aria-labelledby="task-detail-title"><div class="fc-dh"><h2 id="task-detail-title">任務詳細說明</h2><button type="button" class="ghost" id="task-detail-close">關閉</button></div><div id="task-detail-origin" class="task-detail-block"><span class="task-detail-label">任務原文</span><p id="task-detail-origin-text" class="task-detail-text"></p></div><div id="task-detail-steps-block" class="task-detail-block"><span class="task-detail-label">照做步驟</span><ol id="task-detail-steps" class="task-detail-steps"></ol><p class="task-detail-note">只按原文列出要求；未補寫原文沒有提供的做法。</p></div></dialog>
 <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
 <script src="config.js?v=90"></script>
-<script src="task-policy.js?v=2"></script>
-<script src="app.js?v=116"></script>
+<script src="task-policy.js?v=3"></script>
+<script src="app.js?v=117"></script>
 <script>(function(){var b=document.querySelectorAll("#tabs button");function go(t){t=t||"today";document.body.dataset.tab=t;localStorage.setItem("sd-tab",t);b.forEach(function(x){x.setAttribute("aria-selected",x.dataset.t==t)})}b.forEach(function(x){x.onclick=function(){go(x.dataset.t)}});go(localStorage.getItem("sd-tab")||"today")})()</script>
 </body>
 </html>

@@ -52,6 +52,20 @@
     }).map(({ task }) => task);
   }
 
+  function studyQueue(tasks, options = {}) {
+    const { today = "", isStudyTask = () => false, isLifeTask = () => false,
+      isBlocked = (task) => task.blocked === true } = options;
+    return uniqueTasks(tasks, today).filter((task) => task.id && task.done !== true && task.skipped !== true
+      && !isLifeTask(task) && isStudyTask(task) && !isDailyRequired(task)
+      && (!task.date || !today || task.date <= today)
+      && (!isCarryover(task, today) || task.makeup === true))
+      .map((task) => ({ ...task, carryover: !!isCarryover(task, today) }))
+      .sort((a, b) => Number(isBlocked(a)) - Number(isBlocked(b))
+        || Number(b.carryover) - Number(a.carryover)
+        || String(a.date || today).localeCompare(String(b.date || today))
+        || (a.order ?? 9999) - (b.order ?? 9999));
+  }
+
   function taskView(tasks, options = {}) {
     const {
       today = "", weekday = "", nowMin = 0, slots = [], bedMinute = 22 * 60,
@@ -65,8 +79,12 @@
     }
 
     const suppressed = suppressionReason({ weekday, nowMin, slots, bedMinute });
-    const visible = unique.filter((task) => !(task.done !== true && studyIsSuppressed(task, options, suppressed)));
-    return { tasks: visible, skipped: unique.filter((task) => task.skipped === true), suppression: suppressed };
+    // Rest is optional study, not a current-slot prompt. Quiet hours still win for visibility.
+    const restCourse = suppressed === "rest" && Number(nowMin) < quietStart(slots, bedMinute)
+      ? studyQueue(tasks, options)[0] || null : null;
+    const visible = unique.filter((task) => task.id && task.id === restCourse?.id
+      || !(task.done !== true && studyIsSuppressed(task, options, suppressed)));
+    return { tasks: visible, skipped: unique.filter((task) => task.skipped === true), suppression: suppressed, restCourse };
   }
 
   function taskIsCurrent(task, options = {}) {
@@ -108,5 +126,5 @@
     return orderOf(a) - orderOf(b);
   }
 
-  globalThis.TaskPolicy = { uniqueTasks, taskView, taskIsCurrent, compareTasks, quietStart, suppressionReason, toMinute, isDailyRequired };
+  globalThis.TaskPolicy = { uniqueTasks, studyQueue, taskView, taskIsCurrent, compareTasks, quietStart, suppressionReason, toMinute, isDailyRequired };
 })();

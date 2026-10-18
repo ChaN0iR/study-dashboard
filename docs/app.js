@@ -17,6 +17,7 @@
 
   let state = { tasks: [], lessons: [], record: null, today: "" };
   const pendingTaskWrites = new Set();
+  const pendingLessonWrites = new Set();
   let mood = null;
   let xpVerified = false;
   let activeScheduleSlots = [];
@@ -146,7 +147,7 @@
       }
       if (kind === "state") return structuredClone(db);
       if (kind === "task") { const t = db.tasks.find((x) => x.id === id); if ("done" in body) t.done = body.done; if ("skip" in body) t.skipped = body.skip; return t; }
-      if (kind === "lesson") { const l = db.lessons.find((x) => x.id === id); if ("done" in body) { l.done = body.done; l.status = body.done ? "完成" : "未開始"; } if (body.review) l.reviews++; return l; }
+      if (kind === "lesson") { const l = db.lessons.find((x) => x.id === id); if ("done" in body) { l.done = body.done; l.status = body.done ? "完成" : "未開始"; l.doneDate = body.done ? taipeiNow().date : null; } if (body.review) l.reviews++; return l; }
       if (kind === "record") {
         const r = db.record || (db.record = { id: "r1" });
         if ("hours" in body) r.hours = body.hours; if ("minutes" in body) r.minutes = body.minutes;
@@ -369,7 +370,7 @@
       now, slots,
       view: TaskPolicy.taskView(state.tasks, {
         today: state.today || now.date, weekday: now.wd, nowMin: now.min, slots, bedMinute,
-        isStudyTask, isLifeTask,
+        isStudyTask, isLifeTask, isBlocked: taskBlocked,
       }),
     };
   }
@@ -494,12 +495,24 @@
     const skipped = schedule.view.skipped;
     const note = $("task-policy-note");
     note.hidden = !schedule.view.suppression;
-    note.textContent = schedule.view.suppression === "rest" ? "週日休息日：生活與每日必做任務照常顯示，其餘未完成的學習任務暫不提示。"
+    note.textContent = schedule.view.suppression === "rest" ? "週日休息日：生活與每日必做照常；睡前以外保留最近一項課程，優先可做的補做任務。也可到「成就」選課。"
       : schedule.view.suppression === "quiet" ? "睡前時段：未完成的學習任務暫不顯示，明天再處理。" : "";
     const done = real.filter((t) => t.done).length, pct = real.length ? Math.round(done / real.length * 100) : 0;
     $("task-count").textContent = real.length ? `${done}/${real.length}` : "";
     $("task-prog-i").style.width = pct + "%";
     $("tasks").replaceChildren(...(real.length ? renderTaskGroups(real) : [el("li", { class: "empty" }, "今天沒有任務")]));
+    if (schedule.view.suppression === "rest") {
+      const courses = courseSelectionData();
+      const restRows = [];
+      if (!schedule.view.restCourse && schedule.now.min < TaskPolicy.quietStart(slots, toMin(C.BED)) && courses.lessons.length)
+        restRows.push(lessonChoiceItem(courses.lessons[0]));
+      if (!courses.tasks.length && !courses.lessons.length)
+        restRows.push(el("li", { class: "empty", role: "status" }, courses.status));
+      if (restRows.length) {
+        if (real.length) $("tasks").append(...restRows);
+        else $("tasks").replaceChildren(...restRows);
+      }
+    }
     $("skipped-wrap").hidden = !skipped.length;
     updateProg();
     $("skipped").replaceChildren(...skipped.map(taskItem));
@@ -632,6 +645,55 @@
     } finally { rescheduleApproving = false; renderReschedule(); }
   }
 
+  function lessonChoiceBlocked(lesson) {
+    const linked = TaskPolicy.uniqueTasks(state.tasks, state.today).filter((task) =>
+      (task.relatedLessonIds || []).includes(lesson.id));
+    return lesson.blocked === true || lesson.skipped === true || linked.some((task) =>
+      task.skipped === true || pendingTaskWrites.has(task.id) || (task.done !== true && taskBlocked(task)));
+  }
+  function courseSelectionData() {
+    const today = taipeiNow().date;
+    const tasks = TaskPolicy.studyQueue(state.tasks, { today, isStudyTask, isLifeTask, isBlocked: taskBlocked });
+    const seen = new Set();
+    const loaded = (state.lessons || []).filter((lesson) => lesson.id && !seen.has(lesson.id) && seen.add(lesson.id));
+    const scoped = loaded.filter((lesson) => lesson.weekStart && lesson.weekStart <= today);
+    const monday = new Date(`${today}T00:00:00Z`);
+    monday.setUTCDate(monday.getUTCDate() - (monday.getUTCDay() + 6) % 7);
+    const weekStart = monday.toISOString().slice(0, 10);
+    const lessons = scoped.filter((lesson) => lesson.done !== true && lesson.skipped !== true)
+      .slice().sort((a, b) => Number(lessonChoiceBlocked(a)) - Number(lessonChoiceBlocked(b))
+        || String(a.weekStart).localeCompare(String(b.weekStart)) || (a.order ?? 9999) - (b.order ?? 9999))
+      .map((lesson) => ({ ...lesson, carryover: lesson.weekStart < weekStart }));
+    const scopedTasks = TaskPolicy.uniqueTasks(state.tasks, today).filter((task) =>
+      isStudyTask(task) && !isLifeTask(task) && !TaskPolicy.isDailyRequired(task)
+      && (task.date === today || (task.makeup === true && task.date && task.date < today)));
+    const unknown = loaded.some((lesson) => lesson.done !== true && !lesson.weekStart);
+    const skipped = scoped.some((lesson) => lesson.skipped === true) || scopedTasks.some((task) => task.skipped === true);
+    const evidence = scoped.length > 0 || scopedTasks.length > 0;
+    const status = !xpVerified || state.today !== today ? "資料未驗證，請重新載入確認現階段任務"
+      : pendingTaskWrites.size || pendingLessonWrites.size ? "任務儲存確認中，尚未確認現階段完成狀態"
+      : unknown ? "部分課次日期未提供，暫無可確認的現階段課程"
+      : skipped ? "現階段有已略過任務，尚未全部完成"
+      : evidence && !tasks.length && !lessons.length ? "已完成現階段任務"
+      : "目前沒有已載入的現階段課程";
+    return { tasks, lessons, status };
+  }
+  function lessonChoiceItem(lesson) {
+    const blocked = lessonChoiceBlocked(lesson);
+    return el("li", { class: "item lesson" },
+      el("div", { class: "t" }, lesson.title,
+        el("div", { class: "meta" }, `${lesson.carryover ? "補做優先" : "現階段課程"} · ${lesson.weekStart}${blocked ? " · 等待前置或已略過關聯任務" : ""}`)),
+      el("button", { class: "ghost", type: "button", disabled: blocked || pendingLessonWrites.has(lesson.id),
+        "aria-label": `標記課次完成：${lesson.title}`, onclick: () => toggleLesson(lesson) }, pendingLessonWrites.has(lesson.id) ? "儲存中…" : "標記完成"));
+  }
+  function renderCourseSelection() {
+    const courses = courseSelectionData();
+    const box = el("details", {}, el("summary", {}, "選擇課程去完成"));
+    if (courses.tasks.length) box.append(el("h3", {}, "課程任務"), el("ul", { class: "list" }, courses.tasks.map(taskItem)));
+    if (courses.lessons.length) box.append(el("h3", {}, "課次"), el("ul", { class: "list" }, courses.lessons.map(lessonChoiceItem)));
+    return box;
+  }
+
   function renderLessons() {
     const data = achievementData(), { points } = data;
     const verified = xpVerified && state.today === taipeiNow().date;
@@ -640,19 +702,24 @@
     $("xp-total").textContent = "";
     const metric = (label, value) => el("div", { class: "achievement-metric" }, el("span", { class: "muted" }, label), el("strong", {}, value));
     const pct = data.total ? Math.round(data.done / data.total * 100) : null;
-    $("achievement-summary").replaceChildren(...[
+    const progressMetric = metric(data.complete ? "已完成／總課次 · 課程進度" : "已載入課次與進度（非全部）",
+      `${data.done}／${data.total} 堂 · ${pct === null ? "無資料" : pct + "%"}`);
+    const xpMetric = metric("今日任務已得 XP", DEMO ? "示範不計分" : verified ? `${points.total} XP` : "未驗證");
+    xpMetric.append(el("span", { class: "muted" }, `其中未指派課程：${DEMO ? "示範不計分" : verified ? formatPoints(points.unassignedRaw) + " XP" : "未驗證"}`));
+    const courses = courseSelectionData();
+    const notes = el("details", {}, el("summary", { id: "achievement-explanation-toggle" }, "資料狀態與說明"));
+    notes.append(...[
       el("p", { class: "achievement-status", role: "status" }, status),
-      el("div", { class: "achievement-metrics" },
-        metric("今日任務已得 XP", DEMO ? "示範不計分" : verified ? `${points.total} XP` : "未驗證"),
-        metric(data.complete ? "已完成／總課次" : "已載入課次（非全部）", `${data.done}／${data.total} 堂`),
-        metric(data.complete ? "課程進度" : "已載入進度（非全部）", pct === null ? "無資料" : `${pct}%`),
-        metric("今日未指派課程 XP", DEMO ? "示範不計分" : verified ? `${formatPoints(points.unassignedRaw)} XP` : "未驗證")),
+      !courses.tasks.length && !courses.lessons.length ? el("p", { class: "achievement-status", role: "status" }, courses.status) : null,
       el("p", { class: "achievement-note" }, "今日 XP 僅依日期為今天的已完成學習任務重算，不是歷史累積總分；資料未提供完成時間，無法驗證實際入帳日。課次完成與任務 XP 分開計算。"),
-      el("p", { class: "achievement-note" }, "課次明細只顯示台北時間今日已完成且有完成日期的課次；歷史完成仍計入課程總進度，未完成課程任務請至「今日」查看。"),
+      el("p", { class: "achievement-note" }, "課次明細只顯示台北時間今日已完成且有完成日期的課次；歷史完成仍計入課程總進度。未完成項目請用下方獨立選課入口。"),
+      el("p", { class: "achievement-note" }, "選課補做優先；只列已載入的未完成任務與現階段課次。課次完成不等於任務 XP，前置與略過限制照常。"),
       !data.complete ? el("p", { class: "achievement-note" }, "完整課程統計缺失或不完整；只列已載入課次，不推算全部堂數。") : null,
       points.unscoredTasks ? el("p", { class: "achievement-note" }, `${points.unscoredTasks} 筆已完成學習任務缺估時或難度，未計分。`) : null,
       points.undatedTasks ? el("p", { class: "achievement-note" }, `${points.undatedTasks} 筆已完成學習任務日期不屬於今天或未提供日期／完成時間，未納今日 XP。`) : null,
       pendingTaskWrites.size ? el("p", { class: "achievement-note" }, "任務更新中，XP 暫依畫面狀態顯示，尚待儲存確認。") : null].filter(Boolean));
+    $("achievement-summary").replaceChildren(
+      el("div", { class: "achievement-metrics" }, progressMetric, xpMetric), notes, renderCourseSelection());
     const rows = [];
     for (const g of data.rows) {
       const progress = g.complete ? `${g.done}/${g.total} 堂 · ${g.pct === null ? "無課次" : g.pct + "%"}` : `已載入 ${g.done}/${g.total} 堂 · 全課進度未驗證`;
@@ -667,7 +734,7 @@
       if (g.nextUpcoming) rows.push(el("li", { class: "lv-upcoming muted" }, `下一堂：${g.nextUpcoming.weekStart} · ${g.nextUpcoming.title}`));
       if (!g.items.length) rows.push(el("li", { class: "lv-upcoming muted" }, "今日尚無已完成課次"));
       for (const l of g.items) rows.push(el("li", { class: "item lesson" + (l.done ? " done" : "") },
-        el("button", { class: "chk", role: "checkbox", "aria-checked": String(l.done), "aria-label": l.done ? "取消完成" : "標記完成", onclick: () => toggleLesson(l) }),
+        el("button", { class: "chk", role: "checkbox", "aria-checked": String(l.done), "aria-label": l.done ? "取消完成" : "標記完成", disabled: pendingLessonWrites.has(l.id), onclick: () => toggleLesson(l) }),
         el("div", { class: "t" }, l.title, el("div", { class: "meta" }, [l.subject, l.minutes ? `${l.minutes} 分` : null, l.due ? "該複習" : null].filter(Boolean).join("　")))));
     }
     $("lessons").replaceChildren(...(rows.length ? rows : [el("li", { class: "empty" }, "目前沒有課程進度資料")]));
@@ -732,15 +799,28 @@
       } finally { pendingTaskWrites.delete(id); renderAll(); }
     }, null, false);
   };
-  const toggleLesson = (l) => guarded(async () => {
-    l.done = !l.done;
-    const groupName = l.course || `${l.subject || "未分類"}（未設定課程）`;
-    const group = (state.courseStats || []).find((g) => g.course === l.course && (l.course || g.name === groupName));
-    if (group) group.done = Math.max(0, Math.min(group.total, group.done + (l.done ? 1 : -1)));
-    renderAll();
-    await api(`/api/lesson/${l.id}`, { done: l.done });
-    await loadReschedule();
-  });
+  const toggleLesson = (selected) => {
+    const l = (state.lessons || []).find((lesson) => lesson.id === selected.id);
+    if (!l || pendingLessonWrites.has(l.id) || (l.done !== true && lessonChoiceBlocked(l))) return;
+    const next = l.done !== true;
+    pendingLessonWrites.add(l.id);
+    return guarded(async () => {
+      try {
+        renderAll();
+        const saved = await api(`/api/lesson/${l.id}`, { done: next });
+        if (!saved || saved.id !== l.id || saved.done !== next) throw new Error("課次儲存回應不完整，請重新載入確認");
+        const current = (state.lessons || []).find((lesson) => lesson.id === l.id);
+        if (current) {
+          const changed = current.done !== next;
+          const groupName = current.course || `${current.subject || "未分類"}（未設定課程）`;
+          const group = (state.courseStats || []).find((g) => g.course === current.course && (current.course || g.name === groupName));
+          if (changed && group) group.done = Math.max(0, Math.min(group.total, group.done + (next ? 1 : -1)));
+          Object.assign(current, saved);
+        }
+        await loadReschedule();
+      } finally { pendingLessonWrites.delete(l.id); renderAll(); }
+    });
+  };
   const reviewLesson = (l) => guarded(async () => { l.reviews++; renderAll(); await api(`/api/lesson/${l.id}`, { review: true }); }, "已記錄複習");
 
   async function load(silent) {

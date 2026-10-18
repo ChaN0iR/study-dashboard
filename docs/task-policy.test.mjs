@@ -86,14 +86,16 @@ test("睡前不顯示未完成學習任務，也不把它標成當下提示", ()
   assert.equal(policy.taskIsCurrent(pending, { ...bedtimeOptions, activeSlot: slots[3] }), false);
 });
 
-test("週日休息時不滾入補做任務，也不提示當日未完成學習", () => {
+test("週日休息保留一項最近補做，但不變成當下時段提示", () => {
   const sundayOptions = options({ weekday: "Sun", nowMin: 10 * 60 });
   const carry = study("carry", "化學複習題", { date: "2026-10-16", makeup: true, carryover: true });
   const planned = study("planned", "物理第02-1堂", { date: "2026-10-18" });
   const life = { id: "walk", title: "散步", type: "生活", order: 1 };
   const view = policy.taskView([carry, planned, life], sundayOptions);
   assert.equal(view.suppression, "rest");
-  assert.deepEqual(Array.from(view.tasks, (task) => task.id), ["walk"]);
+  assert.deepEqual(Array.from(view.tasks, (task) => task.id), ["walk", "carry"]);
+  assert.equal(view.restCourse.id, "carry");
+  assert.equal(policy.taskIsCurrent(carry, { ...sundayOptions, activeSlot: slots[0] }), false);
 });
 
 test("前置任務未完成時，後段不會置頂或標成當下提示", () => {

@@ -38,13 +38,13 @@ test("每日必做依任務內容判定，不依完成狀態或提醒卡片", ()
   assert.equal(policy.isDailyRequired(row("course", "單字複習", { relatedCourses: ["course"] })), false);
 });
 
-test("週日保留生活與每日必做；一般學習與補課仍隱藏，不修改輸入", () => {
+test("週日保留生活、每日必做與最近補做課程，不修改輸入", () => {
   const rows = [row("anki", dailyTitles[0]), row("vocab", "英文單字複習"), row("required", "每日必做｜物理公式回想"),
     row("walk", "飯後散步"), row("ypt", "YPT・步數・心情・重點回顧"), row("meal", "午餐"),
     row("study", "物理第02堂"), row("carry", "化學複習題", { date: "2026-10-17", makeup: true }),
     row("done", "物理第03堂", { done: true })];
   const before = JSON.stringify(rows);
-  assert.deepEqual(ids(policy.taskView(rows, options).tasks), ["anki", "vocab", "required", "walk", "ypt", "meal", "done"]);
+  assert.deepEqual(ids(policy.taskView(rows, options).tasks), ["anki", "vocab", "required", "walk", "ypt", "meal", "done", "carry"]);
   // A life classification must win even if another classifier also labels the row study.
   assert.deepEqual(ids(policy.taskView([rows[2], rows[3]], { ...options, isStudyTask: () => true }).tasks), ["required", "walk"]);
   assert.equal(JSON.stringify(rows), before);
@@ -69,7 +69,7 @@ test("每日必做例外不改變平日睡前或既有跨日／跳過／去重�
   assert.equal(result.tasks[0].done, false);
 });
 
-test("Scriptable 休息日整體模型與 dashboard 例外一致，保留既有三餐過濾", () => {
+test("Scriptable 維持原有休息日模型與三餐過濾，不跟隨 Dashboard 選課例外", () => {
   const rows = [row("anki", dailyTitles[0]), row("vocab", "英文單字複習"), row("walk", "飯後散步"), row("study", "物理第02堂")];
   for (const min of [7 * 60 + 15, 10 * 60, 20 * 60 + 50, 21 * 60 + 10]) {
     const result = context.widgetTaskModel({ today, tasks: rows }, { date: today, wd: "Sun", min });
@@ -81,4 +81,65 @@ test("Scriptable 休息日整體模型與 dashboard 例外一致，保留既有�
   const lunch = context.widgetTaskModel({ today, tasks: rows }, { date: today, wd: "Sun", min: 12 * 60 + 15 });
   assert.deepEqual(ids(lunch.visibleOpen), ["walk"]);
   assert.equal(lunch.total, 3);
+});
+
+
+test("週日沒有補做時保留最近一項未完成課程，完成後接續下一項", () => {
+  const first = row("first", "物理第01堂", { order: 1 });
+  const next = row("next", "物理第02堂", { order: 2 });
+  const rows = [next, first];
+  assert.deepEqual(ids(policy.taskView(rows, options).tasks), ["first"]);
+  first.done = true;
+  assert.deepEqual(ids(policy.taskView(rows, options).tasks), ["next", "first"]);
+  next.done = true;
+  assert.equal(policy.taskView(rows, options).restCourse, null);
+  assert.equal(policy.studyQueue(rows, options).length, 0);
+});
+
+test("週日補做依最早日期與課序，排除未來、已跳過與不可補做，不產生新 ID", () => {
+  const rows = [row("current", "物理第04堂", { order: 1 }),
+    row("recent", "物理第03堂", { date: "2026-10-17", makeup: true, order: 1 }),
+    row("old2", "物理第02堂", { date: "2026-10-16", makeup: true, order: 2 }),
+    row("old1", "物理第01堂", { date: "2026-10-16", makeup: true, order: 1 }),
+    row("future", "物理第05堂", { date: "2026-10-19", order: 0 }),
+    row("skip", "化學第01堂", { skipped: true, date: "2026-10-15", makeup: true }),
+    row("not-makeup", "化學第02堂", { date: "2026-10-14", makeup: false })];
+  const before = JSON.stringify(rows);
+  assert.deepEqual(ids(policy.studyQueue(rows, options)), ["old1", "old2", "recent", "current"]);
+  assert.equal(policy.taskView(rows, options).restCourse.id, "old1");
+  assert.equal(JSON.stringify(rows), before);
+});
+
+test("補做前置未完成時先提供可做課程；只有 blocked 時仍保留真實任務且不解除 blocked", () => {
+  const blocked = row("blocked", "化學第01堂", { date: "2026-10-17", makeup: true, blocked: true });
+  const ready = row("ready", "物理第01堂", { order: 50 });
+  assert.equal(policy.taskView([blocked, ready], options).restCourse.id, "ready");
+  const result = policy.taskView([blocked], options);
+  assert.equal(result.restCourse.id, "blocked");
+  assert.equal(result.tasks[0].blocked, true);
+  assert.equal(policy.taskIsCurrent(result.tasks[0], options), false);
+  assert.equal(policy.taskView([blocked, ready], { ...options, isBlocked: task => task.id === "ready" }).restCourse.id, "blocked");
+});
+
+test("週日睡前邊界仍隱藏一般課程，生活與每日必做照舊", () => {
+  const slots = [...options.slots, { start: "21:00", end: "22:00", name: "睡前收尾" }];
+  const rows = [row("study", "物理第01堂"), row("walk", "飯後散步"), row("anki", dailyTitles[0])];
+  assert.equal(policy.taskView(rows, { ...options, slots, nowMin: 20 * 60 + 59 }).restCourse.id, "study");
+  for (const nowMin of [21 * 60, 22 * 60]) {
+    const result = policy.taskView(rows, { ...options, slots, nowMin });
+    assert.equal(result.restCourse, null);
+    assert.deepEqual(ids(result.tasks), ["walk", "anki"]);
+  }
+});
+
+test("週日同 ID 仍選今天原筆，不用過期副本的補做或前置狀態", () => {
+  const current = row("same", "物理第02堂", { order: 2 });
+  const duplicate = { ...current, title: "物理第01堂", date: "2026-10-17", carryover: true, makeup: true, blocked: true };
+  for (const rows of [[current, duplicate], [duplicate, current]]) {
+    const view = policy.taskView(rows, options);
+    assert.equal(view.tasks.length, 1);
+    assert.equal(view.restCourse.title, current.title);
+    assert.equal(view.restCourse.carryover, false);
+    assert.equal(view.tasks[0].date, today);
+  }
 });
