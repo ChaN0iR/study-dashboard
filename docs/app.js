@@ -220,11 +220,12 @@
     if (STUDY_TASK_TYPES.has(String(t.type || ""))) return true;
     return explicitStudy;
   }
-  function coursePointAllocation(tasks) {
+  function coursePointAllocation(tasks, today = state.today) {
     const byCourse = new Map();
-    let totalRaw = 0, unassignedRaw = 0, eligibleTasks = 0, unscoredTasks = 0;
-    for (const t of Array.isArray(tasks) ? tasks : []) {
+    let totalRaw = 0, unassignedRaw = 0, eligibleTasks = 0, unscoredTasks = 0, undatedTasks = 0;
+    for (const t of TaskPolicy.uniqueTasks(tasks, today)) {
       if (t.done !== true || t.skipped === true || !isStudyTask(t)) continue;
+      if (!today || t.date !== today || t.carryover === true) { undatedTasks++; continue; }
       const minutes = Number(t.estimatedMinutes);
       const factor = DIFFICULTY_FACTORS[t.difficulty];
       if (!Number.isFinite(minutes) || minutes <= 0 || !Number.isFinite(factor)) { unscoredTasks++; continue; }
@@ -238,7 +239,7 @@
       const share = points / courses.length;
       for (const course of courses) byCourse.set(course, (byCourse.get(course) || 0) + share);
     }
-    return { byCourse, eligibleTasks, unscoredTasks, totalRaw, total: Math.round(totalRaw), unassignedRaw };
+    return { byCourse, eligibleTasks, unscoredTasks, totalRaw, total: Math.round(totalRaw), unassignedRaw, undatedTasks };
   }
   const formatPoints = (points) => Number((Number(points) || 0).toFixed(1));
   function taskStages(t) {
@@ -306,7 +307,28 @@
     if (leadingMatch) score += 50 + [...leadingMatch].length;
     return score;
   }
+  function taskCourseSlot(t, slots = activeScheduleSlots) {
+    if (isLifeTask(t) || !isStudyTask(t)) return { applies: false, slot: null };
+    const title = String(t.title || "");
+    const subjects = new Set(Object.entries(SUBJECT_PATTERNS).filter(([, pattern]) => pattern.test(title)).map(([subject]) => subject));
+    for (const subject of Array.isArray(t.relatedSubjects) ? t.relatedSubjects : []) subjects.add(subject);
+    const courses = Array.isArray(t.relatedCourses) ? t.relatedCourses : [];
+    for (const course of courses) {
+      const stat = (state.courseStats || []).find((g) => g.course === course);
+      for (const subject of stat?.subjects || (stat?.subject ? [stat.subject] : [])) subjects.add(subject);
+    }
+    // Presentation only: these are the owner's existing fixed windows, not new task dates.
+    const windows = { "化學": "08:30–12:00", "生物": "13:30–15:30", "生化": "13:30–15:30", "物理": "15:45–16:30", "英文": "19:00–20:00" };
+    const starts = [...new Set([...subjects].map((subject) => windows[subject]))];
+    const applies = subjects.size > 0 || courses.length > 0 || (t.relatedLessonIds || []).length > 0;
+    if (!applies) return { applies: false, slot: null };
+    if (starts.length !== 1 || !starts[0]) return { applies: true, slot: null, reason: "科目缺失或跨時段，未配時" };
+    const slot = slots.find((item) => `${item.start}–${item.end}` === starts[0]);
+    return { applies: true, slot: slot || null, reason: slot ? "" : "固定時段缺失，未配時" };
+  }
   function taskScheduleSlot(t, slots = activeScheduleSlots) {
+    const course = taskCourseSlot(t, slots);
+    if (course.applies) return course.slot;
     const bestIn = (candidates) => {
       let best = null, bestScore = 0;
       for (const slot of candidates) {
@@ -427,7 +449,10 @@
     }, taskText);
     syncTaskActivityAccessibility(activityNode);
     const title = el("span", { class: "task-title" }, activityNode, badges);
-    const copy = el("div", { class: "t task-copy" }, title);
+    const courseSlot = taskCourseSlot(t, schedule.slots);
+    const timeNote = courseSlot.applies ? el("span", { class: "task-time" }, courseSlot.slot
+      ? `${courseSlot.slot.start}–${courseSlot.slot.end} · 固定科目時段` : courseSlot.reason) : null;
+    const copy = el("div", { class: "t task-copy" }, title, timeNote);
     const pending = pendingTaskWrites.has(t.id);
     return el("li", { class: "item task-item" + (t.done ? " done" : "") + (blocked ? " blocked" : "") + (isCurrent ? " is-current" : "") },
       el("button", { class: "chk", role: "checkbox", "aria-checked": String(t.done), "aria-label": t.done ? "取消完成" : blocked ? "等待前置任務完成" : "標記完成", disabled: taskCheckboxDisabled(t, pending), onclick: () => toggleTask(t) }),
@@ -493,55 +518,70 @@
   }
   function updateTotal() { $("ypt").textContent = fmtYpt($("f-hours").value, $("f-minutes").value); }
 
-  function renderLessons() {
-    const ls = state.lessons || [];
-    const hasCourseStats = Array.isArray(state.courseStats) && state.courseStats.length > 0;
-    const seriesOf = (l) => (l.title || "").replace(/\s*第?\s*\d+[-－]\d+\s*堂?.*$/, "").trim() || l.subject || "課程";
-    const keyOf = (l) => l.course || (hasCourseStats ? `${l.subject || "未分類"}（未設定課程）` : seriesOf(l));
+  function achievementData() {
+    const lessons = Array.isArray(state.lessons) ? state.lessons : [];
+    const hasStats = Array.isArray(state.courseStats);
+    const validCount = (g) => Number.isInteger(g.total) && Number.isInteger(g.done) && g.total >= 0 && g.done >= 0 && g.done <= g.total;
     const visible = new Map();
-    ls.forEach((l) => { const k = keyOf(l); if (!visible.has(k)) visible.set(k, []); visible.get(k).push(l); });
-    const stats = hasCourseStats ? state.courseStats : [...visible.entries()].map(([name, items]) => ({
-      course: name, name, subject: items[0]?.subject || null, total: items.length,
-      done: items.filter((l) => l.done).length, unscheduled: 0,
-      order: Math.min(...items.map((l) => l.order ?? 9999)), nextUpcoming: null,
-    }));
-    const total = stats.reduce((n, g) => n + (Number(g.total) || 0), 0);
-    const doneTotal = stats.reduce((n, g) => n + (Number(g.done) || 0), 0);
-    const pointAllocation = coursePointAllocation(state.tasks);
-    const xpNotes = [];
-    if (pointAllocation.unassignedRaw > 0) xpNotes.push(`未指派 ${formatPoints(pointAllocation.unassignedRaw)}`);
-    if (pointAllocation.unscoredTasks) xpNotes.push(`${pointAllocation.unscoredTasks} 筆缺估時／難度`);
-    $("lesson-count").textContent = total ? `${doneTotal}/${total} 堂` : "";
-    $("xp-total").textContent = DEMO ? "示範資料不計分" : !xpVerified ? "今日 XP 未驗證" : `今日學習 ${pointAllocation.total} 點${xpNotes.length ? `（${xpNotes.join("；")}）` : ""}`;
-    if (!stats.length) { $("lessons").replaceChildren(el("li", { class: "empty" }, "目前沒有課程進度資料")); return; }
-    const list = stats.map((g) => {
-      const name = g.name || g.course || "未設定課程";
-      const items = visible.get(g.course || name) || [];
-      items.sort((x, y) => (x.done - y.done) || ((x.order ?? 9999) - (y.order ?? 9999)));
-      const courseTotal = Number(g.total) || items.length;
-      const courseDone = Number(g.done) || 0;
-      const pct = courseTotal ? Math.round(courseDone / courseTotal * 100) : 0;
-      const coursePoints = xpVerified ? pointAllocation.byCourse.get(g.course || name) || 0 : null;
-      return { ...g, name, items, courseTotal, courseDone, pct, coursePoints };
-    }).sort((a, b) => (Number(a.order) || 0) - (Number(b.order) || 0) || a.name.localeCompare(b.name));
-    const rows = [];
-    list.forEach((g) => {
-      rows.push(el("li", { class: "lv-head" },
-        el("div", { class: "lv-top" }, el("span", { class: "lv-name" }, g.name), el("span", { class: "lv-tag" }, g.subject || "課程"), el("span", { class: "muted lv-stat" }, `${g.courseDone}/${g.courseTotal} 堂 · ${g.pct}%${g.coursePoints > 0 ? ` · +${formatPoints(g.coursePoints)} 點` : ""}`)),
-        el("div", { class: "lv-bar", role: "progressbar", "aria-valuemin": "0", "aria-valuemax": "100", "aria-valuenow": String(g.pct), "aria-label": `${g.name}課程完成度` }, el("i", { style: `width:${g.pct}%` }))));
-      if (!g.items.length) {
-        const upcoming = g.nextUpcoming;
-        const note = upcoming ? `下一堂：${upcoming.weekStart} · ${upcoming.title}` : g.unscheduled ? `${g.unscheduled} 堂尚未排週次` : "目前沒有待完成課次";
-        rows.push(el("li", { class: "lv-upcoming muted" }, note));
-      }
-      g.items.forEach((l) => rows.push(
-        el("li", { class: "item lesson" + (l.done ? " done" : "") },
-          el("button", { class: "chk", role: "checkbox", "aria-checked": String(l.done), "aria-label": l.done ? "取消完成" : "標記完成", onclick: () => toggleLesson(l) }),
-          el("div", { class: "t" }, l.title,
-            el("div", { class: "meta" }, [l.subject, l.minutes ? `${l.minutes} 分` : null, l.due ? "該複習" : null].filter(Boolean).join("　"))),
-          null)));
+    const keyOf = (l) => l.course || `${l.subject || "未分類"}（未設定課程）`;
+    for (const l of lessons) {
+      const key = keyOf(l);
+      if (!visible.has(key)) visible.set(key, []);
+      visible.get(key).push(l);
+    }
+    const groups = new Map((hasStats ? state.courseStats : []).map((g) => [g.course || g.name, { ...g, complete: validCount(g) }]));
+    for (const [name, items] of visible) if (!groups.has(name)) groups.set(name, {
+      course: items[0].course || null, name, subject: items[0].subject, complete: false,
     });
-    $("lessons").replaceChildren(...rows);
+    const points = coursePointAllocation(state.tasks);
+    for (const course of points.byCourse.keys()) if (!groups.has(course)) groups.set(course, { course, name: course, complete: false });
+    const rows = [...groups.entries()].map(([key, g]) => {
+      const items = (visible.get(key) || []).slice().sort((a, b) => Number(a.done) - Number(b.done) || (a.order ?? 9999) - (b.order ?? 9999));
+      const total = g.complete ? g.total : items.length;
+      const done = g.complete ? g.done : items.filter((l) => l.done === true).length;
+      return { ...g, name: g.name || g.course || key, items, total, done, pct: total ? Math.round(done / total * 100) : null, points: points.byCourse.get(g.course || key) || 0 };
+    }).sort((a, b) => (a.order ?? 9999) - (b.order ?? 9999) || a.name.localeCompare(b.name));
+    const complete = hasStats && rows.every((g) => g.complete);
+    return { rows, points, complete,
+      total: complete ? rows.reduce((n, g) => n + g.total, 0) : lessons.length,
+      done: complete ? rows.reduce((n, g) => n + g.done, 0) : lessons.filter((l) => l.done === true).length };
+  }
+  function renderLessons() {
+    const data = achievementData(), { points } = data;
+    const verified = xpVerified && state.today === taipeiNow().date;
+    const status = DEMO ? "示範資料，不代表真實成就" : !verified ? "資料未驗證；如有數字，僅為上次載入內容" : `資料日期 ${state.today} · 依已載入狀態計算`;
+    $("lesson-count").textContent = "";
+    $("xp-total").textContent = "";
+    const metric = (label, value) => el("div", { class: "achievement-metric" }, el("span", { class: "muted" }, label), el("strong", {}, value));
+    const pct = data.total ? Math.round(data.done / data.total * 100) : null;
+    $("achievement-summary").replaceChildren(...[
+      el("p", { class: "achievement-status", role: "status" }, status),
+      el("div", { class: "achievement-metrics" },
+        metric("今日任務已得 XP", DEMO ? "示範不計分" : verified ? `${points.total} XP` : "未驗證"),
+        metric(data.complete ? "已完成／總課次" : "已載入課次（非全部）", `${data.done}／${data.total} 堂`),
+        metric(data.complete ? "課程進度" : "已載入進度（非全部）", pct === null ? "無資料" : `${pct}%`),
+        metric("今日未指派課程 XP", DEMO ? "示範不計分" : verified ? `${formatPoints(points.unassignedRaw)} XP` : "未驗證")),
+      el("p", { class: "achievement-note" }, "今日 XP 僅依日期為今天的已完成學習任務重算，不是歷史累積總分；資料未提供完成時間，無法驗證實際入帳日。課次完成與任務 XP 分開計算。"),
+      !data.complete ? el("p", { class: "achievement-note" }, "完整課程統計缺失或不完整；只列已載入課次，不推算全部堂數。") : null,
+      points.unscoredTasks ? el("p", { class: "achievement-note" }, `${points.unscoredTasks} 筆已完成學習任務缺估時或難度，未計分。`) : null,
+      points.undatedTasks ? el("p", { class: "achievement-note" }, `${points.undatedTasks} 筆已完成學習任務日期不屬於今天或未提供日期／完成時間，未納今日 XP。`) : null,
+      pendingTaskWrites.size ? el("p", { class: "achievement-note" }, "任務更新中，XP 暫依畫面狀態顯示，尚待儲存確認。") : null].filter(Boolean));
+    const rows = [];
+    for (const g of data.rows) {
+      const progress = g.complete ? `${g.done}/${g.total} 堂 · ${g.pct === null ? "無課次" : g.pct + "%"}` : `已載入 ${g.done}/${g.total} 堂 · 全課進度未驗證`;
+      const xp = DEMO ? "示範不計分" : verified ? `${formatPoints(g.points)} XP` : "XP 未驗證";
+      rows.push(el("li", { class: "lv-head" },
+        el("div", { class: "lv-top" }, el("span", { class: "lv-name" }, g.name), el("span", { class: "lv-tag" }, g.subject || "科目未提供")),
+        el("div", { class: "achievement-course-stat" }, progress, el("span", {}, `今日 ${xp}`)),
+        g.complete && g.pct !== null ? el("div", { class: "lv-bar", role: "progressbar", "aria-valuemin": "0", "aria-valuemax": "100", "aria-valuenow": String(g.pct), "aria-label": `${g.name}課程完成度` }, el("i", { style: `width:${g.pct}%` })) : null));
+      if (g.unscheduled > 0) rows.push(el("li", { class: "lv-upcoming muted" }, `${g.unscheduled} 堂尚未排週次`));
+      if (g.nextUpcoming) rows.push(el("li", { class: "lv-upcoming muted" }, `下一堂：${g.nextUpcoming.weekStart} · ${g.nextUpcoming.title}`));
+      if (!g.items.length) rows.push(el("li", { class: "lv-upcoming muted" }, g.complete ? "目前沒有已載入的到期課次" : "缺課程統計／課次資料"));
+      for (const l of g.items) rows.push(el("li", { class: "item lesson" + (l.done ? " done" : "") },
+        el("button", { class: "chk", role: "checkbox", "aria-checked": String(l.done), "aria-label": l.done ? "取消完成" : "標記完成", onclick: () => toggleLesson(l) }),
+        el("div", { class: "t" }, l.title, el("div", { class: "meta" }, [l.subject, l.minutes ? `${l.minutes} 分` : null, l.due ? "該複習" : null].filter(Boolean).join("　")))));
+    }
+    $("lessons").replaceChildren(...(rows.length ? rows : [el("li", { class: "empty" }, "目前沒有課程進度資料")]));
   }
 
   function renderAll() {
