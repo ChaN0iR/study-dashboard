@@ -1,17 +1,39 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { mkdtemp, readFile, writeFile, copyFile, rm } from "node:fs/promises";
+import { access, mkdtemp, readFile, writeFile, copyFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { spawnSync } from "node:child_process";
 import { pathToFileURL } from "node:url";
+
+test('static PWA shell references and CSS cache-bust', async () => {
+  const html = await readFile(new URL('index.html', import.meta.url), 'utf8');
+  const sw = await readFile(new URL('sw.js', import.meta.url), 'utf8');
+  const shell = JSON.parse(sw.match(/^const SHELL = (\[[^\n]+\]);$/m)[1]);
+  const cache = sw.match(/^const CACHE = "([^"]+)";$/m)[1];
+  const refs = [...html.matchAll(/<(?:link|script)\b[^>]*\b(?:href|src)="([^"]+)"/g)]
+    .map(match => match[1]);
+  const cssRefs = refs.filter(ref => /^style\.css(?:\?|$)/.test(ref));
+  assert.deepEqual(cssRefs, ['style.css?v=120']);
+  assert.deepEqual(shell.filter(ref => /^style\.css(?:\?|$)/.test(ref)), cssRefs);
+  assert.equal(cache, 'sd-v128');
+  assert.equal(new Set(shell).size, shell.length, 'duplicate shell reference');
+  assert.ok(!sw.includes('style.css?v=119') && !html.includes('style.css?v=119'), 'stale CSS URL');
+  for (const ref of refs) assert.ok(shell.includes(ref), `index reference missing from shell: ${ref}`);
+  for (const ref of shell) await access(new URL(ref.split('?')[0], import.meta.url));
+  const manifest = JSON.parse(await readFile(new URL('manifest.webmanifest', import.meta.url), 'utf8'));
+  for (const { src } of manifest.icons) {
+    assert.ok(shell.some(ref => ref.split('?')[0] === src.split('?')[0]), `manifest icon missing from shell: ${src}`);
+    await access(new URL(src.split('?')[0], import.meta.url));
+  }
+});
 
 // Offline CSS-only regression: application scripts are removed and no network is allowed.
 const chromium = process.env.CHROMIUM || "chromium";
 const available = spawnSync(chromium, ["--version"]).status === 0 &&
   spawnSync("python3", ["-c", "import playwright.sync_api"]).status === 0;
 const runner = String.raw`
-import os, shutil, sys
+import json, os, shutil, sys
 from playwright.sync_api import sync_playwright
 with sync_playwright() as p:
     browser = p.chromium.launch(executable_path=shutil.which(sys.argv[1]), headless=True,
@@ -30,15 +52,19 @@ with sync_playwright() as p:
     if os.environ.get('TIMER_SCREENSHOTS'):
         os.makedirs(os.environ['TIMER_SCREENSHOTS'], exist_ok=True)
         # Capture each required visible state; no app.js is loaded to mutate user data.
-        page.screenshot(path=os.path.join(os.environ['TIMER_SCREENSHOTS'], sys.argv[7] + '-idle.png'))
+        # Freeze transitions before state changes, not only during the capture itself.
+        page.add_style_tag(content='*,*::before,*::after{animation:none!important;transition:none!important}')
+        page.screenshot(path=os.path.join(os.environ['TIMER_SCREENSHOTS'], sys.argv[7] + '-idle.png'), animations='disabled')
         page.evaluate("window.__timerTestState('running')")
-        page.screenshot(path=os.path.join(os.environ['TIMER_SCREENSHOTS'], sys.argv[7] + '-running.png'))
+        page.screenshot(path=os.path.join(os.environ['TIMER_SCREENSHOTS'], sys.argv[7] + '-running.png'), animations='disabled')
         page.evaluate("window.__timerTestState('picker')")
-        page.screenshot(path=os.path.join(os.environ['TIMER_SCREENSHOTS'], sys.argv[7] + '-picker.png'))
+        page.screenshot(path=os.path.join(os.environ['TIMER_SCREENSHOTS'], sys.argv[7] + '-picker.png'), animations='disabled')
         if sys.argv[5] == 'light' and sys.argv[7].startswith('desktop'):
             page.emulate_media(color_scheme='dark')
             page.evaluate("window.__timerTestState('picker')")
-            page.screenshot(path=os.path.join(os.environ['TIMER_SCREENSHOTS'], sys.argv[7] + '-picker-dark.png'))
+            page.screenshot(path=os.path.join(os.environ['TIMER_SCREENSHOTS'], sys.argv[7] + '-picker-dark.png'), animations='disabled')
+        with open(os.path.join(os.environ['TIMER_SCREENSHOTS'], sys.argv[7] + '-geometry.json'), 'w') as report:
+            json.dump(page.evaluate('window.__timerGeometry'), report, ensure_ascii=False, indent=2)
     browser.close()
 `;
 const cssChecks = String.raw`
@@ -51,9 +77,25 @@ const cssChecks = String.raw`
   const visible = element => box(element).width > 0 && box(element).height > 0 && style(element).opacity !== '0';
   const overlap = (a, b) => a.left < b.right - .5 && a.right > b.left + .5 && a.top < b.bottom - .5 && a.bottom > b.top + .5;
   const center = (a, b) => Math.abs((a.left + a.right) / 2 - (b.left + b.right) / 2) < 1.5;
+  const near = (a, b) => Math.abs(a - b) < 1;
+  const actions = document.querySelector('.top-actions');
+  const shortcuts = [...actions.querySelectorAll('.icon-btn')];
+  const shortcutChecks = () => {
+    const top = document.querySelector('.top'), bounds = box(actions), buttons = shortcuts.map(box);
+    check(shortcuts.length === 6 && shortcuts.every(visible), 'all six shortcuts must be visible');
+    check(style(actions).display === 'grid' && style(actions).gridTemplateColumns.split(' ').length === 3, 'shortcuts must have exactly three columns');
+    check(near(buttons[0].top, buttons[1].top) && near(buttons[1].top, buttons[2].top), 'first shortcut row is not balanced');
+    check(near(buttons[3].top, buttons[4].top) && near(buttons[4].top, buttons[5].top) && buttons[3].top > buttons[0].bottom, 'second shortcut row is not balanced');
+    for (let i = 0; i < 3; i++) check(near(buttons[i].left, buttons[i + 3].left) && near(buttons[i].right, buttons[i + 3].right), 'shortcut columns are not aligned');
+    check(near(buttons[2].right, bounds.right) && near(buttons[5].right, bounds.right), 'shortcut rows do not share the group right edge');
+    check(near(bounds.right, box(top).right - parseFloat(style(top).paddingRight)), 'shortcut group is not aligned to header right padding');
+    check(bounds.left >= 0 && bounds.right <= innerWidth && buttons.every(b => b.left >= bounds.left && b.right <= bounds.right && b.top >= bounds.top && b.bottom <= bounds.bottom), 'shortcut group overflows');
+    check(!overlap(bounds, box(top.firstElementChild)), 'shortcuts overlap brand/date');
+    for (let i = 0; i < buttons.length; i++) for (let j = i + 1; j < buttons.length; j++) check(!overlap(buttons[i], buttons[j]), 'shortcuts overlap each other');
+  };
   const main = $('fc-main'), focus = $('focus'), time = $('fc-time'), heading = $('fc-heading'), hist = $('fc-hist'), subj = $('fc-subj');
   check(main && focus && time && heading && hist && subj, 'timer structure is incomplete');
-  check(document.querySelectorAll('.top-actions .icon-btn').length >= 4, 'header icons are missing');
+  check(shortcuts.length === 6, 'header must expose exactly six shortcuts');
   check(style(document.body).backgroundImage === 'none', 'unexpected body image/network asset');
   const assertBase = () => {
     check(visible(heading) && visible(hist), 'title/history must remain visible');
@@ -93,9 +135,14 @@ const cssChecks = String.raw`
     else if (state === 'picker') { focus.classList.remove('is-running'); focus.classList.add('is-choosing'); subj.hidden = false; heading.textContent = '열품타'; time.textContent = '1:40:00'; }
     else { focus.classList.remove('is-running', 'is-choosing'); subj.hidden = true; heading.textContent = '열품타'; time.textContent = '0:00:00'; }
     $('fc-goal').hidden = state === 'running';
+    shortcutChecks();
     if (desktop) {
       check(style(time).display !== 'none' || state === 'picker', 'clock unexpectedly hidden');
       check(visible(heading) && visible(hist), 'title/history lost');
+      check(center(box(heading), {left:0,right:innerWidth}), 'timer title is not viewport centered');
+      check(style(heading).letterSpacing === 'normal' || style(heading).letterSpacing === '0px', 'title has trailing letter spacing that offsets visible glyphs');
+      check(!visible($('fc-goal')) && style($('fc-goal')).display === 'none', 'desktop timer underline/progress track remains');
+      check(box($('fc-prog-i').parentElement).height === 0, 'desktop progress track still occupies space');
       if (state !== 'picker') {
         assertBase();
         check(center(box(time), {left:0,right:innerWidth}), 'time readout is not viewport centered');
@@ -124,19 +171,29 @@ const cssChecks = String.raw`
       check(!overlap(box(heading), box(time)), 'title/clock overlap');
       check(center(box(main), {left:0,right:innerWidth}), 'main is not centered in viewport');
       desktopChecks();
-    } else { mobileChecks(); assertBase(); }
+    } else {
+      mobileChecks(); assertBase();
+      check(visible($('fc-goal')) === (state !== 'running'), 'mobile progress track visibility regressed');
+    }
+    window.__timerGeometry ||= [];
+    window.__timerGeometry.push({state, viewport:innerWidth, viewportCenter:innerWidth/2,
+      centers:Object.fromEntries([focus,main,heading,time].map(el => [el.id,(box(el).left+box(el).right)/2])),
+      shortcuts:{group:box(actions).toJSON(), buttons:shortcuts.map(el => ({id:el.id,...box(el).toJSON()})), columns:style(actions).gridTemplateColumns},
+      goalDisplay:style($('fc-goal')).display, trackHeight:box($('fc-prog-i').parentElement).height});
   };
   // Reproduce only app.js responsive placement; never load or execute app.js.
   document.body.dataset.tab = 'record';
   $('date').textContent = '2026-10-18　Sun';
   $('countdown').textContent = '倒數 153 天';
+  $('fc-goal-t').textContent = '目標 3.5 時　0%';
   if (desktop) document.querySelector('.top > div').after(focus);
-  else document.querySelector('.rec .prog').after(focus);
+  else document.querySelector('.rec-content > .prog').after(focus);
   window.__timerTestState = state => assertState(state);
   try {
     assertState('idle'); assertState('running');
     for (const label of ['英文', '化學', '生物', '物理', '生化']) {
       heading.textContent = label; assertBase();
+      if (desktop) check(center(box(heading), {left:0,right:innerWidth}), 'subject label is not viewport centered');
     }
     assertState('picker'); assertState('idle'); document.body.dataset.timerTest = 'PASS';
   }
@@ -145,7 +202,9 @@ const cssChecks = String.raw`
 
 for (const [name, width, height, scheme, motion] of [
   ['desktop-900', 900, 560, 'light', 'no-preference'], ['desktop-1100', 1100, 700, 'light', 'reduce'],
+  ['desktop-1515', 1515, 1008, 'dark', 'no-preference'],
   ['desktop-1560', 1560, 900, 'dark', 'no-preference'], ['desktop-1920', 1920, 1080, 'light', 'no-preference'],
+  ['mobile-320', 320, 740, 'dark', 'reduce'],
   ['mobile', 390, 844, 'light', 'reduce'], ['breakpoint', 899, 800, 'dark', 'no-preference'], ['short', 1100, 550, 'light', 'reduce'],
 ]) {
   test(`offline timer CSS alignment: ${name}`, { skip: available ? false : 'requires Python Playwright and Chromium' }, async () => {

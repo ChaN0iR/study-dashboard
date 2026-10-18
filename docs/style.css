@@ -843,7 +843,7 @@ button:active,a.icon-btn:active,.chk:active,.fc-hist:active{box-shadow:0 0 0 1px
   .top>.focus,.top>.focus.is-choosing{
     position:relative!important;inset:auto;transform:none;z-index:auto;
     display:grid!important;grid-template-columns:44px minmax(0,1fr) 44px!important;
-    grid-template-areas:"timer-icon timer-main timer-history" " . timer-goal .";
+    grid-template-areas:"timer-icon timer-main timer-history";
     align-items:center;justify-items:center;gap:6px 12px;flex:none;
     width:100%;min-width:0;max-width:none;min-height:80px;
     margin:0!important;padding:4px 0!important;border:0!important;
@@ -865,7 +865,7 @@ button:active,a.icon-btn:active,.chk:active,.fc-hist:active{box-shadow:0 0 0 1px
     padding:4px 0;border:0!important;border-radius:10px!important;background:none!important;
     box-shadow:none!important;text-align:center;transform:none;animation:none!important
   }
-  .top>.focus .fc-main-title,.top>.focus.is-choosing .fc-main-title{font-size:14px;line-height:1.25;letter-spacing:.06em;color:var(--mut)}
+  .top>.focus .fc-main-title,.top>.focus.is-choosing .fc-main-title{font-size:14px;line-height:1.25;letter-spacing:0;color:var(--mut)}
   .top>.focus .fc-main .fc-time{font-size:clamp(26px,2.3vw,38px);line-height:1.1;letter-spacing:0;font-variant-numeric:tabular-nums;color:var(--fg);white-space:nowrap}
   .top>.focus .fc-main:hover .fc-main-title{color:var(--fg)}
   .top>.focus .fc-main:focus-visible{outline:2px solid var(--fg);outline-offset:3px}
@@ -875,10 +875,8 @@ button:active,a.icon-btn:active,.chk:active,.fc-hist:active{box-shadow:0 0 0 1px
   }
   .top>.focus .fc-hist:hover{color:var(--fg)}
   .top>.focus .fc-hist:focus-visible{outline:2px solid var(--fg);outline-offset:2px}
-  .top>.focus .fc-goal{
-    position:static;inset:auto;grid-area:timer-goal;justify-self:center;width:100%;max-width:180px;min-width:0;margin:0!important
-  }
-  .top>.focus .fc-goal .fc-prog{height:2px;margin:0;background:color-mix(in srgb,var(--mut) 20%,transparent)}
+  /* No desktop progress underline or empty goal row; mobile keeps its track. */
+  .top>.focus .fc-goal{display:none!important}
   .top>.focus.is-choosing{grid-template-areas:"timer-icon timer-main timer-history" "timer-subjects timer-subjects timer-subjects";row-gap:8px}
   .top>.focus.is-choosing .fc-main .fc-time{display:none!important}
   .top>.focus.is-choosing .fc-main{min-height:44px!important}
@@ -963,6 +961,9 @@ button:active,a.icon-btn:active,.chk:active,.fc-hist:active{box-shadow:0 0 0 1px
   .top-actions .icon-btn{width:28px!important;min-width:28px!important;height:28px!important;min-height:28px!important}
   .top-actions svg{width:15px!important;height:15px!important}
 }
+/* Six shortcuts form one right-aligned 3 x 2 group at every breakpoint.
+   Intrinsic tracks preserve the existing responsive button sizes and gaps. */
+.top-actions{grid-template-columns:repeat(3,max-content)!important;width:max-content;justify-self:end;margin:0 0 0 auto!important}
 :root{--current-task-glow:30%}
 @media(prefers-color-scheme:dark){:root{--current-task-glow:17%}}
 .item.task-item.is-current{position:relative;z-index:0;border-radius:12px;background:transparent;box-shadow:none}
