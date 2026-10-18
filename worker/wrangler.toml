@@ -2,6 +2,10 @@ name = "study-dashboard-api"
 main = "index.js"
 compatibility_date = "2026-01-01"
 
+[triggers]
+# Cloudflare Cron uses UTC: 16:10 UTC = next day 00:10 Asia/Taipei.
+crons = ["10 16 * * *"]
+
 [vars]
 # Origin of the GitHub Pages site, e.g. https://chan0ir.github.io  ("*" = any)
 ALLOWED_ORIGIN = "https://chan0ir.github.io"

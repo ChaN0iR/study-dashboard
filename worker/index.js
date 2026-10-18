@@ -1,4 +1,5 @@
 import { DB, P, MOODS, SUBJECTS, STATUS_DONE, STATUS_TODO } from "./config.js";
+import { createAutomation, DAILY_CRON } from "./automation.js";
 
 const NOTION = "https://api.notion.com/v1";
 const NOTION_VERSION = "2022-06-28";
@@ -34,21 +35,32 @@ class HttpError extends Error {
 }
 
 async function notion(env, path, method = "GET", body) {
-  const res = await fetch(NOTION + path, {
-    method,
-    headers: {
-      authorization: `Bearer ${env.NOTION_TOKEN}`,
-      "notion-version": NOTION_VERSION,
-      "content-type": "application/json",
-    },
-    body: body ? JSON.stringify(body) : undefined,
-  });
-  const data = await res.json().catch(() => ({}));
-  if (!res.ok) throw new HttpError(502, `Notion ${res.status}: ${data.message || "error"}`);
-  return data;
+  const safeRetry = method === "GET" || method === "PATCH" || path.endsWith("/query");
+  for (let attempt = 0; ; attempt++) {
+    const res = await fetch(NOTION + path, {
+      method,
+      headers: {
+        authorization: `Bearer ${env.NOTION_TOKEN}`,
+        "notion-version": NOTION_VERSION,
+        "content-type": "application/json",
+      },
+      body: body ? JSON.stringify(body) : undefined,
+    });
+    const data = await res.json().catch(() => ({}));
+    if (res.ok) return data;
+    // An explicit 429 rejects the write. A 5xx/network failure creating a page
+    // is ambiguous: do not blindly replay it and risk making a duplicate.
+    if (attempt < 3 && (res.status === 429 || safeRetry && res.status >= 500)) {
+      const retryAfter = Number(res.headers.get("retry-after"));
+      const delay = Math.min(60, Math.max(1, retryAfter || 2 ** attempt));
+      await new Promise((resolve) => setTimeout(resolve, delay * 1000));
+      continue;
+    }
+    throw new HttpError(502, `Notion ${res.status}: ${data.message || "error"}`);
+  }
 }
 
-async function queryAll(env, dbId, body) {
+async function queryAll(env, dbId, body, maxRows = 500) {
   const out = [];
   let cursor;
   do {
@@ -57,7 +69,7 @@ async function queryAll(env, dbId, body) {
     });
     out.push(...r.results);
     cursor = r.has_more ? r.next_cursor : null;
-  } while (cursor && out.length < 500);
+  } while (cursor && out.length < maxRows);
   return out;
 }
 
@@ -158,6 +170,8 @@ const shapeLesson = (pg) => {
     order: rd.number(p[L.order]) ?? 0,
   };
 };
+
+const automation = createAutomation({ notion, queryAll, shapeLesson, rd, wr });
 
 // ---------- data ops ----------
 async function findTodayRecord(env, today) {
@@ -289,7 +303,9 @@ async function postTask(env, id, body) {
       !rd.check(prerequisite.properties?.[P.task.done]) || rd.check(prerequisite.properties?.[P.task.skip])
     )) throw new HttpError(409, "prerequisites incomplete");
   }
-  return shapeTask(await notion(env, `/pages/${id}`, "PATCH", { properties: props }));
+  const updated = await notion(env, `/pages/${id}`, "PATCH", { properties: props });
+  if (body.done === true) await automation.syncTaskCompletion(env, updated, taipeiDate());
+  return shapeTask(updated);
 }
 
 async function postRecord(env, body) {
@@ -493,6 +509,12 @@ async function postFocus(env, body) {
 
 // ---------- router ----------
 export default {
+  async scheduled(controller, env, ctx) {
+    if (controller.cron !== DAILY_CRON) throw new Error("unexpected daily lesson cron");
+    const run = automation.runDaily(env, controller.scheduledTime);
+    ctx.waitUntil(run);
+    await run;
+  },
   async fetch(request, env) {
     if (request.method === "OPTIONS") return new Response(null, { status: 204, headers: cors(env) });
     try {

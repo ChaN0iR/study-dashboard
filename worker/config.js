@@ -26,6 +26,7 @@ export const P = {
     source: "來源",       // 今日 / 推薦 / 備用
     lesson: "對應堂次",
     makeup: "可補做",
+    auto: "自動課次任務",
     prerequisites: "前置任務",
     estimatedMinutes: "預估分鐘",
     difficulty: "難度",
