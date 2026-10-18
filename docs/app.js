@@ -575,11 +575,9 @@
       const progress = g.complete ? `${g.done}/${g.total} 堂 · ${g.pct === null ? "無課次" : g.pct + "%"}` : `已載入 ${g.done}/${g.total} 堂 · 全課進度未驗證`;
       const xp = DEMO ? "示範不計分" : verified ? `${formatPoints(g.points)} XP` : "XP 未驗證";
       const subjects = Array.isArray(g.subjects) && g.subjects.length ? g.subjects : g.subject ? [g.subject] : [];
-      const courseSlot = mapFixedCourseSlot(subjects, C.SCHEDULE).slot;
       const subjectLabel = subjects.length ? [...new Set(subjects)].join("／") : "科目未提供";
-      const courseTag = courseSlot ? `${subjectLabel} · 固定 ${courseSlot.start}–${courseSlot.end}` : `${subjectLabel} · 未配時`;
       rows.push(el("li", { class: "lv-head" },
-        el("div", { class: "lv-top" }, el("span", { class: "lv-name" }, g.name), el("span", { class: "lv-tag" }, courseTag)),
+        el("div", { class: "lv-top" }, el("span", { class: "lv-name" }, g.name), el("span", { class: "lv-tag" }, subjectLabel)),
         el("div", { class: "achievement-course-stat" }, progress, el("span", {}, `今日 ${xp}`)),
         g.complete && g.pct !== null ? el("div", { class: "lv-bar", role: "progressbar", "aria-valuemin": "0", "aria-valuemax": "100", "aria-valuenow": String(g.pct), "aria-label": `${g.name}課程完成度` }, el("i", { style: `width:${g.pct}%` })) : null));
       if (g.unscheduled > 0) rows.push(el("li", { class: "lv-upcoming muted" }, `${g.unscheduled} 堂尚未排週次`));
