@@ -201,7 +201,7 @@
   function errorMessage(code) {
     const messages = {
       INVALID_EMAIL: "請輸入有效的電子郵件地址。",
-      PASSWORD_LENGTH: "密碼需為 12 至 128 個字元。",
+      PASSWORD_REQUIRED: "請輸入密碼。",
       EMAIL_ALREADY_REGISTERED: "這個電子郵件已建立帳號，請改用登入。",
       INVALID_CREDENTIALS: "電子郵件或密碼不正確。",
       AUTH_RATE_LIMIT: "嘗試次數過多，請稍後再試。",

@@ -1,7 +1,6 @@
 const SESSION_TTL_MS = 30 * 24 * 60 * 60 * 1000;
 const COOKIE_NAME = "rr_session";
 const PASSWORD_ITERATIONS = 100_000;
-const MIN_PASSWORD_LENGTH = 12;
 const MAX_REQUEST_BYTES = 400_000;
 const AUTH_WINDOW_MS = 60 * 60 * 1000;
 const MAX_AUTH_ATTEMPTS = 12;
@@ -160,8 +159,8 @@ async function authRegister(request, env) {
   const email = typeof parsed.value.email === "string" ? parsed.value.email.trim().toLowerCase() : "";
   const password = typeof parsed.value.password === "string" ? parsed.value.password : "";
   if (!email || email.length > 254 || !EMAIL_RE.test(email)) return json({ code: "INVALID_EMAIL" }, 422);
-  if (password.length < MIN_PASSWORD_LENGTH || password.length > 128) {
-    return json({ code: "PASSWORD_LENGTH" }, 422);
+  if (!password) {
+    return json({ code: "PASSWORD_REQUIRED" }, 422);
   }
 
   const passwordHash = await hashPassword(password);
@@ -188,7 +187,7 @@ async function authLogin(request, env) {
   if (parsed.error) return json({ code: parsed.error }, parsed.error === "REQUEST_TOO_LARGE" ? 413 : 400);
   const email = typeof parsed.value.email === "string" ? parsed.value.email.trim().toLowerCase() : "";
   const password = typeof parsed.value.password === "string" ? parsed.value.password : "";
-  if (!email || email.length > 254 || !EMAIL_RE.test(email) || !password || password.length > 128) {
+  if (!email || email.length > 254 || !EMAIL_RE.test(email) || !password) {
     return json({ code: "INVALID_CREDENTIALS" }, 401);
   }
 
