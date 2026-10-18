@@ -231,7 +231,8 @@ async function getState(env) {
   ]);
   const allLessons = lessonRows.map(shapeLesson);
   const lessons = allLessons.filter((l) =>
-    l.weekStart && l.weekStart <= today && (!l.done || l.weekStart > weekFloor)
+    (l.done && l.doneDate === today) ||
+    (l.weekStart && l.weekStart <= today && (!l.done || l.weekStart > weekFloor))
   );
   const lessonsById = new Map(allLessons.map((l) => [l.id, l]));
   const todayTasks = todayTaskRows.map(shapeTask);

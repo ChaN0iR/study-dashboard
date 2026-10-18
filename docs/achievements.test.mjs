@@ -195,3 +195,50 @@ test('示範模式不把任務或各課程合成積分當成真實 XP', () => {
   assert.doesNotMatch(nodes.get('achievement-summary').textContent, /10 XP/);
   assert.doesNotMatch(nodes.get('lessons').textContent, /10 XP/);
 });
+
+test('成就明細只列今日完成課次，歷史／未完成／缺完成日期不列，完整進度與 XP 不變', () => {
+  const lessons = [
+    { id: 'old', course: '普化', title: '昨天完成的課次', done: true, doneDate: '2026-10-16' },
+    { id: 'today', course: '普化', title: '今日打勾課次', done: true, doneDate: today },
+    { id: 'open', course: '普化', title: '尚未完成課次', done: false, doneDate: today },
+    { id: 'unknown', course: '普化', title: '完成日期缺失課次', done: true },
+    { id: 'future', course: '普化', title: '未來完成日期課次', done: true, doneDate: '2026-10-18' },
+  ];
+  const before = JSON.stringify(lessons);
+  const { api, nodes } = harness({ lessons, tasks: [task()], courseStats: [{ course: '普化', total: 20, done: 8 }] });
+  const data = api.achievementData();
+  assert.deepEqual(Array.from(data.rows[0].items, (l) => l.id), ['today']);
+  assert.equal(data.total, 20); assert.equal(data.done, 8); assert.equal(data.rows[0].pct, 40);
+  assert.equal(data.points.total, 10);
+  api.renderLessons();
+  const rows = nodes.get('lessons').children.filter((n) => n.className?.includes('item lesson'));
+  assert.equal(rows.length, 1); assert.match(rows[0].textContent, /今日打勾課次/);
+  assert.equal(rows[0].children[0].attrs['aria-checked'], 'true');
+  assert.doesNotMatch(nodes.get('lessons').textContent, /昨天完成的課次|尚未完成課次|完成日期缺失課次|未來完成日期課次/);
+  assert.match(nodes.get('lessons').textContent, /8\/20 堂 · 40%/);
+  assert.equal(JSON.stringify(lessons), before);
+});
+
+test('沒有今日完成課次顯示明確空狀態，缺全課統計仍保留載入進度', () => {
+  const { api, nodes } = harness({ lessons: [
+    { id: 'old', course: '普化', title: '歷史課次', done: true, doneDate: '2026-10-16' },
+    { id: 'open', course: '普化', title: '未完成課次', done: false },
+  ] });
+  const data = api.achievementData();
+  assert.equal(data.complete, false); assert.equal(data.total, 2); assert.equal(data.done, 1);
+  assert.equal(data.rows[0].total, 2); assert.equal(data.rows[0].done, 1);
+  assert.equal(data.rows[0].items.length, 0);
+  api.renderLessons();
+  assert.match(nodes.get('lessons').textContent, /今日尚無已完成課次/);
+  assert.match(nodes.get('lessons').textContent, /已載入 1\/2 堂 · 全課進度未驗證/);
+});
+
+test('跨日不沿用舊 state.today 顯示昨日勾選，取消完成立即自明細消失', () => {
+  const lesson = { id: 'today', course: '普化', done: true, doneDate: today };
+  const { api } = harness({ today: '2026-10-16', lessons: [
+    lesson, { id: 'stale', course: '普化', done: true, doneDate: '2026-10-16' },
+  ] });
+  assert.deepEqual(Array.from(api.achievementData().rows[0].items, (l) => l.id), ['today']);
+  lesson.done = false;
+  assert.equal(api.achievementData().rows[0].items.length, 0);
+});

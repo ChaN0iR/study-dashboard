@@ -553,9 +553,13 @@
     const points = coursePointAllocation(state.tasks);
     for (const course of points.byCourse.keys()) if (!groups.has(course)) groups.set(course, { course, name: course, complete: false });
     const rows = [...groups.entries()].map(([key, g]) => {
-      const items = (visible.get(key) || []).slice().sort((a, b) => Number(a.done) - Number(b.done) || (a.order ?? 9999) - (b.order ?? 9999));
-      const total = g.complete ? g.total : items.length;
-      const done = g.complete ? g.done : items.filter((l) => l.done === true).length;
+      const loaded = visible.get(key) || [];
+      // Detail visibility must not change all-course or loaded-only progress.
+      // Missing completion dates are not evidence of completion today.
+      const items = loaded.filter((l) => l.done === true && l.doneDate === taipeiNow().date)
+        .slice().sort((a, b) => (a.order ?? 9999) - (b.order ?? 9999));
+      const total = g.complete ? g.total : loaded.length;
+      const done = g.complete ? g.done : loaded.filter((l) => l.done === true).length;
       return { ...g, name: g.name || g.course || key, items, total, done, pct: total ? Math.round(done / total * 100) : null, points: points.byCourse.get(g.course || key) || 0 };
     }).sort((a, b) => (a.order ?? 9999) - (b.order ?? 9999) || a.name.localeCompare(b.name));
     const complete = hasStats && rows.every((g) => g.complete);
@@ -644,6 +648,7 @@
         metric(data.complete ? "課程進度" : "已載入進度（非全部）", pct === null ? "無資料" : `${pct}%`),
         metric("今日未指派課程 XP", DEMO ? "示範不計分" : verified ? `${formatPoints(points.unassignedRaw)} XP` : "未驗證")),
       el("p", { class: "achievement-note" }, "今日 XP 僅依日期為今天的已完成學習任務重算，不是歷史累積總分；資料未提供完成時間，無法驗證實際入帳日。課次完成與任務 XP 分開計算。"),
+      el("p", { class: "achievement-note" }, "課次明細只顯示台北時間今日已完成且有完成日期的課次；歷史完成仍計入課程總進度，未完成課程任務請至「今日」查看。"),
       !data.complete ? el("p", { class: "achievement-note" }, "完整課程統計缺失或不完整；只列已載入課次，不推算全部堂數。") : null,
       points.unscoredTasks ? el("p", { class: "achievement-note" }, `${points.unscoredTasks} 筆已完成學習任務缺估時或難度，未計分。`) : null,
       points.undatedTasks ? el("p", { class: "achievement-note" }, `${points.undatedTasks} 筆已完成學習任務日期不屬於今天或未提供日期／完成時間，未納今日 XP。`) : null,
@@ -660,7 +665,7 @@
         g.complete && g.pct !== null ? el("div", { class: "lv-bar", role: "progressbar", "aria-valuemin": "0", "aria-valuemax": "100", "aria-valuenow": String(g.pct), "aria-label": `${g.name}課程完成度` }, el("i", { style: `width:${g.pct}%` })) : null));
       if (g.unscheduled > 0) rows.push(el("li", { class: "lv-upcoming muted" }, `${g.unscheduled} 堂尚未排週次`));
       if (g.nextUpcoming) rows.push(el("li", { class: "lv-upcoming muted" }, `下一堂：${g.nextUpcoming.weekStart} · ${g.nextUpcoming.title}`));
-      if (!g.items.length) rows.push(el("li", { class: "lv-upcoming muted" }, g.complete ? "目前沒有已載入的到期課次" : "缺課程統計／課次資料"));
+      if (!g.items.length) rows.push(el("li", { class: "lv-upcoming muted" }, "今日尚無已完成課次"));
       for (const l of g.items) rows.push(el("li", { class: "item lesson" + (l.done ? " done" : "") },
         el("button", { class: "chk", role: "checkbox", "aria-checked": String(l.done), "aria-label": l.done ? "取消完成" : "標記完成", onclick: () => toggleLesson(l) }),
         el("div", { class: "t" }, l.title, el("div", { class: "meta" }, [l.subject, l.minutes ? `${l.minutes} 分` : null, l.due ? "該複習" : null].filter(Boolean).join("　")))));

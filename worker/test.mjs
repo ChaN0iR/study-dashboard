@@ -1,6 +1,6 @@
 // Offline smoke test: mocks Notion and exercises every endpoint.
 import worker from "./index.js";
-import { DB } from "./config.js";
+import { DB, P } from "./config.js";
 import assert from "node:assert/strict";
 import { makeNamespace } from "./test-fixtures.mjs";
 
@@ -142,6 +142,30 @@ const vocabulary = st.courseStats.find((x) => x.course === "英文字彙");
 assert.deepEqual([english.done, english.total], [1, 2]);
 assert.deepEqual([vocabulary.done, vocabulary.total], [0, 1]);
 assert.equal(vocabulary.nextUpcoming.weekStart, day(9));
+
+// Completion today is independent of the original scheduled week.
+const originalLessonCount = lessons.length;
+const extraLessons = [
+  ["old-week-today", "完成", day(-30), day(0)],
+  ["unscheduled-today", "完成", null, day(0)],
+  ["future-week-today", "完成", day(9), day(0)],
+  ["historical", "完成", day(-30), day(-1)],
+  ["missing-date", "完成", day(-30), null],
+].map(([id, status, weekStart, doneDate], i) => {
+  const page = lessonPage(id, id, "英文", "英文主課", status, weekStart, i + 10);
+  page.properties[P.lesson.doneDate] = { date: doneDate ? { start: doneDate } : null };
+  return page;
+});
+lessons.push(...extraLessons);
+const beforeTodayCompletionRead = calls.length;
+const todayCompletions = await (await call("GET", "/api/state")).json();
+assert.deepEqual(todayCompletions.lessons.map((l) => l.id), [englishLessonId, "old-week-today", "unscheduled-today", "future-week-today"]);
+assert.equal(todayCompletions.lessons.find((l) => l.id === "old-week-today").doneDate, day(0));
+const fullEnglish = todayCompletions.courseStats.find((g) => g.course === "英文主課");
+assert.deepEqual([fullEnglish.done, fullEnglish.total], [6, 7], "hidden historical completions still count toward full progress");
+assert.equal(calls.slice(beforeTodayCompletionRead).some((c) => c.method === "PATCH" || c.method === "POST" && !c.url.endsWith("/query")), false,
+  "showing today's completions performs no data writes");
+lessons.splice(originalLessonCount);
 
 const beforeTaskWrite = calls.length;
 assert.equal((await call("POST", `/api/task/${taskId}`, { done: true })).status, 200);
