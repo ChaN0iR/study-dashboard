@@ -13,7 +13,7 @@ test('index.html references the updated desktop card assets exactly once', () =>
 });
 
 test('SW cache and shell match the index.html static asset references', () => {
-  assert.match(sw, /^const CACHE = "sd-v131";$/m);
+  assert.match(sw, /^const CACHE = "sd-v132";$/m);
   assert.equal(new Set(shell).size, shell.length, 'shell has no duplicate entries');
   for (const entry of ['./', 'index.html', 'app.js?v=119', 'style.css?v=123']) assert.ok(shell.includes(entry), entry);
   assert.deepEqual(shell.filter(entry => /^(app\.js|style\.css)(\?|$)/.test(entry)), ['style.css?v=123', 'app.js?v=119']);
@@ -208,13 +208,17 @@ with tempfile.TemporaryDirectory(prefix='desktop-cards-') as temp:
                     for page in [bp,cp]:
                         page.locator('#tabs button[data-t="' + tab + '"]').click()
                         expect(page.locator('.desktop-card-toggle')).to_have_count(0)
+                    # Only the approved Dashboard shortcut artwork differs from the release base.
+                    # Keep its wrapper geometry/style in the equality checks; hide only artwork.
+                    for page in [bp,cp]:
+                        page.add_style_tag(content='#recall-room-shortcut > svg{visibility:hidden!important}')
                     bp.mouse.move(0,0); cp.mouse.move(0,0)
                     bp.bring_to_front()
                     before = bp.screenshot(animations='disabled')
                     cp.bring_to_front()
                     after = cp.screenshot(animations='disabled')
                     # Exact layout/style comparison catches even invisible mobile regressions.
-                    inspect = '''() => [...document.querySelectorAll('header,header *,main,main *,#tabs,#tabs *')].map(e => {
+                    inspect = '''() => [...document.querySelectorAll('header,header *,main,main *,#tabs,#tabs *')].filter(e => !e.closest('#recall-room-shortcut svg')).map(e => {
                         const s=getComputedStyle(e),r=e.getBoundingClientRect();
                         return {tag:e.tagName,id:e.id,cls:e.getAttribute('class'),text:e.children.length?null:e.textContent,
                             value:'value' in e?e.value:null,box:[r.x,r.y,r.width,r.height],
