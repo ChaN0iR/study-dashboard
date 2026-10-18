@@ -967,6 +967,21 @@ button:active,a.icon-btn:active,.chk:active,.fc-hist:active{box-shadow:0 0 0 1px
   body[data-tab=record] .rec>#save-record{min-height:48px;margin-top:12px}
   body[data-tab=notes] .note-card>.n-save{min-height:48px!important}
 }
+/* Mobile quick notes: reset legacy row wrapping / percentage flex-basis. */
+@media(max-width:899px){
+  body[data-tab=notes] main .note-card{min-width:0}
+  body[data-tab=notes] .note-card>.note-content{gap:14px;padding:3px 3px 4px}
+  body[data-tab=notes] .note-content>.note-row:not(.note-editor){grid-template-columns:minmax(0,1fr) 96px;gap:12px}
+  body[data-tab=notes] .note-content>.note-editor{flex:1 0 auto;flex-wrap:nowrap;gap:8px;margin:0;min-height:180px}
+  body[data-tab=notes] .note-content .note-editor textarea#n-points{flex:1 1 auto;min-width:0;max-width:100%;min-height:180px;max-height:none}
+  body[data-tab=notes] .note-content .note-row input,
+  body[data-tab=notes] .note-content .note-row select{min-width:0;max-width:100%;min-height:46px}
+  body[data-tab=notes] .note-content>.n-draft{margin:0;min-width:0}
+  body[data-tab=notes] .note-content>.n-draft:empty{display:none}
+  body[data-tab=notes] .note-card>.n-tools{gap:10px}
+  body[data-tab=notes] .note-card>.note-footer{flex-wrap:wrap;column-gap:12px;row-gap:0}
+  body[data-tab=notes] .note-footer #mode{min-width:0;flex:1}
+}
 @media(min-width:900px) and (min-height:560px){
   .col>.rec,.col>.note-card{display:flex!important;flex-direction:column;flex:1 1 0;min-height:0;overflow:hidden!important}
   .rec-content>.fields .fld{min-height:64px}
