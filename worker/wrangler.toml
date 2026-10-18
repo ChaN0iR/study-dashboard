@@ -22,3 +22,10 @@ ALLOWED_ORIGIN = "https://chan0ir.github.io"
 # Secrets (NOT stored here):
 #   wrangler secret put NOTION_TOKEN
 #   wrangler secret put APP_KEY
+
+# 回想室掛載於同一 Worker origin 的 /recall/；專用正式 D1。
+[[d1_databases]]
+binding = "DB"
+database_name = "recall-room-accounts"
+database_id = "ca84bad4-b5ad-4534-9b55-ed69ba063f51"
+migrations_dir = "./recall/migrations"

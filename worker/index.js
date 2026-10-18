@@ -3,6 +3,10 @@ import { createAutomation, DAILY_CRON } from "./automation.js";
 import { AutomationJournal } from "./journal.js";
 import { createRescheduler } from "./reschedule.js";
 
+import { authApi, progressApi, authenticatedUser } from "./recall/auth.js";
+import { grade as recallGrade } from "./recall/worker.js";
+import { fetchRecallAsset } from "./recall/assets.generated.js";
+
 const NOTION = "https://api.notion.com/v1";
 const NOTION_VERSION = "2022-06-28";
 const ID_RE = /^[0-9a-f]{8}-?[0-9a-f]{4}-?[0-9a-f]{4}-?[0-9a-f]{4}-?[0-9a-f]{12}$/i;
@@ -588,6 +592,29 @@ export class LessonAutomationCoordinator {
 }
 
 // ---------- router ----------
+const recallJson = (body, status = 200) => new Response(JSON.stringify(body), {
+  status,
+  headers: { "content-type": "application/json; charset=utf-8", "cache-control": "no-store, private" },
+});
+
+async function recallGradeForUser(request, env) {
+  if (!env.DB) return recallJson({ code: "AUTH_STORAGE_NOT_CONFIGURED" }, 503);
+  try {
+    if (!(await authenticatedUser(env, request))) return recallJson({ code: "UNAUTHORIZED" }, 401);
+  } catch {
+    return recallJson({ code: "AUTH_STORAGE_ERROR" }, 503);
+  }
+  return recallGrade(request, env);
+}
+
+async function recallAsset(request) {
+  if (request.method !== "GET" && request.method !== "HEAD") return new Response("method not allowed", { status: 405, headers: { allow: "GET, HEAD" } });
+  const url = new URL(request.url);
+  if (url.pathname === "/recall") return new Response(null, { status: 308, headers: { location: "/recall/" } });
+  url.pathname = url.pathname.slice("/recall".length) || "/";
+  return fetchRecallAsset(new Request(url, request));
+}
+
 export default {
   async scheduled(controller, env, ctx) {
     if (controller.cron !== DAILY_CRON) throw new Error("unexpected daily lesson cron");
@@ -600,6 +627,10 @@ export default {
     try {
       const url = new URL(request.url);
       const path = url.pathname.replace(/\/+$/, "") || "/";
+      if (path === "/recall" || url.pathname.startsWith("/recall/")) return recallAsset(request);
+      if (url.pathname.startsWith("/api/auth/")) return authApi(request, env, url.pathname);
+      if (url.pathname === "/api/progress") return progressApi(request, env);
+      if (url.pathname === "/api/grade") return recallGradeForUser(request, env);
       if (path === "/" || path === "/health") return json({ ok: true }, 200, env);
       if (!env.APP_KEY) throw new HttpError(500, "worker secrets not configured");
       if (!safeEqual(request.headers.get("x-app-key") || "", env.APP_KEY)) throw new HttpError(401, "bad app key");
