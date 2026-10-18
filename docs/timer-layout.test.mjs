@@ -14,9 +14,9 @@ test('static PWA shell references and CSS cache-bust', async () => {
   const refs = [...html.matchAll(/<(?:link|script)\b[^>]*\b(?:href|src)="([^"]+)"/g)]
     .map(match => match[1]);
   const cssRefs = refs.filter(ref => /^style\.css(?:\?|$)/.test(ref));
-  assert.deepEqual(cssRefs, ['style.css?v=120']);
+  assert.deepEqual(cssRefs, ['style.css?v=121']);
   assert.deepEqual(shell.filter(ref => /^style\.css(?:\?|$)/.test(ref)), cssRefs);
-  assert.equal(cache, 'sd-v128');
+  assert.equal(cache, 'sd-v129');
   assert.equal(new Set(shell).size, shell.length, 'duplicate shell reference');
   assert.ok(!sw.includes('style.css?v=119') && !html.includes('style.css?v=119'), 'stale CSS URL');
   for (const ref of refs) assert.ok(shell.includes(ref), `index reference missing from shell: ${ref}`);
@@ -72,6 +72,12 @@ const cssChecks = String.raw`
   const check = (condition, message) => { if (!condition) throw Error(message); };
   const $ = id => document.getElementById(id);
   const desktop = matchMedia('(min-width:900px) and (min-height:560px)').matches;
+  if (desktop) {
+    // Measure the resting layout, not an arbitrary frame of the pencil's rotation.
+    const stableIcon = document.createElement('style');
+    stableIcon.textContent = '.top>.focus #fc-subject-icon{animation:none!important}';
+    document.head.append(stableIcon);
+  }
   const box = element => element.getBoundingClientRect();
   const style = (element, pseudo = undefined) => getComputedStyle(element, pseudo);
   const visible = element => box(element).width > 0 && box(element).height > 0 && style(element).opacity !== '0';
@@ -95,6 +101,16 @@ const cssChecks = String.raw`
   };
   const main = $('fc-main'), focus = $('focus'), time = $('fc-time'), heading = $('fc-heading'), hist = $('fc-hist'), subj = $('fc-subj');
   check(main && focus && time && heading && hist && subj, 'timer structure is incomplete');
+  // Measure visible first-row content, not transparent 44px hit areas or picker buttons.
+  const desktopVisualGeometry = () => {
+    const elements = [$('fc-subject-icon'), heading, time, hist.querySelector('svg')].filter(visible);
+    const bounds = elements.map(box);
+    const left = Math.min(...bounds.map(rect => rect.left));
+    const right = Math.max(...bounds.map(rect => rect.right));
+    return {left, right, center:(left + right) / 2, offset:(left + right) / 2 - innerWidth / 2,
+      elements:elements.map(el => ({id:el.id || 'history-icon', ...box(el).toJSON()})),
+      slots:Object.fromEntries([$('fc-heading-wrap'), main, hist].map(el => [el.id, box(el).toJSON()]))};
+  };
   check(shortcuts.length === 6, 'header must expose exactly six shortcuts');
   check(style(document.body).backgroundImage === 'none', 'unexpected body image/network asset');
   const assertBase = () => {
@@ -119,7 +135,12 @@ const cssChecks = String.raw`
     check(style(focus, '::before').content === 'none' && style(focus, '::after').content === 'none', 'focus pseudo shell remains');
     check(style(focus).borderTopWidth === '0px', 'focus has an outer border');
     check(box(hist).left >= box(main).right - 1, 'history overlaps or precedes main control');
-    check(Math.abs((box(focus).left + box(focus).right) / 2 - innerWidth / 2) < 2, 'focus is not viewport centered');
+    const visual = desktopVisualGeometry();
+    check(Math.abs(visual.offset) < .25, 'visible timer group is not viewport centered: ' + visual.offset + 'px');
+    const iconSlot = box($('fc-heading-wrap')), historySlot = box(hist), focusBox = box(focus);
+    check(near(iconSlot.width, 44) && near(historySlot.width, 44), 'desktop side hit areas changed');
+    check(near((iconSlot.left + iconSlot.right) / 2, focusBox.left + 22), 'subject icon slot left its grid track');
+    check(near((historySlot.left + historySlot.right) / 2, focusBox.right - 22), 'history slot left its grid track');
     const cols = style(focus).gridTemplateColumns;
     const trackSizes = cols.split(' ').filter(Boolean);
     check(trackSizes[0] === '44px' && trackSizes.at(-1) === '44px' && trackSizes.length >= 3, 'focus does not reserve 44px side columns');
@@ -139,13 +160,13 @@ const cssChecks = String.raw`
     if (desktop) {
       check(style(time).display !== 'none' || state === 'picker', 'clock unexpectedly hidden');
       check(visible(heading) && visible(hist), 'title/history lost');
-      check(center(box(heading), {left:0,right:innerWidth}), 'timer title is not viewport centered');
+      check(center(box(heading), box(main)), 'timer title is not centered in its control');
       check(style(heading).letterSpacing === 'normal' || style(heading).letterSpacing === '0px', 'title has trailing letter spacing that offsets visible glyphs');
       check(!visible($('fc-goal')) && style($('fc-goal')).display === 'none', 'desktop timer underline/progress track remains');
       check(box($('fc-prog-i').parentElement).height === 0, 'desktop progress track still occupies space');
       if (state !== 'picker') {
         assertBase();
-        check(center(box(time), {left:0,right:innerWidth}), 'time readout is not viewport centered');
+        check(center(box(time), box(main)), 'time readout is not centered in its control');
       }
       if (state === 'picker') {
         check(style(time).display === 'none', 'picker clock should stay hidden');
@@ -169,7 +190,7 @@ const cssChecks = String.raw`
       }
       check(!overlap(box(main), box(hist)), 'main/history overlap');
       check(!overlap(box(heading), box(time)), 'title/clock overlap');
-      check(center(box(main), {left:0,right:innerWidth}), 'main is not centered in viewport');
+      check(center(box(main), box(focus)), 'main is not centered inside the complete timer group');
       desktopChecks();
     } else {
       mobileChecks(); assertBase();
@@ -178,6 +199,7 @@ const cssChecks = String.raw`
     window.__timerGeometry ||= [];
     window.__timerGeometry.push({state, viewport:innerWidth, viewportCenter:innerWidth/2,
       centers:Object.fromEntries([focus,main,heading,time].map(el => [el.id,(box(el).left+box(el).right)/2])),
+      ...(desktop ? {visual:desktopVisualGeometry()} : {}),
       shortcuts:{group:box(actions).toJSON(), buttons:shortcuts.map(el => ({id:el.id,...box(el).toJSON()})), columns:style(actions).gridTemplateColumns},
       goalDisplay:style($('fc-goal')).display, trackHeight:box($('fc-prog-i').parentElement).height});
   };
@@ -193,7 +215,7 @@ const cssChecks = String.raw`
     assertState('idle'); assertState('running');
     for (const label of ['英文', '化學', '生物', '物理', '生化']) {
       heading.textContent = label; assertBase();
-      if (desktop) check(center(box(heading), {left:0,right:innerWidth}), 'subject label is not viewport centered');
+      if (desktop) { check(center(box(heading), box(main)), 'subject label is not centered in its control'); desktopChecks(); }
     }
     assertState('picker'); assertState('idle'); document.body.dataset.timerTest = 'PASS';
   }

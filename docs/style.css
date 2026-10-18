@@ -841,7 +841,8 @@ button:active,a.icon-btn:active,.chk:active,.fc-hist:active{box-shadow:0 0 0 1px
 @media (min-width:900px) and (min-height:560px){
   .top{position:relative;z-index:20;grid-template-columns:minmax(0,1fr) minmax(0,clamp(280px,34vw,560px)) minmax(0,1fr);column-gap:12px;align-items:center}
   .top>.focus,.top>.focus.is-choosing{
-    position:relative!important;inset:auto;transform:none;z-index:auto;
+    /* Center the visible group: 24px subject SVG vs 18px history SVG = 1.5px optical correction. */
+    position:relative!important;inset:auto;transform:translateX(1.5px);z-index:auto;
     display:grid!important;grid-template-columns:44px minmax(0,1fr) 44px!important;
     grid-template-areas:"timer-icon timer-main timer-history";
     align-items:center;justify-items:center;gap:6px 12px;flex:none;
