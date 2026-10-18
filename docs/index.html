@@ -10,7 +10,7 @@
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="apple-touch-icon" href="icons/icon-192.png">
 <link rel="icon" href="icons/icon.svg" type="image/svg+xml">
-<link rel="stylesheet" href="style.css?v=116">
+<link rel="stylesheet" href="style.css?v=117">
 <title>清大後醫</title>
 </head>
 <body>
@@ -85,6 +85,7 @@
     <h2>成就 <span id="lesson-count" class="muted"></span> <span id="xp-total" class="muted"></span></h2>
     <div class="achievement-content">
     <div id="achievement-summary" aria-label="成就摘要"></div>
+    <section id="reschedule-card" class="reschedule-card" aria-label="進度重排待審" hidden></section>
     <details class="xp-explanation"><summary>積分計算規則</summary><p>只計入日期為今天、已完成、未跳過且明確屬於學習的任務（包含 Anki 學習／複習）。XP＝四捨五入〔10 × Σ（預估分鐘 × 難度係數）÷ 30〕；簡單 0.75、標準 1.0、困難 1.5，先加總再四捨五入。生活、行政及未分類任務不計；缺估時或難度的已完成學習任務會標示但不計分。沒有課程關聯仍計入總分並列為未指派，單一課程關聯歸該課，多課程關聯則均分，不重複計入總分。取消完成會依現況扣回；API 寫入失敗會還原勾選與分數。分數只依成功載入的今日狀態重算，不寫回 Notion；資料載入失敗時顯示「未驗證」。</p></details>
     <ul id="lessons" class="list"></ul>
     </div>
@@ -98,7 +99,7 @@
 <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
 <script src="config.js?v=89"></script>
 <script src="task-policy.js?v=1"></script>
-<script src="app.js?v=114"></script>
+<script src="app.js?v=115"></script>
 <script>(function(){var b=document.querySelectorAll("#tabs button");function go(t){t=t||"today";document.body.dataset.tab=t;localStorage.setItem("sd-tab",t);b.forEach(function(x){x.setAttribute("aria-selected",x.dataset.t==t)})}b.forEach(function(x){x.onclick=function(){go(x.dataset.t)}});go(localStorage.getItem("sd-tab")||"today")})()</script>
 </body>
 </html>

@@ -21,7 +21,7 @@ export function selectDailyLessons(lessons, today) {
   return [...bySubject.values()];
 }
 
-export function createAutomation({ notion, queryAll, shapeLesson, rd, wr, journal }) {
+export function createAutomation({ notion, queryAll, shapeLesson, rd, wr, journal, onCompletion }) {
   const requireJournal = () => { if (!journal) throw new Error("durable automation journal required"); };
   const fullLessonTask = (page) => {
     const p = page.properties || {};
@@ -91,6 +91,7 @@ export function createAutomation({ notion, queryAll, shapeLesson, rd, wr, journa
       return false;
     }
     if (rd.select(lesson.properties[P.lesson.status]) === STATUS_DONE) {
+      if (onCompletion && recorded.completion.phase === "lesson_pending") await onCompletion(shapeLesson(lesson));
       await journal.completionPhase(task.id, "preserved", { lessonDoneDate: rd.date(lesson.properties[P.lesson.doneDate]) });
       return false;
     }
@@ -111,6 +112,7 @@ export function createAutomation({ notion, queryAll, shapeLesson, rd, wr, journa
       });
       throw error;
     }
+    if (onCompletion) await onCompletion({ ...shapeLesson(lesson), done: true, doneDate: recorded.completion.date });
     await journal.completionPhase(task.id, "applied", { latencyMs: Date.now() - attemptStarted });
     if (knownLessons?.has(normalizeId(owned.lessonId))) {
       const cached = knownLessons.get(normalizeId(owned.lessonId));

@@ -1,3 +1,3 @@
 { "name": "study-dashboard-api", "private": true, "type": "module",
-  "scripts": { "dev": "wrangler dev", "deploy": "wrangler deploy", "test": "node test.mjs && node automation.test.mjs && node journal.test.mjs && node durable.test.mjs && node runtime.test.mjs" },
+  "scripts": { "dev": "wrangler dev", "deploy": "wrangler deploy", "test": "node test.mjs && node automation.test.mjs && node journal.test.mjs && node durable.test.mjs && node runtime.test.mjs && node reschedule.test.mjs && node reschedule-api.test.mjs" },
   "devDependencies": { "wrangler": "^4" } }

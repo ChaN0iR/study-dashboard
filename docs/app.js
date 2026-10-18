@@ -22,6 +22,8 @@
   let activeScheduleSlots = [];
   let activeScheduleSlot = null;
   let activeScheduleKey = "";
+  let rescheduleProposal = null;
+  let rescheduleApproving = false;
 
   // ---------- helpers ----------
   function el(tag, props = {}, ...kids) {
@@ -89,6 +91,11 @@
         { id: "l3", title: "生化先修 第01-2堂", done: false, status: "未開始", subject: "生化", minutes: 82, week: "W01 10/14–10/18", reviews: 0, order: 3 },
         { id: "l4", title: "物理先修 第01-1堂", done: true, status: "完成", subject: "物理", minutes: 45, week: "W01 10/14–10/18", reviews: 0, order: 4 },
       ],
+      reschedule: {
+        id: "demo-reschedule-1", state: "pending", expiresAt: "2027-03-20T23:59:59+08:00",
+        reason: "示範：避開考試週，保留 2027-03-15 那週與 3 月 20 日考試日。",
+        items: [{ id: "l2", title: "普化先修 第02-1堂", before: { week: "W01", weekStart: "2026-10-12" }, after: { week: "W22", weekStart: "2027-03-15" }, reason: "考試前保留緩衝，順延至考試週後。" }]
+      },
       focus: {
         now, today: d, active: null, todayDoneSec: 6000,
         sessions: [
@@ -105,6 +112,12 @@
       await new Promise((r) => setTimeout(r, 120));
       const [, , kind, id] = path.split("/");
       const db = demoDb;
+      if (kind === "reschedule") {
+        if (!body) return { proposal: structuredClone(db.reschedule) };
+        if (id !== db.reschedule.id || body.approve !== true) throw new Error("DEMO_API_UNSUPPORTED:" + path);
+        db.reschedule = { ...db.reschedule, state: "applied" };
+        return { proposal: structuredClone(db.reschedule) };
+      }
       if (kind === "focus") {
         const f = db.focus, at = Date.now();
         const complete = () => {
@@ -154,7 +167,7 @@
     });
     if (res.status === 401) { localStorage.removeItem("appKey"); throw new Error("APP_KEY 錯誤，請重新輸入"); }
     const data = await res.json().catch(() => ({}));
-    if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
+    if (!res.ok) { const error = new Error(data.error || `HTTP ${res.status}`); error.status = res.status; throw error; }
     return data;
   }
 
@@ -550,6 +563,71 @@
       total: complete ? rows.reduce((n, g) => n + g.total, 0) : lessons.length,
       done: complete ? rows.reduce((n, g) => n + g.done, 0) : lessons.filter((l) => l.done === true).length };
   }
+  const rescheduleWeek = (w) => `${w?.week || "未定"} · ${w?.weekStart || "日期未定"}`;
+  function rescheduleExpired(p) {
+    if (!p || p.expiresAt == null || p.expiresAt === "") return false;
+    const raw = Number(p.expiresAt);
+    const at = Number.isFinite(raw) && raw > 0 ? raw : Date.parse(String(p.expiresAt));
+    return Number.isFinite(at) && at <= Date.now();
+  }
+  function renderReschedule() {
+    const box = $("reschedule-card"); if (!box) return;
+    const p = rescheduleProposal;
+    box.replaceChildren(); box.hidden = !p || ["applied", "superseded"].includes(p.state);
+    if (!p || box.hidden) return;
+    const conflict = p.state === "conflict";
+    const expired = rescheduleExpired(p);
+    box.append(el("div", { class: "reschedule-head" }, el("div", {}, el("h3", {}, "進度重排待審"), el("span", { class: "muted" }, p.state === "pending" ? "待核准" : p.state)),
+      p.reason ? el("p", { class: "achievement-note" }, p.reason) : null));
+    const list = el("ul", { class: "reschedule-list" });
+    for (const item of Array.isArray(p.items) ? p.items : []) {
+      list.append(el("li", { class: "reschedule-item" }, el("strong", {}, item.title || item.id),
+        el("div", { class: "meta" }, `${rescheduleWeek(item.before)} → ${rescheduleWeek(item.after)}`),
+        el("div", { class: "meta" }, [item.estimatedMinutes != null ? `估計 ${item.estimatedMinutes} 分鐘` : null, item.reason || "未提供理由"].filter(Boolean).join("　")),
+        item.state === "conflict" ? el("div", { class: "reschedule-conflict", role: "alert" }, `此列衝突：${item.conflictReason || "現況已變更，未覆蓋"}`) :
+          item.state === "applied" ? el("div", { class: "meta" }, "此列已套用；不會重送") :
+          item.state === "noop" ? el("div", { class: "meta" }, "此列已等於目標；未寫入") : null));
+    }
+    const weekMinutes = new Map();
+    for (const item of (Array.isArray(p.items) ? p.items : [])) {
+      if (item.estimatedMinutes == null) continue;
+      const minutes = Number(item.estimatedMinutes);
+      const week = item.after?.week || item.after?.weekStart;
+      if (Number.isFinite(minutes) && week) weekMinutes.set(week, (weekMinutes.get(week) || 0) + minutes);
+    }
+    const estimate = weekMinutes.size ? `本提案移入週分鐘估算：${[...weekMinutes].map(([w, m]) => `${w} ${m} 分鐘`).join("、")}。` : "";
+    box.append(list, el("p", { class: "achievement-note" }, `${estimate}僅為本提案原速移入估算，非全庫容量驗證；未知分鐘未當零。最晚 2027-03-15 那週保留；3 月 20 日考試日保留。同課程保序，不假設跨課程前置。`),
+      el("p", { class: "achievement-note" }, "核准前會重讀比對；Notion 不支援原子條件更新，仍有極短人工同改競態風險。"));
+    if (conflict) box.append(el("p", { class: "reschedule-conflict", role: "alert" }, "排程已有衝突，已停止核准；請重新載入最新提案。"));
+    else if (p.state === "applying") box.append(el("p", { class: "achievement-note" }, "套用結果未知，已停止自動重送，需核對。"));
+    else if (expired) box.append(el("p", { class: "reschedule-conflict", role: "alert" }, "提案已過期，禁止核准；請重新載入最新提案。"));
+    else {
+      const n = Array.isArray(p.items) ? p.items.length : 0;
+      const b = el("button", { class: "primary reschedule-approve", type: "button", disabled: rescheduleApproving || p.state !== "pending" || expired,
+        onclick: () => approveReschedule() }, rescheduleApproving ? "核准中…" : `核准這 ${n} 堂週次調整`);
+      box.append(b);
+    }
+  }
+  const rescheduleValue = (payload) => payload && Object.prototype.hasOwnProperty.call(payload, "proposal") ? payload.proposal : payload;
+  async function loadReschedule() {
+    try { rescheduleProposal = rescheduleValue(await api("/api/reschedule")); renderReschedule(); }
+    catch (e) { rescheduleProposal = null; renderReschedule(); }
+  }
+  async function approveReschedule() {
+    const p = rescheduleProposal;
+    if (!p || p.state !== "pending" || rescheduleApproving || rescheduleExpired(p)) return;
+    rescheduleApproving = true; renderReschedule();
+    try {
+      rescheduleProposal = rescheduleValue(await api(`/api/reschedule/${p.id}/approve`, { approve: true }));
+      renderReschedule(); toast("週次調整已送出");
+    } catch (e) {
+      if (e.status === 409) {
+        try { rescheduleProposal = rescheduleValue(await api("/api/reschedule")); renderReschedule(); toast("提案已變更，已重新讀取"); }
+        catch (readError) { rescheduleProposal = null; renderReschedule(); showError(readError); }
+      } else showError(e);
+    } finally { rescheduleApproving = false; renderReschedule(); }
+  }
+
   function renderLessons() {
     const data = achievementData(), { points } = data;
     const verified = xpVerified && state.today === taipeiNow().date;
@@ -592,7 +670,7 @@
 
   function renderAll() {
     { const dt = state.today || taipeiNow().date, wd = String(taipeiNow().wd || ""), w1 = ({Mon:"一",Tue:"二",Wed:"三",Thu:"四",Fri:"五",Sat:"六",Sun:"日"})[wd.slice(0, 3)] || wd.replace("星期", "").replace("週", "").slice(0, 1); $("date").replaceChildren(Object.assign(document.createElement("span"), { className: "dl", textContent: `${dt}　${wd}` }), Object.assign(document.createElement("span"), { className: "ds", textContent: `${dt.slice(5).replace("-", "/")} 週${w1}` })); }
-    renderNow(); renderTasks(); renderRecord(); renderLessons();
+    renderNow(); renderTasks(); renderRecord(); renderReschedule(); renderLessons();
   }
 
   // ---------- actions (optimistic) ----------
@@ -621,6 +699,7 @@
         await api(`/api/task/${id}`, { done: next });
         const current = taskWriteTarget({ id });
         if (current) current.done = next;
+        if (typeof loadReschedule === "function") await loadReschedule();
       } catch (e) {
         const current = taskWriteTarget({ id });
         if (current) current.done = previous;
@@ -655,6 +734,7 @@
     if (group) group.done = Math.max(0, Math.min(group.total, group.done + (l.done ? 1 : -1)));
     renderAll();
     await api(`/api/lesson/${l.id}`, { done: l.done });
+    await loadReschedule();
   });
   const reviewLesson = (l) => guarded(async () => { l.reviews++; renderAll(); await api(`/api/lesson/${l.id}`, { review: true }); }, "已記錄複習");
 
@@ -666,6 +746,7 @@
       state = incoming;
       xpVerified = !DEMO;
       banner(""); renderAll();
+      await loadReschedule();
     } catch (e) { xpVerified = false; if (!silent) showError(e); renderAll(); }
   }
 
@@ -724,6 +805,7 @@
         "心得": $("f-review").value, "運動": "", "重點": $("f-points").value, "心情": mood || "",
       });
       renderRecord();
+      await loadReschedule();
     }, "已儲存");
     // keep fixed layout from drifting when focus scrolls hidden containers
     ["main", ".col", ".card"].forEach((sel) => document.querySelectorAll(sel).forEach((n) => n.addEventListener("scroll", () => { if (n.scrollTop) n.scrollTop = 0; }, { passive: true })));

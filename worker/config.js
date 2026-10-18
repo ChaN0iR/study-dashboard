@@ -50,6 +50,7 @@ export const P = {
     title: "名稱",
     status: "狀態",       // 未開始 / 進行中 / 完成
     doneDate: "完成日",
+    type: "類型",        // rescheduling requires an explicitly classified 影片
     order: "排序",
     subject: "科目",
     course: "課程",

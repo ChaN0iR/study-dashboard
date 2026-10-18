@@ -1,6 +1,7 @@
 import { DB, P, MOODS, SUBJECTS, STATUS_DONE, STATUS_TODO } from "./config.js";
 import { createAutomation, DAILY_CRON } from "./automation.js";
 import { AutomationJournal } from "./journal.js";
+import { createRescheduler } from "./reschedule.js";
 
 const NOTION = "https://api.notion.com/v1";
 const NOTION_VERSION = "2022-06-28";
@@ -35,8 +36,8 @@ class HttpError extends Error {
   constructor(status, message) { super(message); this.status = status; }
 }
 
-async function notion(env, path, method = "GET", body) {
-  const safeRetry = method === "GET" || method === "PATCH" || path.endsWith("/query");
+async function notion(env, path, method = "GET", body, options = {}) {
+  const safeRetry = !options.once && (method === "GET" || method === "PATCH" || path.endsWith("/query"));
   for (let attempt = 0; ; attempt++) {
     const res = await fetch(NOTION + path, {
       method,
@@ -162,6 +163,8 @@ const shapeLesson = (pg) => {
     title: rd.title(p[L.title]),
     status: rd.select(p[L.status]) || STATUS_TODO,
     done: rd.select(p[L.status]) === STATUS_DONE,
+    doneDate: rd.date(p[L.doneDate]),
+    type: rd.select(p[L.type]),
     subject: rd.select(p[L.subject]),
     course: rd.select(p[L.course]),
     minutes: rd.number(p[L.length]),
@@ -531,7 +534,9 @@ export class LessonAutomationCoordinator {
     this.env = env;
     this.queue = Promise.resolve();
     this.journal = new AutomationJournal(ctx.storage);
-    this.automation = createAutomation({ notion, queryAll, shapeLesson, rd, wr, journal: this.journal });
+    this.rescheduler = createRescheduler({ notion, rd, wr, storage: ctx.storage });
+    this.automation = createAutomation({ notion, queryAll, shapeLesson, rd, wr, journal: this.journal,
+      onCompletion: (lesson) => this.rescheduler.recordCompletion(lesson) });
   }
   fetch(request) {
     const run = this.queue.catch(() => {}).then(async () => {
@@ -549,14 +554,31 @@ export class LessonAutomationCoordinator {
         }
         if (path === "/daily") {
           if (body.cron !== DAILY_CRON || !Number.isFinite(body.scheduledTime)) throw new HttpError(400, "invalid cron event");
-          return Response.json(await this.automation.runDaily(this.env, body.scheduledTime));
+          const result = await this.automation.runDaily(this.env, body.scheduledTime);
+          if (!result.stale) await this.rescheduler.refresh(this.env);
+          return Response.json(result);
         }
         if (path === "/task" && ID_RE.test(body.id || "")) {
-          return Response.json(await postTask(this.env, body.id, body.patch || {}, this.automation));
+          const result = await postTask(this.env, body.id, body.patch || {}, this.automation);
+          if (body.patch?.done === true) await this.rescheduler.refresh(this.env);
+          return Response.json(result);
         }
+        if (path === "/lesson" && ID_RE.test(body.id || "")) {
+          const wasDone = body.patch?.done === true &&
+            rd.select((await notion(this.env, `/pages/${body.id}`)).properties?.[P.lesson.status]) === STATUS_DONE;
+          const result = await postLesson(this.env, body.id, body.patch || {});
+          if (body.patch?.done === true) {
+            if (!wasDone) await this.rescheduler.recordCompletion(result);
+            await this.rescheduler.refresh(this.env);
+          }
+          return Response.json(result);
+        }
+        if (path === "/reschedule") return Response.json(await this.rescheduler.current());
+        if (path === "/reschedule/approve")
+          return Response.json(await this.rescheduler.approve(this.env, body.id, body.approve));
         throw new HttpError(404, "not found");
       } catch (error) {
-        return Response.json({ error: error.message || "durable automation failed" }, { status: error instanceof HttpError ? error.status : 500 });
+        return Response.json({ error: error.message || "durable automation failed" }, { status: error.status || 500 });
       }
     });
     this.queue = run;
@@ -592,6 +614,9 @@ export default {
       if (request.method === "GET" && seg[1] === "state" && seg.length === 2)
         return json(await getState(env), 200, env, { "cache-control": "no-store" });
 
+      if (request.method === "GET" && seg[1] === "reschedule" && seg.length === 2)
+        return json(await durableCall(env, "/reschedule", {}), 200, env, { "cache-control": "no-store" });
+
       if (request.method === "GET" && seg[1] === "automation" && seg[2] === "audit" && seg.length === 3)
         return json(await durableCall(env, "/audit", {
           taskId: url.searchParams.get("taskId"), cursor: url.searchParams.get("cursor"),
@@ -601,13 +626,17 @@ export default {
         return json(await getFocus(env), 200, env, { "cache-control": "no-store" });
 
       if (request.method === "POST") {
+        if (seg[1] === "reschedule" && seg[3] === "approve" && seg.length === 4 && /^r\d+$/.test(seg[2])) {
+          const body = await readBody();
+          return json(await durableCall(env, "/reschedule/approve", { id: seg[2], approve: body.approve }), 200, env);
+        }
         if (seg[1] === "focus" && seg.length === 2) return json(await postFocus(env, await readBody()), 200, env);
         if (seg[1] === "record" && seg.length === 2) return json(await postRecord(env, await readBody()), 200, env);
         if (seg[1] === "note" && seg.length === 2) return json(await postNote(env, await readBody()), 200, env);
         if ((seg[1] === "task" || seg[1] === "lesson") && seg.length === 3) {
           if (!ID_RE.test(seg[2])) throw new HttpError(400, "bad id");
           const body = await readBody();
-          return json(seg[1] === "task" ? await durableCall(env, "/task", { id: seg[2], patch: body }) : await postLesson(env, seg[2], body), 200, env);
+          return json(await durableCall(env, `/${seg[1]}`, { id: seg[2], patch: body }), 200, env);
         }
       }
       throw new HttpError(404, "not found");

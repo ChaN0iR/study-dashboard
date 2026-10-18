@@ -1010,3 +1010,9 @@ body[data-tab] .achievements-card #lessons{max-height:none!important;overflow:vi
 .achievements-card .lv-top{flex-wrap:wrap;gap:4px 10px}
 .task-time{display:block;color:var(--mut);font-size:11px;line-height:1.5;white-space:normal;margin-top:2px}
 .achievements-card .xp-explanation p{font-size:12px;line-height:1.6;color:var(--mut);overflow-wrap:anywhere}
+
+/* reschedule review card */
+.reschedule-card{border:1px solid var(--line);border-radius:12px;padding:12px;margin:12px 0;background:var(--bg)}
+.reschedule-head{display:flex;justify-content:space-between;gap:10px;align-items:baseline}.reschedule-head h3{font-size:15px;margin:0 0 6px}
+.reschedule-list{list-style:none;margin:4px 0;padding:0}.reschedule-item{border-top:1px solid var(--line);padding:9px 0}.reschedule-item:first-child{border-top:0}
+.reschedule-item strong{display:block}.reschedule-item .meta{font-size:13px;color:var(--mut);margin-top:2px}.reschedule-approve{margin-top:8px}.reschedule-conflict{font-size:13px;color:var(--mut);border-left:3px solid var(--fg);padding-left:8px}
