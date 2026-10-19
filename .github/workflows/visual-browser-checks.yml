@@ -1,0 +1,62 @@
+name: Visual Browser Checks (Experimental)
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - '.github/workflows/visual-browser-checks.yml'
+      - 'docs/**'
+      - 'scriptable-widget.js'
+
+permissions:
+  contents: read
+
+env:
+  CI: 'true'
+
+jobs:
+  visual-browser:
+    name: Chromium visual regression (experimental)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+          fetch-depth: 0 # tests compare historical Git commits
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: '24'
+      - name: Install isolated Python browser dependencies
+        shell: bash
+        run: |
+          python3 -m venv "$RUNNER_TEMP/visual-venv"
+          "$RUNNER_TEMP/visual-venv/bin/python" -m pip install --disable-pip-version-check 'playwright==1.55.0' 'Pillow==11.3.0'
+          "$RUNNER_TEMP/visual-venv/bin/python" -m playwright install --with-deps chromium
+          echo "$RUNNER_TEMP/visual-venv/bin" >> "$GITHUB_PATH"
+      - name: Expose bundled Chromium under the name expected by existing tests
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import os
+          from pathlib import Path
+          from playwright.sync_api import sync_playwright
+          with sync_playwright() as browser_tools:
+              executable = browser_tools.chromium.executable_path
+          folder = Path(os.environ['RUNNER_TEMP']) / 'visual-browser-bin'
+          folder.mkdir(exist_ok=True)
+          (folder / 'chromium').symlink_to(executable)
+          with open(os.environ['GITHUB_PATH'], 'a', encoding='utf-8') as output:
+              output.write(str(folder) + '\n')
+          print('Chromium available for browser-driven tests')
+          PY
+      - name: Run previously skipped browser checks without hiding failures
+        shell: bash
+        run: |
+          chromium --version
+          python3 -c 'import playwright.sync_api, PIL; print("Python visual test modules available")'
+          node --test --test-concurrency=1 \
+            docs/achievement-toggles.test.mjs \
+            docs/desktop-cards.test.mjs \
+            docs/recall-icon.test.mjs \
+            docs/timer-layout.test.mjs
