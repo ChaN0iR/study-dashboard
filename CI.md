@@ -1,0 +1,32 @@
+# CI checks
+
+This workflow runs on pull requests targeting main, pushes to main, and manual dispatch.
+It runs the locked offline Worker suite, the password policy suite, a Wrangler dry-run bundle, and frontend tests in separate jobs.
+It never deploys, applies migrations, provides production secrets, or calls the live application.
+Only the built-in read-only repository token is available; checkout does not persist credentials.
+Actions are pinned to commit SHAs. Node 24 matches local validation. Dependency install scripts are disabled.
+A dry run validates packaging only, not production configuration.
+
+## Current blockers and scope
+
+This PR is independently based on main ec6ed83 and does not include PR #2, #3, or #4.
+PR #3 contains PR #2 and should be reviewed after it. PR #4 is independent documentation.
+
+On 2026-10-19, a clean LF checkout of main and PR #3 both produced 119 frontend tests:
+106 passed, 1 failed, 12 skipped. The failure at docs/rest-day-policy.test.mjs:72 calls
+widgetTaskModel, which scriptable-widget.js does not define. Its extraction anchors
+WIDGET_STUDY_TASK_TYPES and const today = are also absent. This requires reconciling
+the expected Widget behavior with the current implementation; this CI PR does not change product behavior.
+The job deliberately fails on this regression. No continue-on-error, filtering, or additional skips are used.
+The existing twelve skipped tests remain unverified.
+
+Windows CRLF checkouts produce additional source-extraction failures.
+Linux CI uses LF. PR #3 fixes the separate Windows runtime file-URL issue and Recall asset newline comparisons.
+This does not imply the current main Worker suite has passed on Windows.
+
+PR #3 at 551118a passed the full offline Worker suite and Wrangler dry-run locally on Windows/Node 24.
+Main has not been claimed to pass locally; the first CI execution provides the Linux result.
+The workflow in this PR does not retroactively add checks to the old heads of PR #2, #3, or #4.
+After this workflow reaches main through a separately authorized merge, update those PR branches
+and require both job checks in repository protection rules as a separate administrator action.
+Until then, absence of checks on those PRs is not evidence of success.
