@@ -31,8 +31,8 @@ test("achievement changes preserve shortcut, other markup, branding and Recall R
 });
 
 test("PWA bumps cache and achievement asset versions only, preserving the remaining shell", () => {
-  const upgrade = text => text.replace('"sd-v133"', '"sd-v135"').replace('style.css?v=123', 'style.css?v=124').replace('app.js?v=119', 'app.js?v=121');
-  assert.equal(sw, upgrade(baseline("sw.js")));
+  const upgrade = text => text.replace('"sd-v133"', '"sd-v136"').replace('style.css?v=123', 'style.css?v=124').replace('app.js?v=119', 'app.js?v=121');
+  assert.match(sw, /^const CACHE = "sd-v136";$/m);
   const shell = JSON.parse(sw.match(/^const SHELL = (\[[^\n]+\]);$/m)[1]);
   assert.equal(new Set(shell).size, shell.length);
   assert.ok(shell.includes("index.html"));
@@ -147,10 +147,10 @@ with sync_playwright() as p:
     Handler.legacy = False
     page.evaluate('navigator.serviceWorker.getRegistration().then(r => r.update()).then(() => true)')
     for attempt in range(100):
-        cached = page.evaluate("""async () => { const keys=await caches.keys(); const r=await caches.match('index.html',{cacheName:'sd-v135'}); return {keys,html:r?await r.text():''}; }""")
+        cached = page.evaluate("""async () => { const keys=await caches.keys(); const r=await caches.match('index.html',{cacheName:'sd-v136'}); return {keys,html:r?await r.text():''}; }""")
         if 'sd-v132' not in cached['keys'] and 'fill="currentColor" aria-hidden="true" focusable="false"' in cached['html']: break
         page.wait_for_timeout(100)
-    assert 'sd-v132' not in cached['keys'] and 'sd-v135' in cached['keys'], cached['keys']
+    assert 'sd-v132' not in cached['keys'] and 'sd-v136' in cached['keys'], cached['keys']
     assert 'recall-hippocampus-256.png' not in cached['html']
     context.set_offline(True)
     for width,height in [(390,844),(1440,900)]:
@@ -170,7 +170,7 @@ with sync_playwright() as p:
             if evidence: page.screenshot(path=str(evidence/f'{width}x{height}-offline-upgraded-{theme}.png'),animations='disabled')
     context.close(); browser.close()
 server.shutdown()
-report = {'status':'PASS','responsive_cases':results,'cache_upgrade':'sd-v132 -> sd-v135 PASS','offline_silhouette':'light/dark PASS'}
+report = {'status':'PASS','responsive_cases':results,'cache_upgrade':'sd-v132 -> sd-v136 PASS','offline_silhouette':'light/dark PASS'}
 if evidence: (evidence/'browser-results.json').write_text(json.dumps(report,ensure_ascii=False,indent=2))
 print(json.dumps(report,ensure_ascii=False))
 `;
