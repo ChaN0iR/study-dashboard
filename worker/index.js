@@ -1,3 +1,4 @@
+import { readLimitedText, BodyTooLarge } from "./request-body.js";
 import { DB, P, MOODS, SUBJECTS, STATUS_DONE, STATUS_TODO } from "./config.js";
 import { createAutomation, DAILY_CRON } from "./automation.js";
 import { AutomationJournal } from "./journal.js";
@@ -640,7 +641,14 @@ export default {
         throw new HttpError(500, "worker secrets not configured");
 
       const readBody = async () => {
-        try { return (await request.json()) || {}; } catch { throw new HttpError(400, "invalid JSON"); }
+        try {
+          const body = JSON.parse(await readLimitedText(request, 12_000_000));
+          if (!body || typeof body !== "object" || Array.isArray(body)) throw new Error();
+          return body;
+        } catch (error) {
+          if (error instanceof BodyTooLarge) throw new HttpError(413, "request too large");
+          throw new HttpError(400, "invalid JSON");
+        }
       };
       const seg = path.split("/").filter(Boolean); // ["api", ...]
       if (seg[0] !== "api") throw new HttpError(404, "not found");
@@ -676,7 +684,7 @@ export default {
       throw new HttpError(404, "not found");
     } catch (e) {
       const status = e instanceof HttpError ? e.status : 500;
-      return json({ error: e.message || "error" }, status, env);
+      return json({ error: status >= 500 ? "internal server error" : e.message || "error" }, status, env);
     }
   },
 };

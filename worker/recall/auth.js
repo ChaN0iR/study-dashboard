@@ -1,3 +1,4 @@
+import { readLimitedText, BodyTooLarge } from "../request-body.js";
 const SESSION_TTL_MS = 30 * 24 * 60 * 60 * 1000;
 const COOKIE_NAME = "rr_session";
 const PASSWORD_ITERATIONS = 100_000;
@@ -45,7 +46,12 @@ function limited(ip) {
 async function readJson(request, maxBytes = MAX_REQUEST_BYTES) {
   const declared = Number(request.headers.get("content-length") || 0);
   if (declared > maxBytes) return { error: "REQUEST_TOO_LARGE" };
-  const raw = await request.text();
+  let raw;
+  try { raw = await readLimitedText(request, maxBytes); }
+  catch (error) {
+    if (error instanceof BodyTooLarge) return { error: "REQUEST_TOO_LARGE" };
+    throw error;
+  }
   if (raw.length > maxBytes) return { error: "REQUEST_TOO_LARGE" };
   try {
     const value = JSON.parse(raw);
