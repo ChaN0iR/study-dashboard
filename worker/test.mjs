@@ -21,7 +21,7 @@ const day = (offset) => {
   const d = new Date(Date.now() + 8 * 3600e3 + offset * 86400e3);
   return d.toISOString().slice(0, 10);
 };
-const taskPage = (id, title, { date = day(0), done = false, skipped = false, makeup = false, order = 1, prerequisites = [], lessonIds = [] } = {}) => ({
+const taskPage = (id, title, { date = day(0), done = false, skipped = false, makeup = false, order = 1, prerequisites = [], lessonIds = [], scheduledTime, recallRoom } = {}) => ({
   id,
   properties: {
     "任務": { title: [{ plain_text: title }] },
@@ -36,16 +36,20 @@ const taskPage = (id, title, { date = day(0), done = false, skipped = false, mak
     "對應堂次": { relation: lessonIds.map((id) => ({ id })) },
     "可補做": { checkbox: makeup },
     "前置任務": { relation: prerequisites.map((id) => ({ id })) },
+    ...(scheduledTime !== undefined ? { "排定時段": { rich_text: scheduledTime === "" ? [] : [{ plain_text: scheduledTime }] } } : {}),
+    ...(recallRoom !== undefined ? { "回想室": { checkbox: recallRoom } } : {}),
   },
 });
-const task = taskPage(taskId, "英文主課第02-1堂", { lessonIds: [englishLessonId] });
+const task = taskPage(taskId, "英文主課第02-1堂", {
+  lessonIds: [englishLessonId], scheduledTime: " 08:00-09:30 / 跨段 raw ", recallRoom: true,
+});
 const carryoverRows = [
   taskPage(physicsBackId, "物理先修後段練習題", { date: day(-1), makeup: true, prerequisites: [blockedPrerequisiteId], order: 1 }),
-  taskPage(physicsReadyId, "物理先修另一題練習", { date: day(-2), makeup: true, prerequisites: [donePrerequisiteId], order: 2 }),
+  taskPage(physicsReadyId, "物理先修另一題練習", { date: day(-2), makeup: true, prerequisites: [donePrerequisiteId], order: 2, scheduledTime: "" }),
   taskPage(oldDoneId, "已完成舊課程第01堂", { date: day(-1), makeup: true, done: true, order: 3 }),
   taskPage(oldSkippedId, "已跳過舊課程第02堂", { date: day(-1), makeup: true, skipped: true, order: 4 }),
   taskPage(oldUnmarkedId, "未標可補做課程第03堂", { date: day(-1), makeup: false, order: 5 }),
-  taskPage(oldLifeId, "重量訓練＋洗澡", { date: day(-1), makeup: true, order: 6 }),
+  taskPage(oldLifeId, "重量訓練＋洗澡", { date: day(-1), makeup: true, order: 6, scheduledTime: "非法/跨段 raw", recallRoom: false }),
 ];
 const lessonPage = (id, title, subject, course, status, weekStart, order) => ({
   id,
@@ -69,6 +73,7 @@ const lessons = [
 const prerequisitePage = (id, done) => taskPage(id, "物理前段任務", { date: day(-1), done });
 const genericPage = (id = taskId, properties = {}) => ({ id, properties });
 const mockPages = new Map([
+  [taskId, task],
   [dependentTaskId, taskPage(dependentTaskId, "依賴任務", { prerequisites: [blockedPrerequisiteId, skippedPrerequisiteId] })],
   [blockedPrerequisiteId, prerequisitePage(blockedPrerequisiteId, false)],
   [skippedPrerequisiteId, taskPage(skippedPrerequisiteId, "已略過前置", { date: day(-1), skipped: true })],
@@ -113,6 +118,8 @@ assert.equal(st.tasks[0].done, false);
 assert.equal(st.tasks[0].type, "複習");
 assert.equal(st.tasks[0].estimatedMinutes, 25);
 assert.equal(st.tasks[0].difficulty, "標準");
+assert.equal(st.tasks[0].scheduledTime, " 08:00-09:30 / 跨段 raw ", "valid and cross-segment raw is preserved");
+assert.equal(st.tasks[0].recallRoom, true);
 assert.deepEqual(st.tasks[0].relatedSubjects, ["英文"]);
 assert.deepEqual(st.tasks[0].relatedCourses, ["英文主課"]);
 assert.equal(st.lessons.length, 1, "only current-window rows are displayed");
@@ -120,10 +127,16 @@ const carry = st.tasks.find((item) => item.id === physicsBackId);
 assert.equal(carry.carryover, true);
 assert.equal(carry.date, day(-1), "carryover keeps its original date");
 assert.equal(carry.makeup, true);
+assert.equal(carry.scheduledTime, "", "missing scheduled time defaults to empty string");
+assert.equal(carry.recallRoom, false, "missing recall room defaults to false");
 assert.equal(carry.blocked, true, "unfinished prerequisite blocks the downstream task");
 assert.deepEqual(carry.prerequisiteTaskIds, [blockedPrerequisiteId]);
 const ready = st.tasks.find((item) => item.id === physicsReadyId);
 assert.equal(ready.blocked, false, "completed prerequisite does not block the task");
+assert.equal(ready.scheduledTime, "", "blank scheduled time remains empty");
+const life = st.tasks.find((item) => item.id === oldLifeId);
+assert.equal(life.scheduledTime, "非法/跨段 raw", "invalid/cross-segment raw is not normalized");
+assert.equal(life.recallRoom, false);
 assert.equal(st.tasks.some((item) => [oldDoneId, oldSkippedId, oldUnmarkedId].includes(item.id)), false,
   "done, skipped, and unmarked historical tasks are not returned");
 assert.equal(st.tasks.filter((item) => item.id === oldLifeId).length, 1,
@@ -168,12 +181,20 @@ assert.equal(calls.slice(beforeTodayCompletionRead).some((c) => c.method === "PA
 lessons.splice(originalLessonCount);
 
 const beforeTaskWrite = calls.length;
-assert.equal((await call("POST", `/api/task/${taskId}`, { done: true })).status, 200);
+const updatedTaskResponse = await call("POST", `/api/task/${taskId}`, { done: true });
+assert.equal(updatedTaskResponse.status, 200);
+const updatedTask = await updatedTaskResponse.json();
+assert.equal(updatedTask.scheduledTime, " 08:00-09:30 / 跨段 raw ", "update response includes raw scheduled time");
+assert.equal(updatedTask.recallRoom, true, "update response includes recall room");
 const taskWrites = calls.slice(beforeTaskWrite).filter((c) => c.method === "PATCH");
 assert.equal(taskWrites.length, 1);
 assert.deepEqual(Object.keys(taskWrites[0].body.properties), ["　"]);
 assert.equal(taskWrites.some((c) => c.url.includes(englishLessonId)), false, "task completion does not alter or award XP to a course");
-assert.equal((await call("POST", `/api/task/${taskId}`, { skip: true })).status, 200);
+const skippedTaskResponse = await call("POST", `/api/task/${taskId}`, { skip: true });
+assert.equal(skippedTaskResponse.status, 200);
+const skippedTask = await skippedTaskResponse.json();
+assert.equal(skippedTask.scheduledTime, " 08:00-09:30 / 跨段 raw ");
+assert.equal(skippedTask.recallRoom, true, "recall room does not alter skip semantics");
 assert.equal((await call("POST", `/api/task/${taskId}`, {})).status, 400);
 assert.equal((await call("POST", `/api/task/zzz`, { done: true })).status, 400);
 assert.equal((await call("POST", `/api/task/${dependentTaskId}`, { done: false })).status, 200,
@@ -203,6 +224,50 @@ assert.equal((await call("POST", `/api/note`, { title: "n", subject: "化學" })
 assert.equal((await call("POST", `/api/note`, {})).status, 400);
 const patch = calls.find((c) => c.method === "PATCH" && c.body?.properties?.["　"]);
 assert.deepEqual(patch.body.properties["　"], { checkbox: true });
+
+// The same shaper must preserve new fields in today's rows, carryover rows and
+// mutation responses, without admitting either field into the write whitelist.
+const carryPage = carryoverRows.find((page) => page.id === physicsReadyId);
+for (const scheduledTime of [undefined, "", " \t ", "15:45–16:30", "11:00–14:00", "not a time"]) {
+  for (const recallRoom of [false, true]) {
+    for (const page of [task, carryPage]) {
+      delete page.properties[P.task.scheduledTime];
+      if (scheduledTime !== undefined) page.properties[P.task.scheduledTime] = {
+        rich_text: scheduledTime ? [{ plain_text: scheduledTime.slice(0, 5) }, { plain_text: scheduledTime.slice(5) }] : [],
+      };
+      page.properties[P.task.recallRoom] = { checkbox: recallRoom };
+    }
+    const state = await (await call("GET", "/api/state")).json();
+    for (const id of [taskId, physicsReadyId]) {
+      const shaped = state.tasks.find((row) => row.id === id);
+      assert.ok(shaped, "new fields never remove a today/carryover task");
+      assert.equal(shaped.scheduledTime, scheduledTime ?? "");
+      assert.equal(shaped.recallRoom, recallRoom);
+      assert.equal(shaped.type, "複習");
+      assert.equal(shaped.blocked, false);
+      assert.equal(shaped.carryover, id === physicsReadyId);
+    }
+    const writeStart = calls.length;
+    const updated = await (await call("POST", `/api/task/${taskId}`, {
+      done: false, skip: false, scheduledTime: "ignored", recallRoom: !recallRoom,
+    })).json();
+    assert.equal(updated.scheduledTime, scheduledTime ?? "");
+    assert.equal(updated.recallRoom, recallRoom);
+    assert.equal(updated.done, false);
+    assert.equal(updated.skipped, false);
+    assert.deepEqual(calls.slice(writeStart).filter((entry) => entry.method === "PATCH").map((entry) => entry.body.properties),
+      [{ [P.task.done]: { checkbox: false }, [P.task.skip]: { checkbox: false } }]);
+  }
+}
+const prerequisite = mockPages.get(blockedPrerequisiteId);
+prerequisite.properties[P.task.done] = { checkbox: false };
+for (const recallRoom of [false, true]) {
+  mockPages.get(dependentTaskId).properties[P.task.recallRoom] = { checkbox: recallRoom };
+  const before = calls.filter((entry) => entry.method === "PATCH").length;
+  assert.equal((await call("POST", `/api/task/${dependentTaskId}`, { done: true })).status, 409,
+    "recallRoom never bypasses prerequisites");
+  assert.equal(calls.filter((entry) => entry.method === "PATCH").length, before);
+}
 console.log("worker ok,", calls.length, "mock notion calls");
 
 globalThis.fetch = nativeFetch;

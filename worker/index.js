@@ -133,6 +133,8 @@ const shapeTask = (pg) => ({
   order: rd.number(pg.properties[P.task.order]) ?? 999,
   type: rd.select(pg.properties[P.task.type]) || null,
   makeup: rd.check(pg.properties[P.task.makeup]),
+  scheduledTime: rd.text(pg.properties[P.task.scheduledTime]),
+  recallRoom: rd.check(pg.properties[P.task.recallRoom]),
   carryover: false,
   prerequisiteTaskIds: rd.relation(pg.properties[P.task.prerequisites]),
   blocked: false,

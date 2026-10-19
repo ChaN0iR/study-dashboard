@@ -33,6 +33,8 @@ export const P = {
     difficulty: "難度",
     reward: "獎勵文字",
     record: "每日紀錄",
+    scheduledTime: "排定時段",
+    recallRoom: "回想室",
   },
   record: {
     title: "紀錄",

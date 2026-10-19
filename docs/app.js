@@ -330,7 +330,21 @@
     if (leadingMatch) score += 50 + [...leadingMatch].length;
     return score;
   }
+  function taskScheduledSlot(t, slots) {
+    const value = t.scheduledTime;
+    // Only a missing/blank field may use legacy title/subject inference.
+    if (value == null || (typeof value === "string" && !value.trim())) return { applies: false, slot: null };
+    const match = typeof value === "string" && value.match(/^([01]\d|2[0-3]):([0-5]\d)–([01]\d|2[0-3]):([0-5]\d)$/);
+    if (!match || match[0] !== value) return { applies: true, slot: null, reason: "排定時段格式錯誤，未配時" };
+    const start = toMin(value.slice(0, 5)), end = toMin(value.slice(6));
+    if (start >= end) return { applies: true, slot: null, reason: "排定時段起訖錯誤，未配時" };
+    const overlaps = slots.filter((slot) => start < toMin(slot.end) && end > toMin(slot.start));
+    const slot = overlaps.length === 1 && start >= toMin(overlaps[0].start) && end <= toMin(overlaps[0].end) ? overlaps[0] : null;
+    return { applies: true, slot, reason: slot ? "" : "排定時段跨段或無唯一可用對應，未配時" };
+  }
   function taskCourseSlot(t, slots = activeScheduleSlots) {
+    const scheduled = taskScheduledSlot(t, slots);
+    if (scheduled.applies) return scheduled;
     if (isLifeTask(t) || !isStudyTask(t)) return { applies: false, slot: null };
     const title = String(t.title || "");
     const subjects = new Set(Object.entries(SUBJECT_PATTERNS).filter(([, pattern]) => pattern.test(title)).map(([subject]) => subject));
@@ -437,6 +451,7 @@
     const labels = [];
     labels.push(...taskStages(t));
     if (t.carryover === true) labels.push("補做");
+    if (t.recallRoom === true) labels.push("回想室");
     const blocked = taskBlocked(t);
     if (blocked) labels.push("等待前置");
     const source = String(t.source || "");
@@ -469,7 +484,7 @@
     const title = el("span", { class: "task-title" }, activityNode, badges);
     const courseSlot = taskCourseSlot(t, schedule.slots);
     const timeNote = courseSlot.applies ? el("span", { class: "task-time" }, courseSlot.slot
-      ? `${courseSlot.slot.start}–${courseSlot.slot.end} · 固定科目時段` : courseSlot.reason) : null;
+      ? (typeof t.scheduledTime === "string" && t.scheduledTime.trim() ? `${t.scheduledTime} · 排定時段` : `${courseSlot.slot.start}–${courseSlot.slot.end} · 固定科目時段`) : courseSlot.reason) : null;
     const copy = el("div", { class: "t task-copy" }, title, timeNote);
     const pending = pendingTaskWrites.has(t.id);
     return el("li", { class: "item task-item" + (t.done ? " done" : "") + (blocked ? " blocked" : "") + (isCurrent ? " is-current" : "") },
