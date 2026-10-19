@@ -390,13 +390,14 @@ async function postNote(env, body) {
   // Validate upload data before creating a Notion page or upload slot. Without
   // this, malformed base64 could leave a partially-created note behind.
   let checkedPhotos = 0;
+  const decodedPhotos = new Map();
   for (const page of pagesIn) {
     const photos = (Array.isArray(page && page.photos) ? page.photos : []).slice(0, 8);
     for (const photo of photos) {
       if (++checkedPhotos > 8) break;
       if (!/^image\/(jpeg|png|webp|gif)$/.test(photo.type || "") ||
           typeof photo.data !== "string" || photo.data.length > 4_000_000) continue;
-      try { atob(photo.data); }
+      try { decodedPhotos.set(photo, Uint8Array.from(atob(photo.data), (c) => c.charCodeAt(0))); }
       catch { throw new HttpError(400, "invalid image data"); }
     }
   }
@@ -411,7 +412,7 @@ async function postNote(env, body) {
     if (++count > 8) break;
     if (!/^image\/(jpeg|png|webp|gif)$/.test(ph.type || "") || typeof ph.data !== "string" || ph.data.length > 4_000_000) continue;
     const up = await notion(env, "/file_uploads", "POST", { filename: String(ph.name || "photo.jpg").slice(0, 80), content_type: ph.type });
-    const bin = Uint8Array.from(atob(ph.data), (c) => c.charCodeAt(0));
+    const bin = decodedPhotos.get(ph);
     const form = new FormData();
     form.append("file", new Blob([bin], { type: ph.type }), String(ph.name || "photo.jpg").slice(0, 80));
     const r = await fetch(`${NOTION}/file_uploads/${up.id}/send`, { method: "POST", headers: { authorization: `Bearer ${env.NOTION_TOKEN}`, "notion-version": NOTION_VERSION }, body: form });
