@@ -43,6 +43,14 @@ try {
   assert.deepEqual(await nullPhoto.json(), { error: "invalid image data" });
   assert.deepEqual(calls, [], "null photo must not create a note");
 
+  const emptyPhoto = await worker.fetch(request({
+    title: "empty image bytes",
+    photos: [{ type: "image/png", data: "" }],
+  }), env);
+  assert.equal(emptyPhoto.status, 400);
+  assert.deepEqual(await emptyPhoto.json(), { error: "invalid image data" });
+  assert.deepEqual(calls, [], "empty photo must not create a note");
+
   // A note without pictures still creates exactly one Notion page.
   const empty = await worker.fetch(request({ title: "without image" }), env);
   assert.equal(empty.status, 200);
