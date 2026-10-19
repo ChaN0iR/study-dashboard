@@ -386,8 +386,26 @@ async function postNote(env, body) {
     if (!ID_RE.test(body.lessonId)) throw new HttpError(400, "lessonId invalid");
     props[P.note.lesson] = { relation: [{ id: body.lessonId }] };
   }
-  const pg = await notion(env, "/pages", "POST", { parent: { database_id: DB.notes }, properties: props });
   const pagesIn = Array.isArray(body.pages) ? body.pages : [{ photos: body.photos }];
+  // Validate upload data before creating a Notion page or upload slot. Without
+  // this, malformed base64 could leave a partially-created note behind.
+  let checkedPhotos = 0;
+  const decodedPhotos = new Map();
+  for (const page of pagesIn) {
+    const photos = (Array.isArray(page && page.photos) ? page.photos : []).slice(0, 8);
+    for (const photo of photos) {
+      if (++checkedPhotos > 8) break;
+      if (photo == null) throw new HttpError(400, "invalid image data");
+      if (!/^image\/(jpeg|png|webp|gif)$/.test(photo.type || "") ||
+          typeof photo.data !== "string" || photo.data.length > 4_000_000) continue;
+      try {
+        const bytes = Uint8Array.from(atob(photo.data), (c) => c.charCodeAt(0));
+        if (!bytes.byteLength) throw new Error("empty image");
+        decodedPhotos.set(photo, bytes);
+      } catch { throw new HttpError(400, "invalid image data"); }
+    }
+  }
+  const pg = await notion(env, "/pages", "POST", { parent: { database_id: DB.notes }, properties: props });
   const blocks = [];
   let count = 0;
   for (let pi = 0; pi < pagesIn.length; pi++) {
@@ -398,7 +416,7 @@ async function postNote(env, body) {
     if (++count > 8) break;
     if (!/^image\/(jpeg|png|webp|gif)$/.test(ph.type || "") || typeof ph.data !== "string" || ph.data.length > 4_000_000) continue;
     const up = await notion(env, "/file_uploads", "POST", { filename: String(ph.name || "photo.jpg").slice(0, 80), content_type: ph.type });
-    const bin = Uint8Array.from(atob(ph.data), (c) => c.charCodeAt(0));
+    const bin = decodedPhotos.get(ph);
     const form = new FormData();
     form.append("file", new Blob([bin], { type: ph.type }), String(ph.name || "photo.jpg").slice(0, 80));
     const r = await fetch(`${NOTION}/file_uploads/${up.id}/send`, { method: "POST", headers: { authorization: `Bearer ${env.NOTION_TOKEN}`, "notion-version": NOTION_VERSION }, body: form });
