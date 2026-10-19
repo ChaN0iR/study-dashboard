@@ -15,7 +15,11 @@ The repository has no root package.json or root lockfile; npm commands and cachi
 
 Adopted from the proposal: a separate npm audit gate, verified locally with zero reported vulnerabilities on 2026-10-19. The audit may change as npm advisories change.
 
-## Current blockers and scope
+## Widget regression test correction (2026-10-19)
+
+The missing widgetTaskModel and extraction anchors were stale test assumptions: the shipped Widget has no such model, Sunday course exclusion, or lunch visibility filter. Test the actual selection statements instead, including skipped/completed rows, order, slot fit, empty input and input immutability. scriptable-widget.js and all product behavior remain unchanged. This does not implement the old test's proposed policy. That policy needs a separate product decision. Local Node 24 frontend suite: 119 tests, 107 passed, 0 failed, 12 existing visual skips.
+
+## Historical blockers and scope
 
 This PR is independently based on main ec6ed83 and does not include PR #2, #3, or #4.
 PR #3 contains PR #2 and should be reviewed after it. PR #4 is independent documentation.
@@ -38,3 +42,4 @@ The workflow in this PR does not retroactively add checks to the old heads of PR
 After this workflow reaches main through a separately authorized merge, update those PR branches
 and require all three job checks in repository protection rules as a separate administrator action.
 Until then, absence of checks on those PRs is not evidence of success.
+
