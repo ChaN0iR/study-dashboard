@@ -43,3 +43,5 @@ After this workflow reaches main through a separately authorized merge, update t
 and require all three job checks in repository protection rules as a separate administrator action.
 Until then, absence of checks on those PRs is not evidence of success.
 
+
+Frontend CI fetches full Git history because achievement regressions compare against historical commit 4f5667d; shallow checkout caused two CI-only failures after fixing Widget extraction. No tests are skipped to address this.
