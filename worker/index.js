@@ -337,7 +337,6 @@ async function postTask(env, id, body, automation) {
 
 async function postRecord(env, body) {
   const today = taipeiDate();
-  const rec = await getOrCreateRecord(env, today);
   const props = {};
   if ("hours" in body) props[P.record.hours] = wr.number(num(body.hours, "hours", 24));
   if ("minutes" in body) props[P.record.minutes] = wr.number(num(body.minutes, "minutes", 1440));
@@ -348,6 +347,7 @@ async function postRecord(env, body) {
     if (body["心情"] && !MOODS.includes(body["心情"])) throw new HttpError(400, "mood invalid");
     props[P.record.mood] = wr.select(body["心情"] || null);
   }
+  const rec = await getOrCreateRecord(env, today);
   if (!Object.keys(props).length) return shapeRecord(rec);
   return shapeRecord(await notion(env, `/pages/${rec.id}`, "PATCH", { properties: props }));
 }
@@ -475,6 +475,7 @@ async function startFocus(env, body, now, justDone) {
 
 async function postFocus(env, body) {
   const action = body.action;
+  if (!["stats", "add", "delete", "switch", "start", "pause", "resume", "stop", "subject"].includes(action)) throw new HttpError(400, "bad action");
   if (action === "stats") {
     const all = await queryAll(env, DB.focus, { sorts: [{ property: F.start, direction: "descending" }] });
     const by = {};
