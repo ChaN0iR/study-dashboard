@@ -123,7 +123,13 @@ with sync_playwright() as p:
             after_noise = ImageChops.difference(whole_old, control_old).convert('L').point(lambda value: 255 if value > 10 else 0).getbbox()
             delta=ImageChops.difference(whole_new,whole_old); delta.paste((0,0,0),(int(box['x']-group_box['x'])-1,int(box['y']-group_box['y'])-1,int(box['x']-group_box['x']+box['width'])+2,int(box['y']-group_box['y']+box['height'])+2))
             changed = delta.convert('L').point(lambda value: 255 if value > 10 else 0).getbbox()
-            assert changed is None, (width, theme, 'UI changed outside shortcut', {'changed_bbox': changed, 'before_control_noise': before_noise, 'after_control_noise': after_noise, 'shortcut_box': box, 'group_box': group_box})
+            pixel = None
+            if changed:
+                coord = (changed[0], changed[1])
+                cx, cy = group_box['x'] + coord[0] + 0.5, group_box['y'] + coord[1] + 0.5
+                owner = page.evaluate("""([x,y]) => { const e = document.elementFromPoint(x,y); return {element:e?.tagName, anchor:e?.closest('a')?.id || null, title:e?.closest('a')?.getAttribute('title') || null}; }""", [cx,cy])
+                pixel = {'new_rgb': whole_new.getpixel(coord), 'old_rgb': whole_old.getpixel(coord), 'element': owner}
+            assert changed is None, (width, theme, 'UI changed outside shortcut', {'changed_bbox': changed, 'pixel': pixel, 'before_control_noise': before_noise, 'after_control_noise': after_noise, 'shortcut_box': box, 'group_box': group_box})
             shortcut.evaluate('(el, svg) => el.innerHTML=svg',new_svg)
             # Exercise actual mouse/touch clicks at the edge and center without navigating externally.
             shortcut.evaluate("el => { window.shortcutClicks=[]; el.addEventListener('click',e => { e.preventDefault(); window.shortcutClicks.push(el.href); }); }")
