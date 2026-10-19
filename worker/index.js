@@ -395,6 +395,7 @@ async function postNote(env, body) {
     const photos = (Array.isArray(page && page.photos) ? page.photos : []).slice(0, 8);
     for (const photo of photos) {
       if (++checkedPhotos > 8) break;
+      if (photo == null) throw new HttpError(400, "invalid image data");
       if (!/^image\/(jpeg|png|webp|gif)$/.test(photo.type || "") ||
           typeof photo.data !== "string" || photo.data.length > 4_000_000) continue;
       try { decodedPhotos.set(photo, Uint8Array.from(atob(photo.data), (c) => c.charCodeAt(0))); }
