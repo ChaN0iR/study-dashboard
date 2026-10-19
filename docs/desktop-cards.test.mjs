@@ -8,15 +8,15 @@ const sw = readFileSync(new URL('./sw.js', import.meta.url), 'utf8');
 const shell = JSON.parse(sw.match(/^const SHELL = (\[[^\n]+\]);$/m)[1]);
 
 test('index.html references the updated desktop card assets exactly once', () => {
-  assert.deepEqual([...html.matchAll(/<script\b[^>]*\bsrc="(app\.js[^\"]*)"/g)].map(m => m[1]), ['app.js?v=119']);
-  assert.deepEqual([...html.matchAll(/<link\b[^>]*\bhref="(style\.css[^\"]*)"/g)].map(m => m[1]), ['style.css?v=123']);
+  assert.deepEqual([...html.matchAll(/<script\b[^>]*\bsrc="(app\.js[^\"]*)"/g)].map(m => m[1]), ['app.js?v=120']);
+  assert.deepEqual([...html.matchAll(/<link\b[^>]*\bhref="(style\.css[^\"]*)"/g)].map(m => m[1]), ['style.css?v=124']);
 });
 
 test('SW cache and shell match the index.html static asset references', () => {
-  assert.match(sw, /^const CACHE = "sd-v133";$/m);
+  assert.match(sw, /^const CACHE = "sd-v134";$/m);
   assert.equal(new Set(shell).size, shell.length, 'shell has no duplicate entries');
-  for (const entry of ['./', 'index.html', 'app.js?v=119', 'style.css?v=123']) assert.ok(shell.includes(entry), entry);
-  assert.deepEqual(shell.filter(entry => /^(app\.js|style\.css)(\?|$)/.test(entry)), ['style.css?v=123', 'app.js?v=119']);
+  for (const entry of ['./', 'index.html', 'app.js?v=120', 'style.css?v=124']) assert.ok(shell.includes(entry), entry);
+  assert.deepEqual(shell.filter(entry => /^(app\.js|style\.css)(\?|$)/.test(entry)), ['style.css?v=124', 'app.js?v=120']);
   const references = [...html.matchAll(/<(?:script|link)\b[^>]*\b(?:src|href)="([^\"]+)"/g)].map(m => m[1]);
   for (const reference of references) assert.ok(shell.includes(reference), `shell includes ${reference}`);
   for (const entry of shell) assert.ok(existsSync(new URL(entry.split('?')[0], import.meta.url)), `shell file exists: ${entry}`);
@@ -199,12 +199,13 @@ with tempfile.TemporaryDirectory(prefix='desktop-cards-') as temp:
             assert not page.errors, page.errors
             results.append({'storage':mode,'fallback':'PASS'})
             context.close()
-        # Compare every mobile tab to the exact release base, including short-wide fallback.
+        # Compare unchanged mobile tabs to the exact release base, including short-wide fallback.
+        # Achievements has intentional UI changes, covered by achievement-toggles.test.mjs.
         for width,height in [(375,667),(390,844),(430,932),(899,844),(1100,559)]:
             for theme in (['light','dark'] if width == 390 else ['light']):
                 bc,bp = open_page(width,height,'baseline',theme)
                 cc,cp = open_page(width,height,'candidate',theme,saved_collapsed=True)
-                for tab in ['today','record','notes','lessons']:
+                for tab in ['today','record','notes']:
                     for page in [bp,cp]:
                         page.locator('#tabs button[data-t="' + tab + '"]').click()
                         expect(page.locator('.desktop-card-toggle')).to_have_count(0)
@@ -218,7 +219,8 @@ with tempfile.TemporaryDirectory(prefix='desktop-cards-') as temp:
                     cp.bring_to_front()
                     after = cp.screenshot(animations='disabled')
                     # Exact layout/style comparison catches even invisible mobile regressions.
-                    inspect = '''() => [...document.querySelectorAll('header,header *,main,main *,#tabs,#tabs *')].filter(e => !e.closest('#recall-room-shortcut svg')).map(e => {
+                    # Exclude only the intentionally changed, hidden achievement subtree on these tabs.
+                    inspect = '''() => [...document.querySelectorAll('header,header *,main,main *,#tabs,#tabs *')].filter(e => !e.closest('#recall-room-shortcut svg') && !e.closest('.achievements-card')).map(e => {
                         const s=getComputedStyle(e),r=e.getBoundingClientRect();
                         return {tag:e.tagName,id:e.id,cls:e.getAttribute('class'),text:e.children.length?null:e.textContent,
                             value:'value' in e?e.value:null,box:[r.x,r.y,r.width,r.height],

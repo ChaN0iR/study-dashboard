@@ -208,24 +208,51 @@ test('不完整成功回應不虛增完成數，休息日有課時不顯示沒�
 });
 
 
-test('成就摘要只有課次／進度與 XP 兩框；狀態與說明集中同一原生可操作 toggle', () => {
+test('成就兩卡各自 Toggle，說明／規則歸屬正確且選課是獨立按鈕', () => {
   const { api, nodes } = harness({ lessons: [lesson('choose-me')], courseStats: [{ course: '普化', total: 10, done: 2 }] });
   api.renderLessons();
   const root = nodes.get('achievement-summary');
   const metrics = root.children.find(node => node.className === 'achievement-metrics');
   assert.equal(metrics.children.length, 2);
-  assert.match(metrics.children[0].textContent, /已完成／總課次.*課程進度.*2／10 堂.*20%/);
-  assert.match(metrics.children[1].textContent, /今日任務已得 XP.*0 XP.*未指派課程.*0 XP/);
-  const notes = root.children.find(node => node.tag === 'details' && node.children[0]?.textContent === '資料狀態與說明');
-  assert.ok(notes);
-  assert.equal(notes.children[0].tag, 'summary', '原生 summary 支援鍵盤與螢幕閱讀器');
-  assert.equal(notes.attrs.open, undefined, '說明預設收合');
+  const [course, xp] = metrics.children;
+  assert.match(course.textContent, /已完成／總課次.*課程進度.*2／10 堂.*20%/);
+  assert.match(xp.textContent, /今日任務已得 XP.*0 XP.*未指派課程.*0 XP/);
+  const [courseHeading, courseBody] = course.children;
+  const [xpHeading, xpBody] = xp.children;
+  const courseToggle = courseHeading.children[0], xpToggle = xpHeading.children[0];
+  for (const [button, body] of [[courseToggle, courseBody], [xpToggle, xpBody]]) {
+    assert.equal(button.tag, 'button');
+    assert.equal(button.attrs.type, 'button');
+    assert.equal(button.attrs['aria-expanded'], 'true');
+    assert.equal(button.attrs['aria-controls'], body.attrs.id);
+    assert.equal(body.hidden, false);
+  }
+  const notes = courseBody.children.find(node => node.tag === 'details');
+  assert.equal(notes.children[0].textContent, '資料狀態與說明');
   assert.match(notes.textContent, /資料日期.*今日 XP 僅依.*課次明細只顯示.*選課補做優先/);
-  const paragraphs = node => typeof node !== 'object' ? [] : [ ...(node.tag === 'p' ? [node] : []), ...node.children.flatMap(paragraphs) ];
-  assert.deepEqual(paragraphs(root), paragraphs(notes), '所有說明與狀態段落都在同一個 toggle 內');
-  const selector = root.children.find(node => node.tag === 'details' && node.children[0]?.textContent === '選擇課程去完成');
-  assert.ok(selector);
-  assert.match(selector.textContent, /choose-me.*標記完成/);
-  assert.equal(notes.children.includes(selector), false, '選課操作不能被說明 toggle 一起收起');
+  assert.ok(courseBody.children.includes(nodes.get('lessons')));
+  assert.ok(xpBody.children.includes(nodes.get('achievement-xp-rules')));
+  click(courseToggle);
+  assert.equal(courseBody.hidden, true);
+  assert.equal(courseToggle.attrs['aria-expanded'], 'false');
+  assert.equal(xpBody.hidden, false);
+  click(xpToggle);
+  assert.equal(xpBody.hidden, true);
+  api.renderLessons();
+  const rerendered = root.children[0].children;
+  assert.ok(rerendered.every(panel => panel.children[1].hidden), '各自狀態跨重繪保留');
+  const selector = root.children[1], [button, content] = selector.children;
+  assert.equal(button.tag, 'button');
+  assert.equal(button.textContent, '選擇課程去完成');
+  assert.equal(button.attrs.type, 'button');
+  assert.equal(button.attrs['aria-controls'], content.attrs.id);
+  assert.equal(button.attrs['aria-expanded'], 'false');
+  assert.equal(content.hidden, true);
+  click(button);
+  assert.equal(content.hidden, false);
+  assert.equal(button.attrs['aria-expanded'], 'true');
+  assert.match(content.textContent, /choose-me.*標記完成/);
+  api.renderLessons();
+  assert.equal(root.children[1].children[1].hidden, false, '選課跨儲存重繪不收合');
   assert.doesNotMatch(nodes.get('lessons').textContent, /choose-me/);
 });

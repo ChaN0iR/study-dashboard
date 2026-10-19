@@ -3,7 +3,7 @@ import { readFileSync } from "node:fs";
 import { spawnSync, execFileSync } from "node:child_process";
 import test from "node:test";
 
-const base = "3ae6925d2b2927f115fe22fc94e1127992d49bc1";
+const base = "4f5667dd9c8d5beacbfefe038ee2fa882f62f6ca";
 const html = readFileSync(new URL("./index.html", import.meta.url), "utf8");
 const sw = readFileSync(new URL("./sw.js", import.meta.url), "utf8");
 const baseline = file => execFileSync("git", ["show", `${base}:docs/${file}`], { cwd: new URL("..", import.meta.url), encoding: "utf8" });
@@ -19,21 +19,24 @@ test("transparent currentColor silhouette preserves accessible disabled/no-href 
   assert.doesNotMatch(link, /<image\b|<rect\b|<span\b|style=|#[0-9a-f]{3,8}/i);
 });
 
-test("only shortcut SVG changes: other markup, link semantics, app branding and styles remain identical", () => {
-  const stripSVG = text => text.replace(shortcut, match => match.replace(/<svg[\s\S]*?<\/svg>/, "<svg/>"));
-  assert.equal(stripSVG(html), stripSVG(baseline("index.html")));
-  for (const file of ["style.css", "app.js", "config.js", "recall-room.css", "recall-room.js", "recall/index.html", "recall/auth-ui.js", "manifest.webmanifest", "icons/recall-hippocampus-256.png"]) {
+test("achievement changes preserve shortcut, other markup, branding and Recall Room assets", () => {
+  // Only achievement rules ownership and the required CSS/JS cache-bust change the HTML.
+  const normalize = text => text.replace(' id="achievement-xp-rules"', '').replace('style.css?v=124', 'style.css?v=123').replace('app.js?v=120', 'app.js?v=119');
+  assert.equal(normalize(html), baseline("index.html"));
+  assert.equal(link, baseline("index.html").match(shortcut)[0]);
+  for (const file of [ "config.js", "recall-room.css", "recall-room.js", "recall/index.html", "recall/auth-ui.js", "manifest.webmanifest", "icons/recall-hippocampus-256.png"]) {
     const previous = execFileSync("git", ["show", `${base}:docs/${file}`], { cwd: new URL("..", import.meta.url) });
     assert.deepEqual(readFileSync(new URL(file, import.meta.url)), previous, file);
   }
 });
 
-test("PWA bumps only exact base cache version and preserves the shell", () => {
-  assert.equal(sw, baseline("sw.js").replace('"sd-v132"', '"sd-v133"'));
+test("PWA bumps cache and achievement asset versions only, preserving the remaining shell", () => {
+  const upgrade = text => text.replace('"sd-v133"', '"sd-v134"').replace('style.css?v=123', 'style.css?v=124').replace('app.js?v=119', 'app.js?v=120');
+  assert.equal(sw, upgrade(baseline("sw.js")));
   const shell = JSON.parse(sw.match(/^const SHELL = (\[[^\n]+\]);$/m)[1]);
   assert.equal(new Set(shell).size, shell.length);
   assert.ok(shell.includes("index.html"));
-  assert.deepEqual(shell, JSON.parse(baseline("sw.js").match(/^const SHELL = (\[[^\n]+\]);$/m)[1]));
+  assert.deepEqual(shell, JSON.parse(upgrade(baseline("sw.js")).match(/^const SHELL = (\[[^\n]+\]);$/m)[1]));
 });
 
 const available = spawnSync("chromium", ["--version"]).status === 0 && spawnSync("python3", ["-c", "import playwright.sync_api, PIL"]).status === 0;
@@ -144,10 +147,10 @@ with sync_playwright() as p:
     Handler.legacy = False
     page.evaluate('navigator.serviceWorker.getRegistration().then(r => r.update()).then(() => true)')
     for attempt in range(100):
-        cached = page.evaluate("""async () => { const keys=await caches.keys(); const r=await caches.match('index.html',{cacheName:'sd-v133'}); return {keys,html:r?await r.text():''}; }""")
+        cached = page.evaluate("""async () => { const keys=await caches.keys(); const r=await caches.match('index.html',{cacheName:'sd-v134'}); return {keys,html:r?await r.text():''}; }""")
         if 'sd-v132' not in cached['keys'] and 'fill="currentColor" aria-hidden="true" focusable="false"' in cached['html']: break
         page.wait_for_timeout(100)
-    assert 'sd-v132' not in cached['keys'] and 'sd-v133' in cached['keys'], cached['keys']
+    assert 'sd-v132' not in cached['keys'] and 'sd-v134' in cached['keys'], cached['keys']
     assert 'recall-hippocampus-256.png' not in cached['html']
     context.set_offline(True)
     for width,height in [(390,844),(1440,900)]:
@@ -167,7 +170,7 @@ with sync_playwright() as p:
             if evidence: page.screenshot(path=str(evidence/f'{width}x{height}-offline-upgraded-{theme}.png'),animations='disabled')
     context.close(); browser.close()
 server.shutdown()
-report = {'status':'PASS','responsive_cases':results,'cache_upgrade':'sd-v132 -> sd-v133 PASS','offline_silhouette':'light/dark PASS'}
+report = {'status':'PASS','responsive_cases':results,'cache_upgrade':'sd-v132 -> sd-v134 PASS','offline_silhouette':'light/dark PASS'}
 if evidence: (evidence/'browser-results.json').write_text(json.dumps(report,ensure_ascii=False,indent=2))
 print(json.dumps(report,ensure_ascii=False))
 `;

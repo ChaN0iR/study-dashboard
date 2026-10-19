@@ -686,15 +686,50 @@
       el("button", { class: "ghost", type: "button", disabled: blocked || pendingLessonWrites.has(lesson.id),
         "aria-label": `標記課次完成：${lesson.title}`, onclick: () => toggleLesson(lesson) }, pendingLessonWrites.has(lesson.id) ? "儲存中…" : "標記完成"));
   }
+  // UI preferences only; never change task/lesson data or XP calculation.
+  const achievementCollapsed = new Map();
+  let courseSelectionOpen = false;
+  function achievementPanel(kind, title, ...content) {
+    const key = `sd-achievement-${kind}-collapsed`;
+    if (!achievementCollapsed.has(kind)) {
+      let collapsed = false;
+      try { collapsed = localStorage.getItem(key) === "true"; } catch (_) { /* Session-only fallback. */ }
+      achievementCollapsed.set(kind, collapsed);
+    }
+    const body = el("div", { id: `achievement-${kind}-content`, class: "achievement-panel-content" }, ...content);
+    body.hidden = achievementCollapsed.get(kind);
+    const button = el("button", { id: `achievement-${kind}-toggle`, type: "button", class: "achievement-toggle",
+      "aria-expanded": String(!body.hidden), "aria-controls": `achievement-${kind}-content`, onclick: () => {
+        body.hidden = !body.hidden;
+        achievementCollapsed.set(kind, body.hidden);
+        button.setAttribute("aria-expanded", String(!body.hidden));
+        try { localStorage.setItem(key, String(body.hidden)); } catch (_) { /* Session-only fallback. */ }
+      } }, title, el("span", { class: "achievement-chevron", "aria-hidden": "true" }, "⌄"));
+    return el("section", { class: "achievement-panel", "aria-labelledby": `achievement-${kind}-toggle` },
+      el("h3", {}, button), body);
+  }
   function renderCourseSelection() {
     const courses = courseSelectionData();
-    const box = el("details", {}, el("summary", {}, "選擇課程去完成"));
-    if (courses.tasks.length) box.append(el("h3", {}, "課程任務"), el("ul", { class: "list" }, courses.tasks.map(taskItem)));
-    if (courses.lessons.length) box.append(el("h3", {}, "課次"), el("ul", { class: "list" }, courses.lessons.map(lessonChoiceItem)));
+    const content = el("div", { id: "course-selection-content" });
+    content.hidden = !courseSelectionOpen;
+    const button = el("button", { id: "course-selection-toggle", type: "button", class: "primary course-selection-button",
+      "aria-expanded": String(courseSelectionOpen), "aria-controls": "course-selection-content", onclick: () => {
+        courseSelectionOpen = !courseSelectionOpen;
+        content.hidden = !courseSelectionOpen;
+        button.setAttribute("aria-expanded", String(courseSelectionOpen));
+      } }, "選擇課程去完成");
+    const box = el("div", { class: "course-selection" }, button, content);
+    if (courses.tasks.length) content.append(el("h3", {}, "課程任務"), el("ul", { class: "list" }, courses.tasks.map(taskItem)));
+    if (courses.lessons.length) content.append(el("h3", {}, "課次"), el("ul", { class: "list" }, courses.lessons.map(lessonChoiceItem)));
+    if (!courses.tasks.length && !courses.lessons.length) content.append(el("p", { class: "achievement-status", role: "status" }, courses.status));
     return box;
   }
 
   function renderLessons() {
+    const focused = document.activeElement;
+    const restoreFocus = focused?.closest?.("#achievement-summary")
+      ? focused.id || (focused.closest(".course-selection") ? "course-selection-toggle"
+        : focused.closest("#achievement-course-content") ? "achievement-course-toggle" : "achievement-xp-toggle") : null;
     const data = achievementData(), { points } = data;
     const verified = xpVerified && state.today === taipeiNow().date;
     const status = DEMO ? "示範資料，不代表真實成就" : !verified ? "資料未驗證；如有數字，僅為上次載入內容" : `資料日期 ${state.today} · 依已載入狀態計算`;
@@ -718,8 +753,11 @@
       points.unscoredTasks ? el("p", { class: "achievement-note" }, `${points.unscoredTasks} 筆已完成學習任務缺估時或難度，未計分。`) : null,
       points.undatedTasks ? el("p", { class: "achievement-note" }, `${points.undatedTasks} 筆已完成學習任務日期不屬於今天或未提供日期／完成時間，未納今日 XP。`) : null,
       pendingTaskWrites.size ? el("p", { class: "achievement-note" }, "任務更新中，XP 暫依畫面狀態顯示，尚待儲存確認。") : null].filter(Boolean));
+    const lessonList = $("lessons"), rules = $("achievement-xp-rules");
     $("achievement-summary").replaceChildren(
-      el("div", { class: "achievement-metrics" }, progressMetric, xpMetric), notes, renderCourseSelection());
+      el("div", { class: "achievement-metrics" },
+        achievementPanel("course", "課程與進度", progressMetric, notes, lessonList),
+        achievementPanel("xp", "今日 XP", xpMetric, rules)), renderCourseSelection());
     const rows = [];
     for (const g of data.rows) {
       const progress = g.complete ? `${g.done}/${g.total} 堂 · ${g.pct === null ? "無課次" : g.pct + "%"}` : `已載入 ${g.done}/${g.total} 堂 · 全課進度未驗證`;
@@ -738,6 +776,7 @@
         el("div", { class: "t" }, l.title, el("div", { class: "meta" }, [l.subject, l.minutes ? `${l.minutes} 分` : null, l.due ? "該複習" : null].filter(Boolean).join("　")))));
     }
     $("lessons").replaceChildren(...(rows.length ? rows : [el("li", { class: "empty" }, "目前沒有課程進度資料")]));
+    if (restoreFocus) $(restoreFocus)?.focus();
   }
 
   function renderAll() {
@@ -908,10 +947,10 @@
       else if (/Android/i.test(ua)) { location.href = "intent://#Intent;package=com.ichi2.anki;S.browser_fallback_url=" + encodeURIComponent(web) + ";end"; }
       else {
         ankiCall("guiDeckBrowser").catch(() => {
-          let left = false; const onHide = () => { left = true; };
+          const onHide = () => {};
           window.addEventListener("blur", onHide, { once: true });
           location.href = "anki://";
-          setTimeout(() => { window.removeEventListener("blur", onHide); if (!left && !document.hidden) window.open(web, "_blank", "noopener"); }, 2500);
+          setTimeout(() => window.removeEventListener("blur", onHide), 2500);
         });
       }
     });

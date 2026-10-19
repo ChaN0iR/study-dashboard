@@ -14,9 +14,9 @@ test('static PWA shell references and CSS cache-bust', async () => {
   const refs = [...html.matchAll(/<(?:link|script)\b[^>]*\b(?:href|src)="([^"]+)"/g)]
     .map(match => match[1]);
   const cssRefs = refs.filter(ref => /^style\.css(?:\?|$)/.test(ref));
-  assert.deepEqual(cssRefs, ['style.css?v=123']);
+  assert.deepEqual(cssRefs, ['style.css?v=124']);
   assert.deepEqual(shell.filter(ref => /^style\.css(?:\?|$)/.test(ref)), cssRefs);
-  assert.equal(cache, 'sd-v133');
+  assert.equal(cache, 'sd-v134');
   assert.equal(new Set(shell).size, shell.length, 'duplicate shell reference');
   assert.ok(!sw.includes('style.css?v=119') && !html.includes('style.css?v=119'), 'stale CSS URL');
   for (const ref of refs) assert.ok(shell.includes(ref), `index reference missing from shell: ${ref}`);

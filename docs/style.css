@@ -1039,7 +1039,21 @@ button:active,a.icon-btn:active,.chk:active,.fc-hist:active{box-shadow:0 0 0 1px
 .achievement-content{flex:1 1 auto;min-height:0;overflow-y:auto;overflow-x:hidden}
 body[data-tab] .achievements-card #lessons{max-height:none!important;overflow:visible;flex:none}
 .achievement-status{font-size:12px;color:var(--mut);margin:0 0 10px;line-height:1.5}
-.achievement-metrics{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+.achievement-metrics{display:grid;grid-template-columns:minmax(0,1fr);gap:10px}
+.achievement-panel{min-width:0;border:1px solid var(--line);border-radius:10px;background:var(--bg)}
+.achievement-panel>h3{margin:0;font-size:14px}
+.achievement-toggle{display:flex;align-items:center;justify-content:space-between;gap:12px;width:100%;min-height:44px;padding:10px 12px;border:0;border-radius:10px;background:none;color:inherit;font:inherit;text-align:left;cursor:pointer}
+.achievement-toggle:hover{color:var(--acc)}
+.achievement-toggle:active{transform:none;box-shadow:none}
+.achievement-toggle:focus-visible,.course-selection-button:focus-visible{outline:2px solid var(--fg);outline-offset:3px}
+.achievement-chevron{font-size:18px;line-height:1;flex:none}
+.achievement-toggle[aria-expanded="true"] .achievement-chevron{transform:rotate(180deg)}
+.achievement-panel-content{padding:0 12px 12px}
+.achievement-panel-content[hidden],#course-selection-content[hidden]{display:none!important}
+.achievement-panel .achievement-metric{border:0;border-radius:0;padding:0 0 10px}
+.course-selection{margin-top:12px}
+.course-selection-button{width:100%;min-height:44px}
+#course-selection-content{margin-top:12px}
 .achievement-metric{display:flex;flex-direction:column;gap:5px;min-width:0;border:1px solid var(--line);border-radius:10px;padding:10px;background:var(--bg)}
 .achievement-metric .muted{font-size:11px;overflow-wrap:anywhere}
 .achievement-metric strong{font-size:19px;line-height:1.3;font-variant-numeric:tabular-nums;overflow-wrap:anywhere}
