@@ -1,11 +1,19 @@
 # CI checks
 
 This workflow runs on pull requests targeting main, pushes to main, and manual dispatch.
-It runs the locked offline Worker suite, the password policy suite, a Wrangler dry-run bundle, and frontend tests in separate jobs.
+It runs the locked offline Worker suite, the password policy suite, a Wrangler dry-run bundle, frontend tests, and a dependency security audit in separate jobs.
 It never deploys, applies migrations, provides production secrets, or calls the live application.
 Only the built-in read-only repository token is available; checkout does not persist credentials.
 Actions are pinned to commit SHAs. Node 24 matches local validation. Dependency install scripts are disabled.
 A dry run validates packaging only, not production configuration.
+
+The audit queries npm advisories for the worker lockfile, including development tools, and fails on high/critical findings or registry errors. It runs independently so test failures do not prevent it. No automatic dependency fixes are applied. A clean audit is not a source-code security review.
+
+## Review of the supplied CI proposal
+
+The repository has no root package.json or root lockfile; npm commands and caching must point to worker/. The frontend uses Node's test runner, not Vitest, so it runs with node --test docs/*.test.mjs. There are no lint, typecheck, test:frontend or test:backend scripts. Optional script checks and success fallbacks would hide missing coverage; required tests and bundling fail directly. Node 20 is unsuitable because locked Cloudflare dependencies require Node >=22; retain tested Node 24. Only main currently needs a branch filter. Keep read-only permissions, pinned actions, timeouts, and disabled persisted credentials.
+
+Adopted from the proposal: a separate npm audit gate, verified locally with zero reported vulnerabilities on 2026-10-19. The audit may change as npm advisories change.
 
 ## Current blockers and scope
 
@@ -25,8 +33,8 @@ Linux CI uses LF. PR #3 fixes the separate Windows runtime file-URL issue and Re
 This does not imply the current main Worker suite has passed on Windows.
 
 PR #3 at 551118a passed the full offline Worker suite and Wrangler dry-run locally on Windows/Node 24.
-Main has not been claimed to pass locally; the first CI execution provides the Linux result.
+The initial CI run (39265122750) passed Worker tests and bundling on Ubuntu/Node 24; frontend failed. Main has not been claimed to pass locally on Windows.
 The workflow in this PR does not retroactively add checks to the old heads of PR #2, #3, or #4.
 After this workflow reaches main through a separately authorized merge, update those PR branches
-and require both job checks in repository protection rules as a separate administrator action.
+and require all three job checks in repository protection rules as a separate administrator action.
 Until then, absence of checks on those PRs is not evidence of success.
