@@ -398,8 +398,11 @@ async function postNote(env, body) {
       if (photo == null) throw new HttpError(400, "invalid image data");
       if (!/^image\/(jpeg|png|webp|gif)$/.test(photo.type || "") ||
           typeof photo.data !== "string" || photo.data.length > 4_000_000) continue;
-      try { decodedPhotos.set(photo, Uint8Array.from(atob(photo.data), (c) => c.charCodeAt(0))); }
-      catch { throw new HttpError(400, "invalid image data"); }
+      try {
+        const bytes = Uint8Array.from(atob(photo.data), (c) => c.charCodeAt(0));
+        if (!bytes.byteLength) throw new Error("empty image");
+        decodedPhotos.set(photo, bytes);
+      } catch { throw new HttpError(400, "invalid image data"); }
     }
   }
   const pg = await notion(env, "/pages", "POST", { parent: { database_id: DB.notes }, properties: props });
