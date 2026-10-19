@@ -118,7 +118,8 @@ with sync_playwright() as p:
             assert shortcut.locator('svg').bounding_box() == icon
             whole_old = Image.open(io.BytesIO(group.screenshot(animations='disabled'))).convert('RGB')
             delta=ImageChops.difference(whole_new,whole_old); delta.paste((0,0,0),(int(box['x']-group_box['x'])-1,int(box['y']-group_box['y'])-1,int(box['x']-group_box['x']+box['width'])+2,int(box['y']-group_box['y']+box['height'])+2))
-            assert delta.convert('L').point(lambda value: 255 if value > 10 else 0).getbbox() is None, (width,theme,'UI changed outside shortcut')
+            changed = delta.convert('L').point(lambda value: 255 if value > 10 else 0).getbbox()
+            assert changed is None, (width, theme, 'UI changed outside shortcut', {'changed_bbox': changed, 'shortcut_box': box, 'group_box': group_box})
             shortcut.evaluate('(el, svg) => el.innerHTML=svg',new_svg)
             # Exercise actual mouse/touch clicks at the edge and center without navigating externally.
             shortcut.evaluate("el => { window.shortcutClicks=[]; el.addEventListener('click',e => { e.preventDefault(); window.shortcutClicks.push(el.href); }); }")
