@@ -1,61 +1,61 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-import { createHash } from "node:crypto";
-import { spawnSync } from "node:child_process";
+import { spawnSync, execFileSync } from "node:child_process";
 import test from "node:test";
 
+const base = "3ae6925d2b2927f115fe22fc94e1127992d49bc1";
 const html = readFileSync(new URL("./index.html", import.meta.url), "utf8");
 const sw = readFileSync(new URL("./sw.js", import.meta.url), "utf8");
-const asset = "icons/recall-hippocampus-256.png?v=hippocampus-1";
-const link = html.match(/<a\b(?=[^>]*\bid="recall-room-shortcut")[^>]*>[\s\S]*?<\/a>/);
+const baseline = file => execFileSync("git", ["show", `${base}:docs/${file}`], { cwd: new URL("..", import.meta.url), encoding: "utf8" });
+const shortcut = /<a\b(?=[^>]*\bid="recall-room-shortcut")[^>]*>[\s\S]*?<\/a>/;
+const link = html.match(shortcut)[0];
 
-test("hippocampus shortcut preserves its accessible disabled/no-href initial state", () => {
-  assert.ok(link, "recall shortcut exists");
-  const opening = link[0].slice(0, link[0].indexOf(">") + 1);
-  for (const attr of ['class="icon-btn"', 'aria-label="回想室"', 'title="回想室"', 'aria-disabled="true"']) {
-    assert.ok(opening.includes(attr), attr);
-  }
+test("transparent currentColor silhouette preserves accessible disabled/no-href initial state", () => {
+  const opening = link.slice(0, link.indexOf(">") + 1);
+  for (const attr of ['class="icon-btn"', 'aria-label="回想室"', 'title="回想室"', 'aria-disabled="true"']) assert.ok(opening.includes(attr), attr);
   assert.doesNotMatch(opening, /\bhref=/);
-  assert.match(link[0], /<svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true" focusable="false">/);
-  assert.ok(link[0].includes(`<image href="${asset}" width="24" height="24"/>`));
-  assert.doesNotMatch(link[0], /<path\b|<rect\b|<span\b/);
+  assert.match(link, /<svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor" aria-hidden="true" focusable="false">/);
+  assert.match(link, /<path d="M[\d\s.LZ]+"\/>/);
+  assert.doesNotMatch(link, /<image\b|<rect\b|<span\b|style=|#[0-9a-f]{3,8}/i);
 });
 
-test("shortcut uses the supplied 256px PNG unchanged, not the application icons", () => {
-  const png = readFileSync(new URL(asset.split("?")[0], import.meta.url));
-  assert.equal(png.subarray(0, 8).toString("hex"), "89504e470d0a1a0a");
-  assert.equal(png.readUInt32BE(16), 256);
-  assert.equal(png.readUInt32BE(20), 256);
-  assert.equal(createHash("sha256").update(png).digest("hex"), "5db2139234b9b7ddf7b2f03289a164ac0309116494621fd19b47b28295e18ea4");
-  const manifest = JSON.parse(readFileSync(new URL("./manifest.webmanifest", import.meta.url), "utf8"));
-  assert.ok(manifest.icons.every(icon => !icon.src.includes("hippocampus")), "app branding stays unchanged");
+test("only shortcut SVG changes: other markup, link semantics, app branding and styles remain identical", () => {
+  const stripSVG = text => text.replace(shortcut, match => match.replace(/<svg[\s\S]*?<\/svg>/, "<svg/>"));
+  assert.equal(stripSVG(html), stripSVG(baseline("index.html")));
+  for (const file of ["style.css", "app.js", "config.js", "recall-room.css", "recall-room.js", "recall/index.html", "recall/auth-ui.js", "manifest.webmanifest", "icons/recall-hippocampus-256.png"]) {
+    const previous = execFileSync("git", ["show", `${base}:docs/${file}`], { cwd: new URL("..", import.meta.url) });
+    assert.deepEqual(readFileSync(new URL(file, import.meta.url)), previous, file);
+  }
 });
 
-test("PWA cache version and shell include the exact versioned shortcut image once", () => {
-  assert.match(sw, /^const CACHE = "sd-v132";$/m);
+test("PWA bumps only exact base cache version and preserves the shell", () => {
+  assert.equal(sw, baseline("sw.js").replace('"sd-v132"', '"sd-v133"'));
   const shell = JSON.parse(sw.match(/^const SHELL = (\[[^\n]+\]);$/m)[1]);
-  assert.equal(shell.filter(entry => entry === asset).length, 1);
   assert.equal(new Set(shell).size, shell.length);
+  assert.ok(shell.includes("index.html"));
+  assert.deepEqual(shell, JSON.parse(baseline("sw.js").match(/^const SHELL = (\[[^\n]+\]);$/m)[1]));
 });
 
-const available = spawnSync("chromium", ["--version"]).status === 0 &&
-  spawnSync("python3", ["-c", "import playwright.sync_api, PIL"]).status === 0;
+const available = spawnSync("chromium", ["--version"]).status === 0 && spawnSync("python3", ["-c", "import playwright.sync_api, PIL"]).status === 0;
 const runner = String.raw`
-import functools, http.server, io, json, os, pathlib, shutil, subprocess, threading
+import functools, http.server, io, json, os, pathlib, re, shutil, subprocess, threading
 from PIL import Image, ImageChops
 from playwright.sync_api import sync_playwright
 root = pathlib.Path.cwd()
 evidence = pathlib.Path(os.environ['RECALL_ICON_SCREENSHOTS']) if os.environ.get('RECALL_ICON_SCREENSHOTS') else None
 if evidence: evidence.mkdir(parents=True, exist_ok=True)
-asset = 'icons/recall-hippocampus-256.png?v=hippocampus-1'
-legacy_sw = subprocess.check_output(['git','show','f4743bc0fc9b8fe3819cc5ea4c8c6f0758071283:docs/sw.js'])
+base = '3ae6925d2b2927f115fe22fc94e1127992d49bc1'
+legacy_sw = subprocess.check_output(['git','show',base+':docs/sw.js'])
+legacy_html = subprocess.check_output(['git','show',base+':docs/index.html']).decode()
+legacy_svg = re.search(r'id="recall-room-shortcut"[^>]*>(<svg[\s\S]*?</svg>)',legacy_html).group(1)
 class Handler(http.server.SimpleHTTPRequestHandler):
     legacy = False
     def log_message(self, *_): pass
     def do_GET(self):
-        if self.path == '/sw.js' and type(self).legacy:
-            self.send_response(200); self.send_header('Content-Type','application/javascript')
-            self.send_header('Cache-Control','no-store'); self.end_headers(); self.wfile.write(legacy_sw)
+        if self.path.split('?')[0] in ['/sw.js','/index.html','/'] and type(self).legacy:
+            is_sw = self.path.split('?')[0] == '/sw.js'
+            self.send_response(200); self.send_header('Content-Type','application/javascript' if is_sw else 'text/html')
+            self.send_header('Cache-Control','no-store'); self.end_headers(); self.wfile.write(legacy_sw if is_sw else legacy_html.encode())
         else: super().do_GET()
 server = http.server.ThreadingHTTPServer(('127.0.0.1',0), functools.partial(Handler,directory=str(root/'docs')))
 threading.Thread(target=server.serve_forever,daemon=True).start()
@@ -68,77 +68,115 @@ with sync_playwright() as p:
             context = browser.new_context(viewport={'width':width,'height':height},color_scheme=theme,reduced_motion='reduce',service_workers='block',has_touch=width<900)
             page = context.new_page(); errors=[]; images=[]
             page.on('pageerror',lambda error: errors.append(str(error)))
-            page.on('response',lambda response: images.append(response.status) if response.url == origin+'/'+asset else None)
+            page.on('request',lambda request: images.append(request.url) if 'hippocampus' in request.url else None)
             page.route('**/*', lambda route: route.continue_() if route.request.url.startswith(origin+'/') else route.abort())
             page.goto(origin+'/?demo=1',wait_until='networkidle')
+            page.add_style_tag(content='*,*::before,*::after{animation:none!important;transition:none!important}')
             shortcut = page.locator('#recall-room-shortcut')
             assert shortcut.is_visible()
             assert shortcut.get_attribute('aria-label') == '回想室' and shortcut.get_attribute('title') == '回想室'
             assert shortcut.get_attribute('href') == 'https://study-dashboard-api.tw-ching.workers.dev/recall/'
             assert shortcut.get_attribute('aria-disabled') is None
-            assert shortcut.locator('svg image').get_attribute('href') == asset
-            assert images == [200], images
+            assert shortcut.locator('image').count() == 0 and not images
             box = shortcut.bounding_box(); icon = shortcut.locator('svg').bounding_box()
             assert box['x'] <= icon['x'] and icon['x']+icon['width'] <= box['x']+box['width']
             assert box['y'] <= icon['y'] and icon['y']+icon['height'] <= box['y']+box['height']
             assert abs(icon['x']+icon['width']/2-box['x']-box['width']/2)<1
+            assert abs(icon['y']+icon['height']/2-box['y']-box['height']/2)<1
             neighbor = page.locator('#gd-link svg').bounding_box()
             assert icon['width'] == icon['height'] == neighbor['width'] == neighbor['height'], (width,theme,icon,neighbor)
-            # A decoded image must actually paint; a successful HTTP response alone is insufficient.
+            colors = page.evaluate("""() => { const p=document.querySelector('#recall-room-shortcut path'), n=document.querySelector('#gd-link svg'); return {fill:getComputedStyle(p).fill, color:getComputedStyle(n).stroke}; }""")
+            assert colors['fill'] == colors['color'], colors
             before = shortcut.screenshot(animations='disabled')
-            page.add_style_tag(content='#recall-room-shortcut image{visibility:hidden!important}')
-            after = shortcut.screenshot(animations='disabled')
-            assert ImageChops.difference(Image.open(io.BytesIO(before)).convert('RGB'),Image.open(io.BytesIO(after)).convert('RGB')).getbbox()
-            page.add_style_tag(content='#recall-room-shortcut image{visibility:visible!important}')
+            page.locator('#recall-room-shortcut svg').evaluate("el => el.style.visibility='hidden'")
+            hidden = shortcut.screenshot(animations='disabled')
+            diff = ImageChops.difference(Image.open(io.BytesIO(before)).convert('RGB'),Image.open(io.BytesIO(hidden)).convert('RGB'))
+            # Ignore <=10/255 screenshot edge raster noise; the actual silhouette has full contrast.
+            painted = diff.convert('L').point(lambda value: 255 if value > 10 else 0).getbbox(); assert painted
+            assert painted[0] > 0 and painted[1] > 0 and painted[2] < round(box['width']) and painted[3] < round(box['height']), painted
+            page.locator('#recall-room-shortcut svg').evaluate("el => el.style.visibility=''")
+            # Force a new inherited color: raster pixels, not just SVG attributes, must change.
+            shortcut.evaluate("el => el.style.color='rgb(233, 12, 175)'")
+            forced_fill = shortcut.locator('path').evaluate("el => getComputedStyle(el).fill")
+            assert forced_fill == 'rgb(233, 12, 175)', (width,theme,forced_fill)
+            forced = shortcut.screenshot(animations='disabled')
+            assert (233,12,175) in Image.open(io.BytesIO(forced)).convert('RGB').getdata()
+            shortcut.evaluate("el => el.style.color=''")
             if evidence and width in [390,1440]:
                 page.screenshot(path=str(evidence/f'{width}x{height}-{theme}.png'),animations='disabled')
-                shortcut.screenshot(path=str(evidence/f'{width}x{height}-{theme}-shortcut.png'),animations='disabled')
-            # Invalid API configuration must keep the existing disabled/no-href behavior.
+                page.locator('.top-actions').screenshot(path=str(evidence/f'{width}x{height}-{theme}-shortcuts.png'),animations='disabled')
+            # Swap only old SVG into the same live page: button geometry and shortcut-group pixels (tolerance 10/255)
+            # outside the shortcut rectangle must remain unchanged.
+            group = page.locator('.top-actions'); group_box=group.bounding_box()
+            whole_new = Image.open(io.BytesIO(group.screenshot(animations='disabled'))).convert('RGB')
+            new_svg = shortcut.locator('svg').evaluate('el => el.outerHTML')
+            shortcut.evaluate('(el, svg) => el.innerHTML=svg',legacy_svg)
+            assert shortcut.bounding_box() == box
+            assert shortcut.locator('svg').bounding_box() == icon
+            whole_old = Image.open(io.BytesIO(group.screenshot(animations='disabled'))).convert('RGB')
+            delta=ImageChops.difference(whole_new,whole_old); delta.paste((0,0,0),(int(box['x']-group_box['x'])-1,int(box['y']-group_box['y'])-1,int(box['x']-group_box['x']+box['width'])+2,int(box['y']-group_box['y']+box['height'])+2))
+            assert delta.convert('L').point(lambda value: 255 if value > 10 else 0).getbbox() is None, (width,theme,'UI changed outside shortcut')
+            shortcut.evaluate('(el, svg) => el.innerHTML=svg',new_svg)
+            # Exercise actual mouse/touch clicks at the edge and center without navigating externally.
+            shortcut.evaluate("el => { window.shortcutClicks=[]; el.addEventListener('click',e => { e.preventDefault(); window.shortcutClicks.push(el.href); }); }")
+            for x,y in [(box['x']+2,box['y']+box['height']/2),(box['x']+box['width']/2,box['y']+box['height']/2)]:
+                assert page.evaluate("([x,y]) => document.elementFromPoint(x,y)?.closest('a')?.id",[x,y]) == 'recall-room-shortcut'
+                if width < 900: page.touchscreen.tap(x,y)
+                else: page.mouse.click(x,y)
+            assert page.evaluate('window.shortcutClicks') == ['https://study-dashboard-api.tw-ching.workers.dev/recall/']*2
+            page.mouse.move(0,0)
             page.evaluate("localStorage.setItem('apiBase','invalid')")
             page.reload(wait_until='networkidle')
             assert shortcut.get_attribute('aria-disabled') == 'true' and shortcut.get_attribute('href') is None
+            assert shortcut.evaluate('el => getComputedStyle(el).pointerEvents') == 'none'
             assert not errors, errors
-            results.append({'viewport':[width,height],'theme':theme,'icon_px':icon['width'],'rendered':True,'initialization':'PASS'})
+            results.append({'viewport':[width,height],'theme':theme,'icon_px':icon['width'],'hitbox_px':[box['width'],box['height']],'currentColor':colors['fill'],'transparent':True,'other_shortcut_pixel_diff_gt10':0,'edge_center_click':'PASS','initialization':'PASS'})
             context.close()
-    # Real service-worker migration from the exact base cache, followed by an offline reload.
     Handler.legacy = True
     context = browser.new_context(viewport={'width':390,'height':844},service_workers='allow')
     page = context.new_page()
     page.goto(origin+'/?demo=1',wait_until='networkidle')
     page.evaluate('navigator.serviceWorker.ready.then(() => true)')
     page.wait_for_function("navigator.serviceWorker.controller !== null")
-    assert 'sd-v131' in page.evaluate('caches.keys()')
+    assert 'sd-v132' in page.evaluate('caches.keys()')
+    assert page.locator('#recall-room-shortcut image').count() == 1
+    assert page.evaluate("async () => (await (await caches.open('sd-v132')).match('index.html')).text()").find('recall-hippocampus-256.png') >= 0
     Handler.legacy = False
     page.evaluate('navigator.serviceWorker.getRegistration().then(r => r.update()).then(() => true)')
     for attempt in range(100):
-        cached = page.evaluate("async asset => { const keys = await caches.keys(); const r = await caches.match(asset,{cacheName:'sd-v132'}); return {keys,status:r?.status,type:r?.headers.get('content-type')}; }", asset)
-        if 'sd-v131' not in cached['keys'] and cached.get('status') == 200: break
+        cached = page.evaluate("""async () => { const keys=await caches.keys(); const r=await caches.match('index.html',{cacheName:'sd-v133'}); return {keys,html:r?await r.text():''}; }""")
+        if 'sd-v132' not in cached['keys'] and 'fill="currentColor" aria-hidden="true" focusable="false"' in cached['html']: break
         page.wait_for_timeout(100)
-    assert 'sd-v131' not in cached['keys'] and cached.get('status') == 200 and cached.get('type','').startswith('image/png'), cached
+    assert 'sd-v132' not in cached['keys'] and 'sd-v133' in cached['keys'], cached['keys']
+    assert 'recall-hippocampus-256.png' not in cached['html']
     context.set_offline(True)
-    page.reload(wait_until='networkidle')
-    page.wait_for_function("document.querySelector('#recall-room-shortcut image') !== null")
-    assert page.evaluate("async asset => { const r = await fetch(asset); return r.ok && (await r.blob()).size === 49019; }", asset)
-    before = page.locator('#recall-room-shortcut').screenshot(animations='disabled')
-    page.add_style_tag(content='#recall-room-shortcut image{visibility:hidden!important}')
-    after = page.locator('#recall-room-shortcut').screenshot(animations='disabled')
-    assert ImageChops.difference(Image.open(io.BytesIO(before)).convert('RGB'),Image.open(io.BytesIO(after)).convert('RGB')).getbbox()
-    page.add_style_tag(content='#recall-room-shortcut image{visibility:visible!important}')
-    if evidence: page.screenshot(path=str(evidence/'390x844-offline-upgraded.png'),animations='disabled')
+    for width,height in [(390,844),(1440,900)]:
+        page.set_viewport_size({'width':width,'height':height})
+        for theme in ['light','dark']:
+            page.emulate_media(color_scheme=theme)
+            page.reload(wait_until='networkidle')
+            page.wait_for_function("document.querySelector('#recall-room-shortcut path') !== null")
+            assert page.locator('#recall-room-shortcut').get_attribute('href') == 'https://study-dashboard-api.tw-ching.workers.dev/recall/'
+            assert page.locator('#recall-room-shortcut path').evaluate('el => getComputedStyle(el).fill') == page.locator('#gd-link svg').evaluate('el => getComputedStyle(el).stroke')
+            shortcut=page.locator('#recall-room-shortcut')
+            before=shortcut.screenshot(animations='disabled')
+            page.locator('#recall-room-shortcut svg').evaluate("el => el.style.visibility='hidden'")
+            hidden=shortcut.screenshot(animations='disabled')
+            assert ImageChops.difference(Image.open(io.BytesIO(before)).convert('RGB'),Image.open(io.BytesIO(hidden)).convert('RGB')).getbbox()
+            page.locator('#recall-room-shortcut svg').evaluate("el => el.style.visibility=''")
+            if evidence: page.screenshot(path=str(evidence/f'{width}x{height}-offline-upgraded-{theme}.png'),animations='disabled')
     context.close(); browser.close()
 server.shutdown()
-report = {'status':'PASS','responsive_cases':results,'cache_upgrade':'sd-v131 -> sd-v132 PASS','offline_image':'PASS'}
+report = {'status':'PASS','responsive_cases':results,'cache_upgrade':'sd-v132 -> sd-v133 PASS','offline_silhouette':'light/dark PASS'}
 if evidence: (evidence/'browser-results.json').write_text(json.dumps(report,ensure_ascii=False,indent=2))
 print(json.dumps(report,ensure_ascii=False))
 `;
 
-test("desktop/mobile light-dark rendering, unchanged link initialization and real PWA offline upgrade", { skip: !available }, () => {
-  const result = spawnSync("python3", ["-c", runner], {
-    cwd: new URL("..", import.meta.url), encoding: "utf8", timeout: 120000, env: process.env,
-  });
+test("desktop/mobile light-dark currentColor, transparent rendering, unchanged UI and real PWA offline upgrade", { skip: !available }, () => {
+  const result = spawnSync("python3", ["-c", runner], { cwd: new URL("..", import.meta.url), encoding: "utf8", timeout: 180000, env: process.env });
   assert.equal(result.status, 0, result.error?.message || result.stderr || result.stdout);
   const report = JSON.parse(result.stdout.trim());
   assert.equal(report.status, "PASS");
   assert.equal(report.responsive_cases.length, 14);
-  assert.equal(report.offline_image, "PASS");
+  assert.equal(report.offline_silhouette, "light/dark PASS");
 });

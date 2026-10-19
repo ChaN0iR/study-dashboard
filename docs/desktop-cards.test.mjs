@@ -13,7 +13,7 @@ test('index.html references the updated desktop card assets exactly once', () =>
 });
 
 test('SW cache and shell match the index.html static asset references', () => {
-  assert.match(sw, /^const CACHE = "sd-v132";$/m);
+  assert.match(sw, /^const CACHE = "sd-v133";$/m);
   assert.equal(new Set(shell).size, shell.length, 'shell has no duplicate entries');
   for (const entry of ['./', 'index.html', 'app.js?v=119', 'style.css?v=123']) assert.ok(shell.includes(entry), entry);
   assert.deepEqual(shell.filter(entry => /^(app\.js|style\.css)(\?|$)/.test(entry)), ['style.css?v=123', 'app.js?v=119']);
