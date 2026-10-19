@@ -386,8 +386,21 @@ async function postNote(env, body) {
     if (!ID_RE.test(body.lessonId)) throw new HttpError(400, "lessonId invalid");
     props[P.note.lesson] = { relation: [{ id: body.lessonId }] };
   }
-  const pg = await notion(env, "/pages", "POST", { parent: { database_id: DB.notes }, properties: props });
   const pagesIn = Array.isArray(body.pages) ? body.pages : [{ photos: body.photos }];
+  // Validate upload data before creating a Notion page or upload slot. Without
+  // this, malformed base64 could leave a partially-created note behind.
+  let checkedPhotos = 0;
+  for (const page of pagesIn) {
+    const photos = (Array.isArray(page && page.photos) ? page.photos : []).slice(0, 8);
+    for (const photo of photos) {
+      if (++checkedPhotos > 8) break;
+      if (!/^image\/(jpeg|png|webp|gif)$/.test(photo.type || "") ||
+          typeof photo.data !== "string" || photo.data.length > 4_000_000) continue;
+      try { atob(photo.data); }
+      catch { throw new HttpError(400, "invalid image data"); }
+    }
+  }
+  const pg = await notion(env, "/pages", "POST", { parent: { database_id: DB.notes }, properties: props });
   const blocks = [];
   let count = 0;
   for (let pi = 0; pi < pagesIn.length; pi++) {
