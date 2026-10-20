@@ -2,7 +2,7 @@ name: Visual Browser Checks (Experimental)
 
 on:
   pull_request:
-    branches: [main]
+    branches: [main, codex/pwa-sensitive-cache-guard]
     paths:
       - '.github/workflows/visual-browser-checks.yml'
       - 'docs/**'
