@@ -5,7 +5,7 @@ import { readFile } from "node:fs/promises";
 
 const policySource = await readFile(new URL("./task-policy.js", import.meta.url), "utf8");
 const appSource = await readFile(new URL("./app.js", import.meta.url), "utf8");
-const widgetSource = await readFile(new URL("../scriptable-widget.js", import.meta.url), "utf8");
+const widgetSource = (await readFile(new URL("../scriptable-widget.js", import.meta.url), "utf8")).replace(/\r\n/g, "\n");
 const context = {};
 vm.runInNewContext(policySource, context);
 for (const name of ["isLifeTask", "isStudyTask"]) {
@@ -15,9 +15,19 @@ for (const name of ["isLifeTask", "isStudyTask"]) {
 }
 vm.runInNewContext(["STUDY_TASK_TYPES", "EXPLICIT_STUDY_TASK", "ADMIN_ONLY_TASK", "ADMIN_OPERATION"]
   .map(name => appSource.split("\n").find(line => line.startsWith(`  const ${name} =`))).join("\n"), context);
-const start = widgetSource.indexOf("const WIDGET_STUDY_TASK_TYPES");
-const end = widgetSource.indexOf("const today =", start);
-vm.runInNewContext(widgetSource.slice(0, widgetSource.indexOf("const KEY_NAME")) + "\n" + widgetSource.slice(start, end), context);
+// Execute the actual Widget selection code; fail clearly if its boundaries change.
+function widgetSelection(rows, slotName) {
+  const start = widgetSource.indexOf('const tasks = (st.tasks');
+  const end = widgetSource.indexOf('const isRest =', start);
+  const fitStart = widgetSource.indexOf('const keys = cur ?');
+  const fitEnd = widgetSource.indexOf('const left =', fitStart);
+  assert.ok(start >= 0 && end > start && fitStart > end && fitEnd > fitStart, 'Widget selection boundaries');
+  const sandbox = { st: { tasks: rows }, cur: slotName ? ['', '', slotName] : null };
+  vm.runInNewContext(widgetSource.slice(0, widgetSource.indexOf('const KEY_NAME')) +
+    widgetSource.slice(start, end) + widgetSource.slice(fitStart, fitEnd) +
+    ';globalThis.result = { tasks, done, total, open, fit, rest };', sandbox);
+  return sandbox.result;
+}
 const policy = context.TaskPolicy;
 const today = "2026-10-18";
 const routineSlot = { start: "07:00", end: "07:45", name: "Anki＋單字", keys: ["anki", "單字"] };
@@ -69,20 +79,28 @@ test("每日必做例外不改變平日睡前或既有跨日／跳過／去重�
   assert.equal(result.tasks[0].done, false);
 });
 
-test("Scriptable 維持原有休息日模型與三餐過濾，不跟隨 Dashboard 選課例外", () => {
-  const rows = [row("anki", dailyTitles[0]), row("vocab", "英文單字複習"), row("walk", "飯後散步"), row("study", "物理第02堂")];
-  for (const min of [7 * 60 + 15, 10 * 60, 20 * 60 + 50, 21 * 60 + 10]) {
-    const result = context.widgetTaskModel({ today, tasks: rows }, { date: today, wd: "Sun", min });
-    assert.deepEqual(new Set(ids(result.tasks)), new Set(["anki", "vocab", "walk"]));
-    assert.deepEqual(new Set(ids(result.visibleOpen)), new Set(["anki", "vocab", "walk"]));
-    assert.equal(result.total, 3);
-    assert.equal(result.done, 0);
-  }
-  const lunch = context.widgetTaskModel({ today, tasks: rows }, { date: today, wd: "Sun", min: 12 * 60 + 15 });
-  assert.deepEqual(ids(lunch.visibleOpen), ["walk"]);
-  assert.equal(lunch.total, 3);
+test("Scriptable 直接驗證既有任務計數、排序與時段配對", () => {
+  const rows = [row("anki", dailyTitles[0], { order: 3 }), row("walk", "飯後散步", { order: 2 }),
+    row("study", "物理第02堂", { order: 1 }), row("done", "午餐", { done: true }),
+    row("skip", "單字複習", { skipped: true })];
+  const before = JSON.stringify(rows);
+  const morning = widgetSelection(rows, "Anki＋單字");
+  assert.deepEqual(ids(morning.tasks), ["anki", "walk", "study", "done"]);
+  assert.deepEqual(ids(morning.open), ["study", "walk", "anki"]);
+  assert.deepEqual(ids(morning.fit), ["anki"]);
+  assert.deepEqual(ids(morning.rest), ["study", "walk"]);
+  assert.equal(morning.total, 4);
+  assert.equal(morning.done, 1);
+  // Widget currently keeps ordinary courses and does not apply Dashboard rest-day policy.
+  const lunch = widgetSelection(rows, "午餐");
+  assert.deepEqual(ids(lunch.open), ["study", "walk", "anki"]);
+  assert.deepEqual(ids(lunch.fit), []);
+  assert.deepEqual(ids(widgetSelection(rows, null).rest), ["study", "walk", "anki"]);
+  const empty = widgetSelection([], null);
+  assert.equal(empty.total, 0);
+  assert.equal(empty.done, 0);
+  assert.equal(JSON.stringify(rows), before);
 });
-
 
 test("週日沒有補做時保留最近一項未完成課程，完成後接續下一項", () => {
   const first = row("first", "物理第01堂", { order: 1 });
@@ -143,3 +161,4 @@ test("週日同 ID 仍選今天原筆，不用過期副本的補做或前置狀�
     assert.equal(view.tasks[0].date, today);
   }
 });
+
