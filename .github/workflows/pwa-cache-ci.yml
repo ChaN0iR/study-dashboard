@@ -2,7 +2,7 @@ name: PWA Cache Safety (Offline)
 
 on:
   pull_request:
-    branches: [main]
+    branches: [main, codex/pwa-sensitive-cache-guard]
     paths:
       - 'docs/**'
       - '.github/workflows/pwa-cache-ci.yml'
