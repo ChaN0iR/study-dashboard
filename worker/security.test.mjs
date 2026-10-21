@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import worker from './index.js';
 import { authApi, progressApi } from './recall/auth.js';
+import { grade } from './recall/worker.js';
 const original=globalThis.fetch;
 let network=0, writes=0, lookups=0;
 globalThis.fetch=async()=>{network++;throw new Error('unexpected external call');};
@@ -26,7 +27,7 @@ try {
  const registration=await authApi(request('/api/auth/register','POST',JSON.stringify({email:'student@example.test',password:'long-enough-password'}),{origin:'https://app'}),{DB:{prepare(){throw Error('unexpected DB access');}}},'/api/auth/register');
  assert.equal(registration.status,503);
  assert.equal((await registration.json()).code,'REGISTRATION_DISABLED');
- const disabledGrade=await worker.fetch(request('/api/grade','POST','{}'),{...env,DB:{prepare(){throw Error('unexpected DB access');}}});
+ const disabledGrade=await grade(request('/api/grade','POST','{}'),env);
  assert.equal(disabledGrade.status,503);
  assert.equal((await disabledGrade.json()).code,'AI_GRADING_DISABLED');
  const db={prepare(sql){return {bind(...args){this.args=args;return this;},async first(){lookups++;return null;},async run(){writes++;return {};}};}};
