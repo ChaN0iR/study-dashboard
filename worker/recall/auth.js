@@ -162,11 +162,21 @@ async function authRegister(request, env) {
   if (limited(request.headers.get("cf-connecting-ip") || "unknown")) return json({ code: "AUTH_RATE_LIMIT" }, 429);
   const parsed = await readJson(request, 8_000);
   if (parsed.error) return json({ code: parsed.error }, parsed.error === "REQUEST_TOO_LARGE" ? 413 : 400);
+  // Fail closed until the owner configures a private registration invite secret.
+  const configuredInvite = env.REGISTRATION_INVITE_CODE;
+  const suppliedInvite = typeof parsed.value.inviteCode === "string" ? parsed.value.inviteCode : "";
+  if (typeof configuredInvite !== "string" || configuredInvite.length < 16) {
+    return json({ code: "REGISTRATION_DISABLED" }, 503);
+  }
+  if (suppliedInvite.length !== configuredInvite.length ||
+      !constantTimeEqual(encoder.encode(suppliedInvite), encoder.encode(configuredInvite))) {
+    return json({ code: "INVALID_INVITE_CODE" }, 403);
+  }
   const email = typeof parsed.value.email === "string" ? parsed.value.email.trim().toLowerCase() : "";
   const password = typeof parsed.value.password === "string" ? parsed.value.password : "";
   if (!email || email.length > 254 || !EMAIL_RE.test(email)) return json({ code: "INVALID_EMAIL" }, 422);
-  if (!password) {
-    return json({ code: "PASSWORD_REQUIRED" }, 422);
+  if (password.length < 12 || password.length > 128) {
+    return json({ code: "PASSWORD_LENGTH_INVALID" }, 422);
   }
 
   const passwordHash = await hashPassword(password);
