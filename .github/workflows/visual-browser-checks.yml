@@ -2,7 +2,7 @@ name: Visual Browser Checks (Experimental)
 
 on:
   pull_request:
-    branches: [main, codex/pwa-sensitive-cache-guard, codex/integration-backend-ci]
+    branches: [main, codex/pwa-sensitive-cache-guard, codex/integration-backend-ci, codex/security-full-stack-validation]
     paths:
       - '.github/workflows/visual-browser-checks.yml'
       - 'docs/**'
@@ -60,3 +60,6 @@ jobs:
             docs/desktop-cards.test.mjs \
             docs/recall-icon.test.mjs \
             docs/timer-layout.test.mjs
+
+      - name: Verify private responses stay unavailable offline in real Chromium
+        run: python3 docs/service-worker-privacy.browser.py
