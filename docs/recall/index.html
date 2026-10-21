@@ -83,6 +83,10 @@
         <label for="rrPasswordConfirm">再次輸入密碼</label>
         <input id="rrPasswordConfirm" name="passwordConfirm" type="password" autocomplete="new-password" placeholder="確認密碼">
       </div>
+      <div id="rrInviteWrap" hidden>
+        <label for="rrInviteCode">註冊邀請碼</label>
+        <input id="rrInviteCode" name="inviteCode" type="text" autocomplete="off" placeholder="請輸入管理者提供的邀請碼">
+      </div>
       <button class="button button-primary" id="rrAuthSubmit" type="submit">登入並接續進度</button>
     </form>
     <p class="rr-auth-status" id="rrAuthStatus" role="status" aria-live="polite">正在確認登入狀態…</p>
