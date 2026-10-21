@@ -22,6 +22,13 @@ try {
  for(const [path,body] of [['/api/task/invalid',{}],['/api/lesson/invalid',{}],['/api/note',{}],['/api/note',{title:'x',subject:'invalid'}],['/api/note',{title:'x',lessonId:'invalid'}],['/api/focus',{action:'invalid'}],['/api/record',{hours:-1}],['/api/record',{'心情':'invalid'}]]){
   assert.equal((await worker.fetch(request(path,'POST',JSON.stringify(body),{'x-app-key':'secret'}),env)).status,400,path);
  }
+ // Registration must fail closed before touching any user storage.
+ const registration=await authApi(request('/api/auth/register','POST',JSON.stringify({email:'student@example.test',password:'long-enough-password'}),{origin:'https://app'}),{DB:{prepare(){throw Error('unexpected DB access');}}},'/api/auth/register');
+ assert.equal(registration.status,503);
+ assert.equal((await registration.json()).code,'REGISTRATION_DISABLED');
+ const disabledGrade=await worker.fetch(request('/api/grade','POST','{}'),{...env,DB:{prepare(){throw Error('unexpected DB access');}}});
+ assert.equal(disabledGrade.status,503);
+ assert.equal((await disabledGrade.json()).code,'AI_GRADING_DISABLED');
  const db={prepare(sql){return {bind(...args){this.args=args;return this;},async first(){lookups++;return null;},async run(){writes++;return {};}};}};
  for(const path of ['/api/auth/login','/api/auth/register','/api/auth/logout']){
   for(const origin of [undefined,'https://evil.example','null']){
