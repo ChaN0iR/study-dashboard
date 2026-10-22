@@ -37,6 +37,16 @@ test("achievement changes preserve shortcut, other markup, branding and Recall R
       assert.equal(source.split(oldEntry).length, 2, "baseline has exactly one old password error entry");
       expected = Buffer.from(source.replace(oldEntry, oldEntry.replace("INVALID_PASSWORD", "PASSWORD_LENGTH_INVALID")));
     }
+    if (file === "recall/index.html") {
+      // Permit only the reviewed disabled-grading UI changes; retain byte checks elsewhere.
+      let source = previous.toString("utf8");
+      const replacements = [["完成後送出，再核對參考答案。", "寫完後直接核對參考答案，再選擇熟悉度。"], ["Gemini 專責批改，不會呼叫 OpenAI。", "AI 批改已停用，請直接核對講義參考答案。"], ["const providerLabel='Gemini 即時批改';", "const providerLabel='歷史 Gemini 批改（非本次結果）';"], ["送出後由 Gemini 批改；等待時可先做短回想練習。", "AI 批改已停用；文字與手寫草稿仍會保留。"], ["id=\"submitAnswerBtn\" onclick=\"submitAnswer()\">送給 Gemini 批改", "id=\"submitAnswerBtn\" onclick=\"submitAnswer()\" disabled>AI 批改已停用"], ["跳過 AI・直接看標答", "直接看標答"], ["本題已有 Gemini 批改結果；可核對標答後選擇熟悉度。", "以下為歷史批改紀錄；本次不會執行 AI 批改。可核對標答後選擇熟悉度。"], ["async function submitAnswer(){", "async function submitAnswer(){\n showToast('AI 批改已停用，請直接核對講義參考答案。');revealAnswer();return;"]];
+      for (const [before, after] of replacements) {
+        assert.ok(source.includes(before), "grading UI baseline contains " + before);
+        source = source.split(before).join(after);
+      }
+      expected = Buffer.from(source);
+    }
     assert.deepEqual(readFileSync(new URL(file, import.meta.url)), expected, file);
   }
 });
