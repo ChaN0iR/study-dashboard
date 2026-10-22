@@ -16,10 +16,10 @@ try {
   assert.equal(calls,0);
   for (const raw of ['{', 'null', '[]', 'true', '3']) assert.equal((await send('/api/note',raw)).status,400);
   const failure = await send('/api/note',JSON.stringify({title:'valid'}));
-  assert.equal(failure.status,500); assert.deepEqual(await failure.json(),{error:'internal server error'});
+  assert.equal(failure.status,502); assert.equal((await failure.json()).code,'NOTE_CREATE_UNCERTAIN');
   globalThis.fetch = async () => new Response(JSON.stringify({message:'private Notion details'}),{status:400});
   const upstream = await send('/api/note',JSON.stringify({title:'valid'}));
-  assert.equal(upstream.status,502); assert.deepEqual(await upstream.json(),{error:'internal server error'});
+  assert.equal(upstream.status,502); const safe = await upstream.json(); assert.equal(safe.code,'NOTE_CREATE_UNCERTAIN'); assert.doesNotMatch(safe.error,/private|token|stack/);
   assert.equal(await readLimitedText(new Request('https://app',{method:'POST',body:'中'}),3),'中');
   await assert.rejects(readLimitedText(new Request('https://app',{method:'POST',body:'中'}),2),BodyTooLarge);
   let cancelled=false;
