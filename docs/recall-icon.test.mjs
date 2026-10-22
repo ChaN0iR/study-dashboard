@@ -4,6 +4,8 @@ import { spawnSync, execFileSync } from "node:child_process";
 import test from "node:test";
 
 const base = "4f5667dd9c8d5beacbfefe038ee2fa882f62f6ca";
+// The two reviewed invite UI assets use a fixed security baseline; all other assets retain the original baseline.
+const inviteUiBase = "246b80169b0970a36105e0b5568190ba317aa168";
 const html = readFileSync(new URL("./index.html", import.meta.url), "utf8");
 const sw = readFileSync(new URL("./sw.js", import.meta.url), "utf8");
 const baseline = file => execFileSync("git", ["show", `${base}:docs/${file}`], { cwd: new URL("..", import.meta.url), encoding: "utf8" });
@@ -25,7 +27,8 @@ test("achievement changes preserve shortcut, other markup, branding and Recall R
   assert.equal(normalize(html), baseline("index.html"));
   assert.equal(link, baseline("index.html").match(shortcut)[0]);
   for (const file of [ "config.js", "recall-room.css", "recall-room.js", "recall/index.html", "recall/auth-ui.js", "manifest.webmanifest", "icons/recall-hippocampus-256.png"]) {
-    const previous = execFileSync("git", ["show", `${base}:docs/${file}`], { cwd: new URL("..", import.meta.url) });
+    const assetBase = ["recall/index.html", "recall/auth-ui.js"].includes(file) ? inviteUiBase : base;
+    const previous = execFileSync("git", ["show", `${assetBase}:docs/${file}`], { cwd: new URL("..", import.meta.url) });
     assert.deepEqual(readFileSync(new URL(file, import.meta.url)), previous, file);
   }
 });

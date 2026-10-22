@@ -30,6 +30,9 @@ try {
   const auth=await authApi(new Request('https://app/api/auth/login',{method:'POST',headers:{origin:'https://app'},body:JSON.stringify({password:'中'.repeat(3000)})}),{DB:db},'/api/auth/login');
   assert.equal(auth.status,413);
   const graded=await grade(new Request('https://app/api/grade',{method:'POST',body:JSON.stringify({question:'中'.repeat(220000)})}),{});
-  assert.equal(graded.status,413);
+  // The disabled endpoint returns before parsing even oversized grading bodies.
+  // Active note/auth routes and the streaming reader retain their byte-limit checks above.
+  assert.equal(graded.status,503);
+  assert.deepEqual(await graded.json(),{code:'AI_GRADING_DISABLED'});
 } finally {globalThis.fetch=original;}
 console.log('API error and byte limit tests passed');
