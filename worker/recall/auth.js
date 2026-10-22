@@ -1,11 +1,9 @@
 import { readLimitedText, BodyTooLarge } from "../request-body.js";
+import { authRateLimited } from "./auth-rate-limit.js";
 const SESSION_TTL_MS = 30 * 24 * 60 * 60 * 1000;
 const COOKIE_NAME = "rr_session";
 const PASSWORD_ITERATIONS = 100_000;
 const MAX_REQUEST_BYTES = 400_000;
-const AUTH_WINDOW_MS = 60 * 60 * 1000;
-const MAX_AUTH_ATTEMPTS = 12;
-const authWindows = new Map();
 const encoder = new TextEncoder();
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const CARD_ID_RE = /^[a-z0-9-]{1,64}$/;
@@ -29,20 +27,6 @@ function authUnavailable() {
 
 function sameOrigin(request) {
   return request.headers.get("origin") === new URL(request.url).origin;
-}
-
-function limited(ip) {
-  const now = Date.now();
-  let entry = authWindows.get(ip);
-  if (!entry || now - entry.start >= AUTH_WINDOW_MS) entry = { start: now, count: 0 };
-  entry.count += 1;
-  authWindows.set(ip, entry);
-  if (authWindows.size > 5000) {
-    for (const [key, value] of authWindows) {
-      if (now - value.start >= AUTH_WINDOW_MS) authWindows.delete(key);
-    }
-  }
-  return entry.count > MAX_AUTH_ATTEMPTS;
 }
 
 async function readJson(request, maxBytes = MAX_REQUEST_BYTES) {
@@ -161,7 +145,6 @@ async function authenticatedUser(env, request) {
 async function authRegister(request, env) {
   if (request.method !== "POST") return json({ code: "METHOD_NOT_ALLOWED" }, 405);
   if (!sameOrigin(request)) return json({ code: "SAME_ORIGIN_ONLY" }, 403);
-  if (limited(request.headers.get("cf-connecting-ip") || "unknown")) return json({ code: "AUTH_RATE_LIMIT" }, 429);
   const parsed = await readJson(request, 8_000);
   if (parsed.error) return json({ code: parsed.error }, parsed.error === "REQUEST_TOO_LARGE" ? 413 : 400);
   // Fail closed until the owner configures a private registration invite secret.
@@ -170,6 +153,7 @@ async function authRegister(request, env) {
   if (typeof configuredInvite !== "string" || configuredInvite.length < 16) {
     return json({ code: "REGISTRATION_DISABLED" }, 503);
   }
+  if (await authRateLimited(request, env)) return json({ code: "AUTH_RATE_LIMIT" }, 429);
   if (suppliedInvite.length !== configuredInvite.length ||
       !constantTimeEqual(encoder.encode(suppliedInvite), encoder.encode(configuredInvite))) {
     return json({ code: "INVALID_INVITE_CODE" }, 403);
@@ -200,9 +184,9 @@ async function authRegister(request, env) {
 async function authLogin(request, env) {
   if (request.method !== "POST") return json({ code: "METHOD_NOT_ALLOWED" }, 405);
   if (!sameOrigin(request)) return json({ code: "SAME_ORIGIN_ONLY" }, 403);
-  if (limited(request.headers.get("cf-connecting-ip") || "unknown")) return json({ code: "AUTH_RATE_LIMIT" }, 429);
   const parsed = await readJson(request, 8_000);
   if (parsed.error) return json({ code: parsed.error }, parsed.error === "REQUEST_TOO_LARGE" ? 413 : 400);
+  if (await authRateLimited(request, env)) return json({ code: "AUTH_RATE_LIMIT" }, 429);
   const email = typeof parsed.value.email === "string" ? parsed.value.email.trim().toLowerCase() : "";
   const password = typeof parsed.value.password === "string" ? parsed.value.password : "";
   if (!email || email.length > 254 || !EMAIL_RE.test(email) || !password) {

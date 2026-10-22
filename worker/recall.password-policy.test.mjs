@@ -12,6 +12,7 @@ after(() => { globalThis.fetch = nativeFetch; });
 function makeDb() {
   const users = new Map();
   const sessions = new Map();
+  const windows = new Map();
   return {
     users,
     sessions,
@@ -20,6 +21,15 @@ function makeDb() {
       return {
         bind(...values) { args = values; return this; },
         async first() {
+          if (/INSERT INTO auth_attempt_windows/i.test(sql)) {
+            const [subject, now, expires] = args;
+            const previous = windows.get(subject);
+            const row = !previous || previous.expires_at <= now
+              ? { attempts: 1, expires_at: expires }
+              : { ...previous, attempts: Math.min(previous.attempts + 1, 13) };
+            windows.set(subject, row);
+            return row;
+          }
           if (/SELECT id, email, password_hash FROM users/i.test(sql)) {
             const row = [...users.values()].find((u) => u.email.toLowerCase() === String(args[0]).toLowerCase());
             return row ? { id: row.id, email: row.email, password_hash: row.password_hash } : null;
@@ -53,7 +63,8 @@ function makeDb() {
 }
 
 const INVITE = "offline-test-invite-20261022";
-function envWithDb(db = makeDb()) { return { DB: db, REGISTRATION_INVITE_CODE: INVITE }; }
+const RATE_KEY = "offline-rate-limit-key-at-least-32-characters";
+function envWithDb(db = makeDb()) { return { DB: db, REGISTRATION_INVITE_CODE: INVITE, AUTH_RATE_LIMIT_KEY: RATE_KEY }; }
 let sequence = 0;
 function ip() { sequence += 1; return `198.51.100.${(sequence % 240) + 1}`; }
 function request(path, body, { origin = "https://recall.example", method = "POST", address = ip(), headers = {} } = {}) {
@@ -110,13 +121,13 @@ test("missing, wrong and non-string supplied invites never create accounts or se
 test("correct minimum-length configured invite creates session; login requires no configured invite", async () => {
   const db = makeDb();
   const response = await authApi(request("/api/auth/register", { email: "valid@example.com", password: "valid-password", inviteCode: "i".repeat(16) }),
-    { DB: db, REGISTRATION_INVITE_CODE: "i".repeat(16) }, "/api/auth/register");
+    { DB: db, REGISTRATION_INVITE_CODE: "i".repeat(16), AUTH_RATE_LIMIT_KEY: RATE_KEY }, "/api/auth/register");
   assert.equal(response.status, 201);
   assert.equal(db.users.size, 1);
   assert.equal(db.sessions.size, 1);
   for (const flag of [/^rr_session=/, /; HttpOnly\b/, /; Secure\b/, /; SameSite=Lax\b/]) assert.match(response.headers.get("set-cookie"), flag);
   for (const [password, expected] of [["valid-password", 200], ["wrong-password", 401]]) {
-    const result = await authApi(request("/api/auth/login", { email: "valid@example.com", password }), { DB: db }, "/api/auth/login");
+    const result = await authApi(request("/api/auth/login", { email: "valid@example.com", password }), { DB: db, AUTH_RATE_LIMIT_KEY: RATE_KEY }, "/api/auth/login");
     assert.equal(result.status, expected);
     if (expected === 401) assert.equal((await result.json()).code, "INVALID_CREDENTIALS");
   }
