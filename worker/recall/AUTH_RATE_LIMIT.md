@@ -2,6 +2,8 @@
 
 Login and enabled registration share one IP budget: twelve attempts in a one-hour window starting with the first admitted request. The thirteenth returns 429 `AUTH_RATE_LIMIT`. Rejected attempts do not extend expiry. A single SQL upsert increments and returns the count, shared through the existing D1 binding instead of a module-local Map. Counters saturate at thirteen.
 
+Registration's separate opt-in and single-use invitation requirements are documented in [INVITATIONS.md](./INVITATIONS.md). The legacy shared secret no longer enables registration.
+
 Both routes first enforce method, same-origin and the 8000-byte JSON boundary. Invalid/oversized JSON is rejected before database writes. Disabled registration still returns `REGISTRATION_DISABLED` without account or limiter storage access. Every otherwise parsed login and enabled-registration attempt consumes the same budget before invitation validation, password verification or user creation.
 
 ## Required setup before a separately approved release

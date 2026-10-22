@@ -13,12 +13,12 @@ const bundle = path.join(root, "auth.mjs");
 await build({ stdin: { contents: `import { authApi } from ${JSON.stringify(fileURLToPath(new URL("./recall/auth.js", import.meta.url)))};
 export default {fetch(request, env) { return authApi(request, env, new URL(request.url).pathname); }};`, resolveDir: fileURLToPath(new URL(".", import.meta.url)) }, bundle: true, format: "esm", outfile: bundle });
 const key = "offline-auth-rate-key-not-for-production-32";
-const invite = "offline-invite-for-runtime";
+const invite = "i".repeat(43);
 let outbound = 0;
 const options = {
   rootPath: root, name: "auth-limits-local", scriptPath: bundle, modules: true, compatibilityDate: "2026-01-01",
   d1Databases: { DB: "auth-limits-offline-fixture" }, resourcePersistencePath: path.join(root, "storage"),
-  bindings: { AUTH_RATE_LIMIT_KEY: key, REGISTRATION_INVITE_CODE: invite },
+  bindings: { AUTH_RATE_LIMIT_KEY: key, REGISTRATION_ENABLED: "true" },
   outboundService: async () => { outbound++; throw new Error("external network forbidden"); },
 };
 const req = ip => new Request("https://offline.example/api/auth/login", { headers: ip ? { "cf-connecting-ip": ip } : {} });
@@ -31,7 +31,7 @@ try {
     const sql = await readFile(new URL(`./recall/migrations/${file}`, import.meta.url), "utf8");
     for (const statement of sql.replace(/^--.*$/gm, "").split(";").map(s => s.trim()).filter(Boolean)) await db.prepare(statement).run();
   }
-  let env = { DB: db, AUTH_RATE_LIMIT_KEY: key, REGISTRATION_INVITE_CODE: invite };
+  let env = { DB: db, AUTH_RATE_LIMIT_KEY: key, REGISTRATION_ENABLED: "true" };
   const other = await import("./recall/auth-rate-limit.js?independent-worker");
   const concurrent = await Promise.all(Array.from({ length: 24 }, (_, i) =>
     (i % 2 ? authRateLimited : other.authRateLimited)(req("198.51.100.10"), env, 1000)));
@@ -72,7 +72,7 @@ try {
     for (const route of ["login", "register"]) {
       const response = await authApi(new Request(`https://offline.example/api/auth/${route}`, {
         method: "POST", headers: { origin: "https://offline.example" }, body: JSON.stringify({ email: "student@example.test", password: "valid-password", inviteCode: invite }),
-      }), { DB: db, REGISTRATION_INVITE_CODE: invite, AUTH_RATE_LIMIT_KEY: value }, `/api/auth/${route}`);
+      }), { DB: db, REGISTRATION_ENABLED: "true", AUTH_RATE_LIMIT_KEY: value }, `/api/auth/${route}`);
       assert.equal(response.status, 503);
       assert.deepEqual(await response.json(), { code: "AUTH_STORAGE_ERROR" });
       assert.equal(response.headers.get("set-cookie"), null);

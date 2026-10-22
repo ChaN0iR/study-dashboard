@@ -121,16 +121,21 @@ function sessionCookie(request, token, maxAge) {
   return `${COOKIE_NAME}=${token}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${maxAge}${secure}`;
 }
 
-async function issueSession(env, request, userId) {
-  const bytes = crypto.getRandomValues(new Uint8Array(32));
-  const token = encodeBase64Url(bytes);
+async function prepareSession(env, userId) {
+  const token = encodeBase64Url(crypto.getRandomValues(new Uint8Array(32)));
   const tokenHash = await sha256(token);
   const now = Date.now();
   const expiresAt = now + SESSION_TTL_MS;
-  await env.DB.prepare(
+  const statement = env.DB.prepare(
     "INSERT INTO sessions (token_hash, user_id, created_at, expires_at, last_seen_at) VALUES (?, ?, ?, ?, ?)",
-  ).bind(tokenHash, userId, now, expiresAt, now).run();
-  return { token, expiresAt };
+  ).bind(tokenHash, userId, now, expiresAt, now);
+  return { token, expiresAt, statement };
+}
+
+async function issueSession(env, request, userId) {
+  const session = await prepareSession(env, userId);
+  await session.statement.run();
+  return session;
 }
 
 async function authenticatedUser(env, request) {
@@ -147,37 +152,48 @@ async function authRegister(request, env) {
   if (!sameOrigin(request)) return json({ code: "SAME_ORIGIN_ONLY" }, 403);
   const parsed = await readJson(request, 8_000);
   if (parsed.error) return json({ code: parsed.error }, parsed.error === "REQUEST_TOO_LARGE" ? 413 : 400);
-  // Fail closed until the owner configures a private registration invite secret.
-  const configuredInvite = env.REGISTRATION_INVITE_CODE;
-  const suppliedInvite = typeof parsed.value.inviteCode === "string" ? parsed.value.inviteCode : "";
-  if (typeof configuredInvite !== "string" || configuredInvite.length < 16) {
-    return json({ code: "REGISTRATION_DISABLED" }, 503);
-  }
+  // Explicit opt-in only. The old reusable shared secret never enables registration.
+  if (env.REGISTRATION_ENABLED !== "true") return json({ code: "REGISTRATION_DISABLED" }, 503);
   if (await authRateLimited(request, env)) return json({ code: "AUTH_RATE_LIMIT" }, 429);
-  if (suppliedInvite.length !== configuredInvite.length ||
-      !constantTimeEqual(encoder.encode(suppliedInvite), encoder.encode(configuredInvite))) {
-    return json({ code: "INVALID_INVITE_CODE" }, 403);
-  }
+  const suppliedInvite = typeof parsed.value.inviteCode === "string" ? parsed.value.inviteCode : "";
+  if (!/^[A-Za-z0-9_-]{43}$/.test(suppliedInvite)) return json({ code: "INVALID_INVITE_CODE" }, 403);
   const email = typeof parsed.value.email === "string" ? parsed.value.email.trim().toLowerCase() : "";
   const password = typeof parsed.value.password === "string" ? parsed.value.password : "";
   if (!email || email.length > 254 || !EMAIL_RE.test(email)) return json({ code: "INVALID_EMAIL" }, 422);
-  if (password.length < 12 || password.length > 128) {
-    return json({ code: "PASSWORD_LENGTH_INVALID" }, 422);
-  }
+  const inviteHash = await sha256(suppliedInvite);
+  const invite = await env.DB.prepare(`SELECT i.token_hash FROM registration_invites AS i
+    LEFT JOIN registration_invite_redemptions AS r ON r.invite_hash = i.token_hash
+    WHERE i.token_hash = ?1 AND i.allowed_email = ?2 COLLATE NOCASE AND i.revoked_at IS NULL
+      AND i.created_at <= ?3 AND i.expires_at > ?3 AND r.invite_hash IS NULL
+      AND EXISTS (SELECT 1 FROM sqlite_master WHERE type = 'trigger' AND name = 'registration_invite_validate_redemption') LIMIT 1`
+  ).bind(inviteHash, email, Date.now()).first();
+  if (!invite) return json({ code: "INVALID_INVITE_CODE" }, 403);
+  if (password.length < 12 || password.length > 128) return json({ code: "PASSWORD_LENGTH_INVALID" }, 422);
 
   const passwordHash = await hashPassword(password);
   const user = { id: crypto.randomUUID(), email };
+  const session = await prepareSession(env, user.id);
   const now = Date.now();
   try {
-    await env.DB.prepare(
-      "INSERT INTO users (id, email, password_hash, created_at) VALUES (?, ?, ?, ?)",
-    ).bind(user.id, user.email, passwordHash, now).run();
+    // The redemption PK and trigger are the concurrency authority. Any failed
+    // statement rolls back user creation, redemption and session as one D1 batch.
+    const results = await env.DB.batch([
+      env.DB.prepare("INSERT INTO users (id, email, password_hash, created_at) VALUES (?, ?, ?, ?)")
+        .bind(user.id, user.email, passwordHash, now),
+      env.DB.prepare("INSERT INTO registration_invite_redemptions (invite_hash, user_id, redeemed_at) VALUES (?, ?, ?)")
+        .bind(inviteHash, user.id, now),
+      session.statement,
+    ]);
+    if (results.length !== 3 || results.some(result => result.success !== true)) throw new Error("registration batch unavailable");
   } catch (error) {
-    if (/unique|constraint/i.test(String(error))) return json({ code: "EMAIL_ALREADY_REGISTERED" }, 409);
+    const detail = String(error);
+    if (detail.includes("INVITE_UNAVAILABLE") || /UNIQUE constraint failed: registration_invite_redemptions\.invite_hash/i.test(detail)) {
+      return json({ code: "INVALID_INVITE_CODE" }, 403);
+    }
+    if (/UNIQUE constraint failed: users\.email/i.test(detail)) return json({ code: "EMAIL_ALREADY_REGISTERED" }, 409);
     return json({ code: "AUTH_STORAGE_ERROR" }, 503);
   }
 
-  const session = await issueSession(env, request, user.id);
   return json({ user }, 201, { "set-cookie": sessionCookie(request, session.token, Math.floor(SESSION_TTL_MS / 1000)) });
 }
 

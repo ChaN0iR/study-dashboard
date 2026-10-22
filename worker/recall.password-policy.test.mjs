@@ -13,9 +13,28 @@ function makeDb() {
   const users = new Map();
   const sessions = new Map();
   const windows = new Map();
+  const invitations = new Map();
+  const redemptions = new Map();
   return {
     users,
     sessions,
+    async seedInvite(email, code = INVITE) {
+      const digest = Buffer.from(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(code))).toString("base64url");
+      invitations.set(digest, { email: email.trim().toLowerCase(), expires_at: Date.now() + 60000 });
+      return code;
+    },
+    async batch(statements) {
+      const maps = [users, sessions, redemptions];
+      const snapshots = maps.map(map => [...map]);
+      try {
+        const results = [];
+        for (const statement of statements) results.push(await statement.run());
+        return results;
+      } catch (error) {
+        maps.forEach((map, i) => { map.clear(); for (const entry of snapshots[i]) map.set(...entry); });
+        throw error;
+      }
+    },
     prepare(sql) {
       let args = [];
       return {
@@ -30,6 +49,11 @@ function makeDb() {
             windows.set(subject, row);
             return row;
           }
+          if (/SELECT i.token_hash FROM registration_invites/i.test(sql)) {
+            const [digest, email, now] = args;
+            const invitation = invitations.get(digest);
+            return invitation && invitation.email === email && invitation.expires_at > now && !redemptions.has(digest) ? { token_hash: digest } : null;
+          }
           if (/SELECT id, email, password_hash FROM users/i.test(sql)) {
             const row = [...users.values()].find((u) => u.email.toLowerCase() === String(args[0]).toLowerCase());
             return row ? { id: row.id, email: row.email, password_hash: row.password_hash } : null;
@@ -43,6 +67,14 @@ function makeDb() {
           return null;
         },
         async run() {
+          if (/INSERT INTO registration_invite_redemptions/i.test(sql)) {
+            const [digest, userId] = args;
+            const invitation = invitations.get(digest);
+            if (redemptions.has(digest)) throw new Error("UNIQUE constraint failed: registration_invite_redemptions.invite_hash");
+            if (!invitation || invitation.email !== users.get(userId)?.email || invitation.expires_at <= Date.now()) throw new Error("INVITE_UNAVAILABLE");
+            redemptions.set(digest, userId);
+            return { success: true };
+          }
           if (/INSERT INTO users/i.test(sql)) {
             const [id, email, password_hash, created_at] = args;
             if ([...users.values()].some((u) => u.email === email)) throw new Error("UNIQUE constraint failed: users.email");
@@ -62,9 +94,9 @@ function makeDb() {
   };
 }
 
-const INVITE = "offline-test-invite-20261022";
+const INVITE = "i".repeat(43);
 const RATE_KEY = "offline-rate-limit-key-at-least-32-characters";
-function envWithDb(db = makeDb()) { return { DB: db, REGISTRATION_INVITE_CODE: INVITE, AUTH_RATE_LIMIT_KEY: RATE_KEY }; }
+function envWithDb(db = makeDb()) { return { DB: db, REGISTRATION_ENABLED: "true", AUTH_RATE_LIMIT_KEY: RATE_KEY }; }
 let sequence = 0;
 function ip() { sequence += 1; return `198.51.100.${(sequence % 240) + 1}`; }
 function request(path, body, { origin = "https://recall.example", method = "POST", address = ip(), headers = {} } = {}) {
@@ -80,7 +112,9 @@ async function call(db, path, body, options = {}) {
   return { response, body: await response.json() };
 }
 async function register(db, email, password, options = {}) {
-  return call(db, "/api/auth/register", { email, password, inviteCode: INVITE }, options);
+  const code = Buffer.from(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(email))).toString("base64url");
+  await db.seedInvite(email, code);
+  return call(db, "/api/auth/register", { email, password, inviteCode: code }, options);
 }
 async function login(db, email, password, options = {}) {
   return call(db, "/api/auth/login", { email, password }, options);
@@ -93,11 +127,11 @@ const acceptedPasswords = [
   ["Unicode", "密碼🔐é".repeat(3)],
   ["whitespace", " ".repeat(12)],
 ];
-test("missing or invalid configured invites fail closed without storage access", async () => {
-  for (const configured of [undefined, null, "", 12345, {}, "x".repeat(15)]) {
+test("missing or invalid registration opt-in fails closed even with a legacy shared secret", async () => {
+  for (const configured of [undefined, null, "", false, true, "false", "TRUE"]) {
     let accessed = false;
     const response = await authApi(request("/api/auth/register", { email: "disabled@example.com", password: "valid-password", inviteCode: INVITE }), {
-      DB: { prepare() { accessed = true; throw new Error("unexpected storage access"); } }, REGISTRATION_INVITE_CODE: configured,
+      DB: { prepare() { accessed = true; throw new Error("unexpected storage access"); } }, REGISTRATION_ENABLED: configured, REGISTRATION_INVITE_CODE: INVITE,
     }, "/api/auth/register");
     assert.equal(response.status, 503);
     assert.equal((await response.json()).code, "REGISTRATION_DISABLED");
@@ -118,10 +152,11 @@ test("missing, wrong and non-string supplied invites never create accounts or se
   }
 });
 
-test("correct minimum-length configured invite creates session; login requires no configured invite", async () => {
+test("correct single-use invite creates session; login requires no registration opt-in", async () => {
   const db = makeDb();
-  const response = await authApi(request("/api/auth/register", { email: "valid@example.com", password: "valid-password", inviteCode: "i".repeat(16) }),
-    { DB: db, REGISTRATION_INVITE_CODE: "i".repeat(16), AUTH_RATE_LIMIT_KEY: RATE_KEY }, "/api/auth/register");
+  await db.seedInvite("valid@example.com");
+  const response = await authApi(request("/api/auth/register", { email: "valid@example.com", password: "valid-password", inviteCode: INVITE }),
+    { DB: db, REGISTRATION_ENABLED: "true", AUTH_RATE_LIMIT_KEY: RATE_KEY }, "/api/auth/register");
   assert.equal(response.status, 201);
   assert.equal(db.users.size, 1);
   assert.equal(db.sessions.size, 1);
@@ -148,6 +183,7 @@ for (const [label, password] of acceptedPasswords) {
 test("rejects invalid registration passwords including 11 and 129 characters", async () => {
   for (const password of [undefined, null, "", 12345, {}, [], "a", "x".repeat(11), "x".repeat(129), "x".repeat(512)]) {
     const db = makeDb();
+    await db.seedInvite("required@example.com");
     const payload = { email: "required@example.com", inviteCode: INVITE };
     if (password !== undefined) payload.password = password;
     const result = await call(db, "/api/auth/register", payload);
