@@ -160,6 +160,33 @@ test("rejects missing, null, empty, and non-string login passwords as invalid cr
   }
 });
 
+test("unknown accounts and incorrect passwords both perform PBKDF2 before rejecting login", async () => {
+  const db = makeDb();
+  assert.equal((await register(db, "known@example.com", "correct-password")).response.status, 201);
+  const originalDeriveBits = crypto.subtle.deriveBits;
+  let derivations = 0;
+  crypto.subtle.deriveBits = function (...args) {
+    derivations += 1;
+    return originalDeriveBits.apply(this, args);
+  };
+  try {
+    for (const email of ["known@example.com", "unknown@example.com"]) {
+      for (const password of ["wrong-password", "short"]) {
+        const sessionsBefore = db.sessions.size;
+        derivations = 0;
+        const result = await login(db, email, password);
+        assert.equal(result.response.status, 401);
+        assert.deepEqual(result.body, { code: "INVALID_CREDENTIALS" });
+        assert.equal(derivations, 1, `${email} must perform PBKDF2 for a non-empty password`);
+        assert.equal(result.response.headers.get("set-cookie"), null);
+        assert.equal(db.sessions.size, sessionsBefore);
+      }
+    }
+  } finally {
+    crypto.subtle.deriveBits = originalDeriveBits;
+  }
+});
+
 test("accepts spaces exactly and distinguishes correct from incorrect passwords", async () => {
   const db = makeDb();
   await register(db, "spaces@example.com", "  pass word  ");

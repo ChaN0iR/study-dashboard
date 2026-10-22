@@ -9,7 +9,9 @@ const authWindows = new Map();
 const encoder = new TextEncoder();
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const CARD_ID_RE = /^[a-z0-9-]{1,64}$/;
-const DUMMY_PASSWORD_HASH = `pbkdf2-sha256$${PASSWORD_ITERATIONS}$${"A".repeat(43)}$${"A".repeat(43)}`;
+// Match the real 16-byte salt / 32-byte derived-key format so absent accounts
+// still perform PBKDF2 before returning the same invalid-credentials response.
+const DUMMY_PASSWORD_HASH = `pbkdf2-sha256$${PASSWORD_ITERATIONS}$${"A".repeat(22)}$${"A".repeat(43)}`;
 
 function json(body, status = 200, extraHeaders = {}) {
   const headers = new Headers({
