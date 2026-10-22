@@ -29,7 +29,15 @@ test("achievement changes preserve shortcut, other markup, branding and Recall R
   for (const file of [ "config.js", "recall-room.css", "recall-room.js", "recall/index.html", "recall/auth-ui.js", "manifest.webmanifest", "icons/recall-hippocampus-256.png"]) {
     const assetBase = ["recall/index.html", "recall/auth-ui.js"].includes(file) ? inviteUiBase : base;
     const previous = execFileSync("git", ["show", `${assetBase}:docs/${file}`], { cwd: new URL("..", import.meta.url) });
-    assert.deepEqual(readFileSync(new URL(file, import.meta.url)), previous, file);
+    let expected = previous;
+    if (file === "recall/auth-ui.js") {
+      // Permit exactly the reviewed error-code rename; all remaining bytes stay protected.
+      const oldEntry = '      INVALID_PASSWORD: "密碼須為 12 至 128 個字元。",';
+      const source = previous.toString("utf8");
+      assert.equal(source.split(oldEntry).length, 2, "baseline has exactly one old password error entry");
+      expected = Buffer.from(source.replace(oldEntry, oldEntry.replace("INVALID_PASSWORD", "PASSWORD_LENGTH_INVALID")));
+    }
+    assert.deepEqual(readFileSync(new URL(file, import.meta.url)), expected, file);
   }
 });
 

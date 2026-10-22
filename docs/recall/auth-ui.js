@@ -204,7 +204,7 @@
     const messages = {
       INVALID_EMAIL: "請輸入有效的電子郵件地址。",
       PASSWORD_REQUIRED: "請輸入密碼。",
-      INVALID_PASSWORD: "密碼須為 12 至 128 個字元。",
+      PASSWORD_LENGTH_INVALID: "密碼須為 12 至 128 個字元。",
       INVALID_INVITE_CODE: "邀請碼無效或註冊尚未開放。",
       REGISTRATION_DISABLED: "註冊尚未開放，請聯絡管理者。",
       EMAIL_ALREADY_REGISTERED: "這個電子郵件已建立帳號，請改用登入。",

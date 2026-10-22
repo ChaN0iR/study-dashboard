@@ -2,9 +2,10 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import vm from "node:vm";
+import { fetchRecallAsset } from "../worker/recall/assets.generated.js";
 
 // Execute the shipped UI with a small DOM and strictly local fetch responses.
-async function harness() {
+async function harness({ errorCode = "INVALID_INVITE_CODE", source = readFileSync(new URL("./recall/auth-ui.js", import.meta.url), "utf8") } = {}) {
   const nodes = new Map();
   function element(id) {
     if (!nodes.has(id)) nodes.set(id, {
@@ -26,10 +27,10 @@ async function harness() {
     Date, setTimeout() {}, clearTimeout() {},
     fetch: async (path, options) => {
       calls.push({ path, options });
-      return { ok: path === "/api/auth/me", json: async () => path === "/api/auth/me" ? { authenticated: false } : { code: "INVALID_INVITE_CODE" } };
+      return { ok: path === "/api/auth/me", json: async () => path === "/api/auth/me" ? { authenticated: false } : { code: errorCode } };
     },
   });
-  vm.runInContext(readFileSync(new URL("./recall/auth-ui.js", import.meta.url), "utf8"), context);
+  vm.runInContext(source, context);
   await new Promise(resolve => setImmediate(resolve)); // Let the real boot request settle before interacting.
   return {
     element, calls,
@@ -69,6 +70,28 @@ test("registration UI checks confirmation, invite and 12–128 password limits b
     assert.equal(options.cache, "no-store");
     assert.match(h.element("rrAuthStatus").textContent, /邀請碼無效/);
     assert.equal(h.element("rrAuthSubmit").disabled, false);
+  }
+});
+
+test("server password-length rejection displays actionable message in Pages, Worker source and bundled UI", async () => {
+  const bundled = fetchRecallAsset(new Request("https://offline.example/auth-ui.js"));
+  assert.equal(bundled.status, 200);
+  const sources = [
+    ["Pages", readFileSync(new URL("./recall/auth-ui.js", import.meta.url), "utf8")],
+    ["Worker source", readFileSync(new URL("../worker/recall/public/auth-ui.js", import.meta.url), "utf8")],
+    ["Worker bundle", await bundled.text()],
+  ];
+  for (const [label, source] of sources) {
+    const h = await harness({ errorCode: "PASSWORD_LENGTH_INVALID", source });
+    h.mode("register");
+    h.element("rrEmail").value = "student@example.com";
+    h.element("rrPassword").value = h.element("rrPasswordConfirm").value = "valid-password";
+    h.element("rrInviteCode").value = "offline-test-invite";
+    await h.submit();
+    assert.equal(h.calls.at(-1).path, "/api/auth/register", label);
+    assert.equal(h.element("rrAuthStatus").textContent, "密碼須為 12 至 128 個字元。", label);
+    assert.equal(h.element("rrAuthSubmit").disabled, false, label);
+    assert.equal(h.element("rrPassword").value, "valid-password", "rejected submission keeps input for correction");
   }
 });
 
