@@ -30,3 +30,18 @@ binding = "DB"
 database_name = "recall-room-accounts"
 database_id = "ca84bad4-b5ad-4534-9b55-ed69ba063f51"
 migrations_dir = "./recall/migrations"
+
+# Keep the production dashboard logging settings on subsequent Wrangler deploys.
+[observability.logs]
+enabled = true
+head_sampling_rate = 1
+invocation_logs = true
+persist = true
+
+[observability.traces]
+enabled = false
+head_sampling_rate = 1
+persist = true
+
+[observability.issue_detection]
+enabled = false
