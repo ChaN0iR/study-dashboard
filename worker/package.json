@@ -5,7 +5,7 @@
   "scripts": {
     "dev": "wrangler dev",
     "deploy": "wrangler deploy",
-    "test": "node test.mjs && node automation.test.mjs && node journal.test.mjs && node durable.test.mjs && node runtime.test.mjs && node reschedule.test.mjs && node reschedule-api.test.mjs && node recall.integration.test.mjs",
+    "test": "node note-prevalidation.test.mjs && node note-recovery.test.mjs && node security.test.mjs && node recall.password-policy.test.mjs && node recall.rate-limit.test.mjs && node recall.invites.test.mjs && node api-boundaries.test.mjs && node test.mjs && node automation.test.mjs && node journal.test.mjs && node durable.test.mjs && node runtime.test.mjs && node reschedule.test.mjs && node reschedule-api.test.mjs && node recall.integration.test.mjs",
     "build:recall": "node build-recall-assets.mjs"
   },
   "devDependencies": {

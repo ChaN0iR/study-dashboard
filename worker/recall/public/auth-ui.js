@@ -4,6 +4,8 @@
   const emailInput = document.getElementById("rrEmail");
   const passwordInput = document.getElementById("rrPassword");
   const confirmWrap = document.getElementById("rrConfirmWrap");
+  const inviteWrap = document.getElementById("rrInviteWrap");
+  const inviteInput = document.getElementById("rrInviteCode");
   const confirmInput = document.getElementById("rrPasswordConfirm");
   const submitButton = document.getElementById("rrAuthSubmit");
   const status = document.getElementById("rrAuthStatus");
@@ -202,6 +204,9 @@
     const messages = {
       INVALID_EMAIL: "請輸入有效的電子郵件地址。",
       PASSWORD_REQUIRED: "請輸入密碼。",
+      PASSWORD_LENGTH_INVALID: "密碼須為 12 至 128 個字元。",
+      INVALID_INVITE_CODE: "邀請碼無效或註冊尚未開放。",
+      REGISTRATION_DISABLED: "註冊尚未開放，請聯絡管理者。",
       EMAIL_ALREADY_REGISTERED: "這個電子郵件已建立帳號，請改用登入。",
       INVALID_CREDENTIALS: "電子郵件或密碼不正確。",
       AUTH_RATE_LIMIT: "嘗試次數過多，請稍後再試。",
@@ -268,6 +273,8 @@
       button.setAttribute("aria-pressed", String(active));
     });
     if (confirmWrap) confirmWrap.hidden = mode !== "register";
+    if (inviteWrap) inviteWrap.hidden = mode !== "register";
+    if (inviteInput) inviteInput.required = mode === "register";
     if (passwordInput) passwordInput.autocomplete = mode === "register" ? "new-password" : "current-password";
     if (confirmInput) confirmInput.required = mode === "register";
     if (submitButton) submitButton.textContent = mode === "register" ? "建立帳號並開始" : "登入並接續進度";
@@ -356,13 +363,24 @@
       confirmInput?.focus();
       return;
     }
+    if (mode === "register" && (password.length < 12 || password.length > 128)) {
+      setAuthStatus("密碼須為 12 至 128 個字元。", true);
+      passwordInput?.focus();
+      return;
+    }
+    const inviteCode = String(inviteInput?.value || "").trim();
+    if (mode === "register" && !inviteCode) {
+      setAuthStatus("請輸入邀請碼。", true);
+      inviteInput?.focus();
+      return;
+    }
     const endpoint = mode === "register" ? "/api/auth/register" : "/api/auth/login";
     if (submitButton) { submitButton.disabled = true; submitButton.textContent = "處理中…"; }
     setAuthStatus(mode === "register" ? "正在建立帳號…" : "正在登入並載入進度…");
     try {
       const { response, payload } = await apiJson(endpoint, {
         method: "POST",
-        body: JSON.stringify({ email, password }),
+        body: JSON.stringify(mode === "register" ? { email, password, inviteCode } : { email, password }),
       });
       if (!response.ok) {
         setAuthStatus(errorMessage(payload.code), true);
@@ -373,6 +391,7 @@
       else showToast("已載入帳號的最新複習進度");
       passwordInput.value = "";
       if (confirmInput) confirmInput.value = "";
+      if (inviteInput) inviteInput.value = "";
     } catch {
       setAuthStatus("連線失敗，請確認網路後再試。", true);
     } finally {

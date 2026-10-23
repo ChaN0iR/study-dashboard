@@ -1,3 +1,4 @@
+import { readLimitedText, BodyTooLarge } from "./request-body.js";
 import { DB, P, MOODS, SUBJECTS, STATUS_DONE, STATUS_TODO } from "./config.js";
 import { createAutomation, DAILY_CRON } from "./automation.js";
 import { AutomationJournal } from "./journal.js";
@@ -38,6 +39,17 @@ function safeEqual(a = "", b = "") {
 
 class HttpError extends Error {
   constructor(status, message) { super(message); this.status = status; }
+}
+
+class NoteError extends HttpError {
+  constructor(code) {
+    const messages = {
+      NOTE_UPLOAD_FAILED: "照片上傳未完成，筆記尚未建立。請保留草稿後重試。",
+      NOTE_CREATE_UNCERTAIN: "未能確認筆記是否建立。請先核對 Notion，勿直接重送；草稿請保留。",
+    };
+    super(502, messages[code]);
+    this.code = code;
+  }
 }
 
 async function notion(env, path, method = "GET", body, options = {}) {
@@ -336,7 +348,6 @@ async function postTask(env, id, body, automation) {
 
 async function postRecord(env, body) {
   const today = taipeiDate();
-  const rec = await getOrCreateRecord(env, today);
   const props = {};
   if ("hours" in body) props[P.record.hours] = wr.number(num(body.hours, "hours", 24));
   if ("minutes" in body) props[P.record.minutes] = wr.number(num(body.minutes, "minutes", 1440));
@@ -347,6 +358,7 @@ async function postRecord(env, body) {
     if (body["心情"] && !MOODS.includes(body["心情"])) throw new HttpError(400, "mood invalid");
     props[P.record.mood] = wr.select(body["心情"] || null);
   }
+  const rec = await getOrCreateRecord(env, today);
   if (!Object.keys(props).length) return shapeRecord(rec);
   return shapeRecord(await notion(env, `/pages/${rec.id}`, "PATCH", { properties: props }));
 }
@@ -385,28 +397,65 @@ async function postNote(env, body) {
     if (!ID_RE.test(body.lessonId)) throw new HttpError(400, "lessonId invalid");
     props[P.note.lesson] = { relation: [{ id: body.lessonId }] };
   }
-  const pg = await notion(env, "/pages", "POST", { parent: { database_id: DB.notes }, properties: props });
-  const pagesIn = Array.isArray(body.pages) ? body.pages : [{ photos: body.photos }];
-  const blocks = [];
+  const pagesIn = body.pages === undefined ? [{ photos: body.photos }] : body.pages;
+  if (!Array.isArray(pagesIn)) throw new HttpError(400, "invalid image data");
+  // Fully validate/decode before the first upstream write. Never silently drop
+  // invalid or excess images and then report that the note was saved.
   let count = 0;
-  for (let pi = 0; pi < pagesIn.length; pi++) {
-    const phs = (Array.isArray(pagesIn[pi] && pagesIn[pi].photos) ? pagesIn[pi].photos : []).slice(0, 8);
-    if (!phs.length) continue;
-    if (pagesIn.length > 1) blocks.push({ object: "block", type: "paragraph", paragraph: { rich_text: [{ type: "text", text: { content: `第 ${pi + 1} 頁` } }] } });
-    for (const ph of phs) {
-    if (++count > 8) break;
-    if (!/^image\/(jpeg|png|webp|gif)$/.test(ph.type || "") || typeof ph.data !== "string" || ph.data.length > 4_000_000) continue;
-    const up = await notion(env, "/file_uploads", "POST", { filename: String(ph.name || "photo.jpg").slice(0, 80), content_type: ph.type });
-    const bin = Uint8Array.from(atob(ph.data), (c) => c.charCodeAt(0));
-    const form = new FormData();
-    form.append("file", new Blob([bin], { type: ph.type }), String(ph.name || "photo.jpg").slice(0, 80));
-    const r = await fetch(`${NOTION}/file_uploads/${up.id}/send`, { method: "POST", headers: { authorization: `Bearer ${env.NOTION_TOKEN}`, "notion-version": NOTION_VERSION }, body: form });
-    if (!r.ok) throw new HttpError(502, `Notion upload ${r.status}`);
-    blocks.push({ object: "block", type: "image", image: { type: "file_upload", file_upload: { id: up.id } } });
+  const prepared = pagesIn.map((page) => {
+    if (!page || typeof page !== "object" || Array.isArray(page)) throw new HttpError(400, "invalid image data");
+    const photos = page.photos === undefined ? [] : page.photos;
+    if (!Array.isArray(photos)) throw new HttpError(400, "invalid image data");
+    return photos.map((photo) => {
+      if (++count > 8) throw new HttpError(400, "too many photos");
+      if (!photo || !/^image\/(jpeg|png|webp|gif)$/.test(photo.type || "") ||
+          typeof photo.data !== "string" || photo.data.length > 4_000_000) throw new HttpError(400, "invalid image data");
+      let bytes;
+      try { bytes = Uint8Array.from(atob(photo.data), c => c.charCodeAt(0)); }
+      catch { throw new HttpError(400, "invalid image data"); }
+      if (!bytes.byteLength) throw new HttpError(400, "invalid image data");
+      return { name: String(photo.name || "photo.jpg").slice(0, 80), type: photo.type, bytes };
+    });
+  });
+  const blocks = [];
+  try {
+    for (let pi = 0; pi < prepared.length; pi++) {
+      const photos = prepared[pi];
+      if (!photos.length) continue;
+      if (prepared.length > 1) blocks.push({ object: "block", type: "paragraph", paragraph: { rich_text: [{ type: "text", text: { content: `第 ${pi + 1} 頁` } }] } });
+      for (const photo of photos) {
+        const upload = await notion(env, "/file_uploads", "POST", { filename: photo.name, content_type: photo.type });
+        if (typeof upload.id !== "string" || !ID_RE.test(upload.id)) throw new Error("invalid upload acknowledgement");
+        const form = new FormData();
+        form.append("file", new Blob([photo.bytes], { type: photo.type }), photo.name);
+        const response = await fetch(`${NOTION}/file_uploads/${upload.id}/send`, { method: "POST", headers: {
+          authorization: `Bearer ${env.NOTION_TOKEN}`, "notion-version": NOTION_VERSION,
+        }, body: form });
+        if (!response.ok) throw new Error("upload not acknowledged");
+        const sent = await response.json();
+        if (sent.id !== upload.id || sent.status !== "uploaded") throw new Error("upload not complete");
+        blocks.push({ object: "block", type: "image", image: { type: "file_upload", file_upload: { id: upload.id } } });
+      }
     }
+  } catch {
+    // No page creation has been attempted. Unattached upload lifetimes are
+    // controlled by Notion; there is no speculative delete/archive request.
+    throw new NoteError("NOTE_UPLOAD_FAILED");
   }
-  if (blocks.length) await notion(env, `/blocks/${pg.id}/children`, "PATCH", { children: blocks });
-  return { id: pg.id, title, photos: count };
+  let page;
+  try {
+    // POST is sent once. Attaching all children during creation removes the
+    // non-idempotent append PATCH and its duplicate-on-retry failure mode.
+    page = await notion(env, "/pages", "POST", {
+      parent: { database_id: DB.notes }, properties: props, ...(blocks.length ? { children: blocks } : {}),
+    }, { once: true });
+    if (typeof page.id !== "string" || !ID_RE.test(page.id)) throw new Error("invalid page acknowledgement");
+  } catch {
+    // A transport/server/acknowledgement failure can occur after commit.
+    // Never replay creation or blindly archive a page with an unknown outcome.
+    throw new NoteError("NOTE_CREATE_UNCERTAIN");
+  }
+  return { id: page.id, title, photos: count };
 }
 
 
@@ -474,6 +523,7 @@ async function startFocus(env, body, now, justDone) {
 
 async function postFocus(env, body) {
   const action = body.action;
+  if (!["stats", "add", "delete", "switch", "start", "pause", "resume", "stop", "subject"].includes(action)) throw new HttpError(400, "bad action");
   if (action === "stats") {
     const all = await queryAll(env, DB.focus, { sorts: [{ property: F.start, direction: "descending" }] });
     const by = {};
@@ -640,7 +690,14 @@ export default {
         throw new HttpError(500, "worker secrets not configured");
 
       const readBody = async () => {
-        try { return (await request.json()) || {}; } catch { throw new HttpError(400, "invalid JSON"); }
+        try {
+          const body = JSON.parse(await readLimitedText(request, 12_000_000));
+          if (!body || typeof body !== "object" || Array.isArray(body)) throw new Error();
+          return body;
+        } catch (error) {
+          if (error instanceof BodyTooLarge) throw new HttpError(413, "request too large");
+          throw new HttpError(400, "invalid JSON");
+        }
       };
       const seg = path.split("/").filter(Boolean); // ["api", ...]
       if (seg[0] !== "api") throw new HttpError(404, "not found");
@@ -676,7 +733,7 @@ export default {
       throw new HttpError(404, "not found");
     } catch (e) {
       const status = e instanceof HttpError ? e.status : 500;
-      return json({ error: e.message || "error" }, status, env);
+      return json(e instanceof NoteError ? { error: e.message, code: e.code } : { error: status >= 500 ? "internal server error" : e.message || "error" }, status, env);
     }
   },
 };

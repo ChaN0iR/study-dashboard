@@ -19,10 +19,10 @@ assert.equal(response.status, 200);
 assert.match(response.headers.get("content-type"), /^text\/html/);
 assert.equal(response.headers.get("x-content-type-options"), "nosniff");
 assert.equal(response.headers.get("cache-control"), "no-store");
-const servedHtml = await response.text();
+const servedHtml = (await response.text()).replace(/\r\n/g, "\n");
 assert.match(servedHtml, /← 回儀表板/);
-const workerHtml = await readFile(new URL("./recall/public/index.html", import.meta.url), "utf8");
-const pagesHtml = await readFile(new URL("../docs/recall/index.html", import.meta.url), "utf8");
+const workerHtml = (await readFile(new URL("./recall/public/index.html", import.meta.url), "utf8")).replace(/\r\n/g, "\n");
+const pagesHtml = (await readFile(new URL("../docs/recall/index.html", import.meta.url), "utf8")).replace(/\r\n/g, "\n");
 assert.equal(servedHtml, workerHtml, "generated Worker HTML matches its source");
 assert.equal(pagesHtml, workerHtml, "Pages and Worker Recall Room stay identical");
 const headerImage = /<img class="brand-mark" src="https:\/\/chan0ir\.github\.io\/study-dashboard\/icons\/recall-hippocampus-256\.png\?v=hippocampus-1" width="36" height="36" alt="" aria-hidden="true">/;
@@ -45,7 +45,12 @@ assert.equal(headerPng.readUInt32BE(20), 256);
 const asset = await worker.fetch(new Request("https://dashboard.example/recall/auth-ui.js"), env);
 assert.equal(asset.status, 200);
 assert.match(asset.headers.get("content-type"), /^text\/javascript/);
-assert.match(await asset.text(), /async function boot/);
+const servedAuthUi = (await asset.text()).replace(/\r\n/g, "\n");
+assert.match(servedAuthUi, /async function boot/);
+for (const path of ["./recall/public/auth-ui.js", "../docs/recall/auth-ui.js"]) {
+  assert.equal(servedAuthUi, (await readFile(new URL(path, import.meta.url), "utf8")).replace(/\r\n/g, "\n"), "served authentication UI matches Worker and Pages sources");
+}
+for (const html of [servedHtml, pagesHtml]) assert.match(html, /id="rrInviteCode"/);
 
 const unknown = await worker.fetch(new Request("https://dashboard.example/recall/nope"), env);
 assert.equal(unknown.status, 404);

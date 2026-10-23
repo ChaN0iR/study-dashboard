@@ -2,13 +2,14 @@ import assert from "node:assert/strict";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 import { build } from "esbuild";
 import { Miniflare, Response as RuntimeResponse, convertV4MiniflareOptions } from "miniflare";
 import { DB, P, STATUS_DONE } from "./config.js";
 
 const root = await mkdtemp(path.join(tmpdir(), "study-durable-runtime-"));
 const bundle = path.join(root, "worker.mjs");
-await build({ entryPoints: [new URL("./index.js", import.meta.url).pathname], bundle: true, format: "esm", outfile: bundle });
+await build({ entryPoints: [fileURLToPath(new URL("./index.js", import.meta.url))], bundle: true, format: "esm", outfile: bundle });
 const today = new Date(Date.now() + 8 * 3600e3).toISOString().slice(0, 10);
 const lid = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
 const tid = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";

@@ -1,3 +1,4 @@
+import { readLimitedText, BodyTooLarge } from "../request-body.js";
 const WINDOW_MS = 60 * 60 * 1000;
 const MAX_REQUESTS_PER_IP = 20;
 const rateWindows = new Map();
@@ -176,6 +177,8 @@ async function gradeWithGemini(env, userContext, answerImage, candidateCards) {
 }
 
 export async function grade(request, env) {
+  // Zero-cost policy: no upstream model API calls, even when a key is configured.
+  return json({ code: "AI_GRADING_DISABLED" }, 503);
   if (request.method !== "POST") {
     return json({ code: "METHOD_NOT_ALLOWED" }, 405);
   }
@@ -196,10 +199,11 @@ export async function grade(request, env) {
 
   let payload;
   try {
-    const raw = await request.text();
+    const raw = await readLimitedText(request, 650_000);
     if (raw.length > 650_000) return json({ code: "REQUEST_TOO_LARGE" }, 413);
     payload = JSON.parse(raw);
-  } catch {
+  } catch (error) {
+    if (error instanceof BodyTooLarge) return json({ code: "REQUEST_TOO_LARGE" }, 413);
     return json({ code: "INVALID_JSON" }, 400);
   }
 

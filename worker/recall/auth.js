@@ -1,14 +1,15 @@
+import { readLimitedText, BodyTooLarge } from "../request-body.js";
+import { authRateLimited } from "./auth-rate-limit.js";
 const SESSION_TTL_MS = 30 * 24 * 60 * 60 * 1000;
 const COOKIE_NAME = "rr_session";
 const PASSWORD_ITERATIONS = 100_000;
 const MAX_REQUEST_BYTES = 400_000;
-const AUTH_WINDOW_MS = 60 * 60 * 1000;
-const MAX_AUTH_ATTEMPTS = 12;
-const authWindows = new Map();
 const encoder = new TextEncoder();
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const CARD_ID_RE = /^[a-z0-9-]{1,64}$/;
-const DUMMY_PASSWORD_HASH = `pbkdf2-sha256$${PASSWORD_ITERATIONS}$${"A".repeat(43)}$${"A".repeat(43)}`;
+// Match the real 16-byte salt / 32-byte derived-key format so absent accounts
+// still perform PBKDF2 before returning the same invalid-credentials response.
+const DUMMY_PASSWORD_HASH = `pbkdf2-sha256$${PASSWORD_ITERATIONS}$${"A".repeat(22)}$${"A".repeat(43)}`;
 
 function json(body, status = 200, extraHeaders = {}) {
   const headers = new Headers({
@@ -28,24 +29,15 @@ function sameOrigin(request) {
   return request.headers.get("origin") === new URL(request.url).origin;
 }
 
-function limited(ip) {
-  const now = Date.now();
-  let entry = authWindows.get(ip);
-  if (!entry || now - entry.start >= AUTH_WINDOW_MS) entry = { start: now, count: 0 };
-  entry.count += 1;
-  authWindows.set(ip, entry);
-  if (authWindows.size > 5000) {
-    for (const [key, value] of authWindows) {
-      if (now - value.start >= AUTH_WINDOW_MS) authWindows.delete(key);
-    }
-  }
-  return entry.count > MAX_AUTH_ATTEMPTS;
-}
-
 async function readJson(request, maxBytes = MAX_REQUEST_BYTES) {
   const declared = Number(request.headers.get("content-length") || 0);
   if (declared > maxBytes) return { error: "REQUEST_TOO_LARGE" };
-  const raw = await request.text();
+  let raw;
+  try { raw = await readLimitedText(request, maxBytes); }
+  catch (error) {
+    if (error instanceof BodyTooLarge) return { error: "REQUEST_TOO_LARGE" };
+    throw error;
+  }
   if (raw.length > maxBytes) return { error: "REQUEST_TOO_LARGE" };
   try {
     const value = JSON.parse(raw);
@@ -129,16 +121,21 @@ function sessionCookie(request, token, maxAge) {
   return `${COOKIE_NAME}=${token}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${maxAge}${secure}`;
 }
 
-async function issueSession(env, request, userId) {
-  const bytes = crypto.getRandomValues(new Uint8Array(32));
-  const token = encodeBase64Url(bytes);
+async function prepareSession(env, userId) {
+  const token = encodeBase64Url(crypto.getRandomValues(new Uint8Array(32)));
   const tokenHash = await sha256(token);
   const now = Date.now();
   const expiresAt = now + SESSION_TTL_MS;
-  await env.DB.prepare(
+  const statement = env.DB.prepare(
     "INSERT INTO sessions (token_hash, user_id, created_at, expires_at, last_seen_at) VALUES (?, ?, ?, ?, ?)",
-  ).bind(tokenHash, userId, now, expiresAt, now).run();
-  return { token, expiresAt };
+  ).bind(tokenHash, userId, now, expiresAt, now);
+  return { token, expiresAt, statement };
+}
+
+async function issueSession(env, request, userId) {
+  const session = await prepareSession(env, userId);
+  await session.statement.run();
+  return session;
 }
 
 async function authenticatedUser(env, request) {
@@ -153,38 +150,59 @@ async function authenticatedUser(env, request) {
 async function authRegister(request, env) {
   if (request.method !== "POST") return json({ code: "METHOD_NOT_ALLOWED" }, 405);
   if (!sameOrigin(request)) return json({ code: "SAME_ORIGIN_ONLY" }, 403);
-  if (limited(request.headers.get("cf-connecting-ip") || "unknown")) return json({ code: "AUTH_RATE_LIMIT" }, 429);
   const parsed = await readJson(request, 8_000);
   if (parsed.error) return json({ code: parsed.error }, parsed.error === "REQUEST_TOO_LARGE" ? 413 : 400);
+  // Explicit opt-in only. The old reusable shared secret never enables registration.
+  if (env.REGISTRATION_ENABLED !== "true") return json({ code: "REGISTRATION_DISABLED" }, 503);
+  if (await authRateLimited(request, env)) return json({ code: "AUTH_RATE_LIMIT" }, 429);
+  const suppliedInvite = typeof parsed.value.inviteCode === "string" ? parsed.value.inviteCode : "";
+  if (!/^[A-Za-z0-9_-]{43}$/.test(suppliedInvite)) return json({ code: "INVALID_INVITE_CODE" }, 403);
   const email = typeof parsed.value.email === "string" ? parsed.value.email.trim().toLowerCase() : "";
   const password = typeof parsed.value.password === "string" ? parsed.value.password : "";
   if (!email || email.length > 254 || !EMAIL_RE.test(email)) return json({ code: "INVALID_EMAIL" }, 422);
-  if (!password) {
-    return json({ code: "PASSWORD_REQUIRED" }, 422);
-  }
+  const inviteHash = await sha256(suppliedInvite);
+  const invite = await env.DB.prepare(`SELECT i.token_hash FROM registration_invites AS i
+    LEFT JOIN registration_invite_redemptions AS r ON r.invite_hash = i.token_hash
+    WHERE i.token_hash = ?1 AND i.allowed_email = ?2 COLLATE NOCASE AND i.revoked_at IS NULL
+      AND i.created_at <= ?3 AND i.expires_at > ?3 AND r.invite_hash IS NULL
+      AND EXISTS (SELECT 1 FROM sqlite_master WHERE type = 'trigger' AND name = 'registration_invite_validate_redemption') LIMIT 1`
+  ).bind(inviteHash, email, Date.now()).first();
+  if (!invite) return json({ code: "INVALID_INVITE_CODE" }, 403);
+  if (password.length < 12 || password.length > 128) return json({ code: "PASSWORD_LENGTH_INVALID" }, 422);
 
   const passwordHash = await hashPassword(password);
   const user = { id: crypto.randomUUID(), email };
+  const session = await prepareSession(env, user.id);
   const now = Date.now();
   try {
-    await env.DB.prepare(
-      "INSERT INTO users (id, email, password_hash, created_at) VALUES (?, ?, ?, ?)",
-    ).bind(user.id, user.email, passwordHash, now).run();
+    // The redemption PK and trigger are the concurrency authority. Any failed
+    // statement rolls back user creation, redemption and session as one D1 batch.
+    const results = await env.DB.batch([
+      env.DB.prepare("INSERT INTO users (id, email, password_hash, created_at) VALUES (?, ?, ?, ?)")
+        .bind(user.id, user.email, passwordHash, now),
+      env.DB.prepare("INSERT INTO registration_invite_redemptions (invite_hash, user_id, redeemed_at) VALUES (?, ?, ?)")
+        .bind(inviteHash, user.id, now),
+      session.statement,
+    ]);
+    if (results.length !== 3 || results.some(result => result.success !== true)) throw new Error("registration batch unavailable");
   } catch (error) {
-    if (/unique|constraint/i.test(String(error))) return json({ code: "EMAIL_ALREADY_REGISTERED" }, 409);
+    const detail = String(error);
+    if (detail.includes("INVITE_UNAVAILABLE") || /UNIQUE constraint failed: registration_invite_redemptions\.invite_hash/i.test(detail)) {
+      return json({ code: "INVALID_INVITE_CODE" }, 403);
+    }
+    if (/UNIQUE constraint failed: users\.email/i.test(detail)) return json({ code: "EMAIL_ALREADY_REGISTERED" }, 409);
     return json({ code: "AUTH_STORAGE_ERROR" }, 503);
   }
 
-  const session = await issueSession(env, request, user.id);
   return json({ user }, 201, { "set-cookie": sessionCookie(request, session.token, Math.floor(SESSION_TTL_MS / 1000)) });
 }
 
 async function authLogin(request, env) {
   if (request.method !== "POST") return json({ code: "METHOD_NOT_ALLOWED" }, 405);
   if (!sameOrigin(request)) return json({ code: "SAME_ORIGIN_ONLY" }, 403);
-  if (limited(request.headers.get("cf-connecting-ip") || "unknown")) return json({ code: "AUTH_RATE_LIMIT" }, 429);
   const parsed = await readJson(request, 8_000);
   if (parsed.error) return json({ code: parsed.error }, parsed.error === "REQUEST_TOO_LARGE" ? 413 : 400);
+  if (await authRateLimited(request, env)) return json({ code: "AUTH_RATE_LIMIT" }, 429);
   const email = typeof parsed.value.email === "string" ? parsed.value.email.trim().toLowerCase() : "";
   const password = typeof parsed.value.password === "string" ? parsed.value.password : "";
   if (!email || email.length > 254 || !EMAIL_RE.test(email) || !password) {
