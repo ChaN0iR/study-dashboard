@@ -15,8 +15,8 @@ try {
   globalThis.fetch = async (url) => {
     calls.push(String(url));
     const pathname = new URL(url).pathname;
-    const id = pathname.endsWith("/file_uploads") ? "upload-offline" : "page-offline";
-    return new Response(JSON.stringify({ id }), {
+    const id = pathname.endsWith("/file_uploads") ? "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb" : "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
+    return new Response(JSON.stringify({ id: pathname.endsWith("/send") ? "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb" : id, status: "uploaded" }), {
       status: 200,
       headers: { "content-type": "application/json" },
     });
@@ -58,7 +58,7 @@ try {
   assert.equal(calls.length, 1);
   assert.match(calls[0], /\/v1\/pages$/);
 
-  // A valid base64 upload still follows the existing page/upload/block flow.
+  // Every upload completes before a single page creation containing the images.
   calls.length = 0;
   const valid = await worker.fetch(request({
     title: "with image",
@@ -66,11 +66,10 @@ try {
   }), env);
   assert.equal(valid.status, 200);
   assert.equal((await valid.json()).photos, 1);
-  assert.equal(calls.length, 4);
-  assert.match(calls[0], /\/v1\/pages$/);
-  assert.match(calls[1], /\/v1\/file_uploads$/);
-  assert.match(calls[2], /\/v1\/file_uploads\/upload-offline\/send$/);
-  assert.match(calls[3], /\/v1\/blocks\/page-offline\/children$/);
+  assert.equal(calls.length, 3);
+  assert.match(calls[0], /\/v1\/file_uploads$/);
+  assert.match(calls[1], /\/v1\/file_uploads\/bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb\/send$/);
+  assert.match(calls[2], /\/v1\/pages$/);
 } finally {
   globalThis.fetch = originalFetch;
 }

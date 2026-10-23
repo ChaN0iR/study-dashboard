@@ -12,14 +12,48 @@ after(() => { globalThis.fetch = nativeFetch; });
 function makeDb() {
   const users = new Map();
   const sessions = new Map();
+  const windows = new Map();
+  const invitations = new Map();
+  const redemptions = new Map();
   return {
     users,
     sessions,
+    async seedInvite(email, code = INVITE) {
+      const digest = Buffer.from(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(code))).toString("base64url");
+      invitations.set(digest, { email: email.trim().toLowerCase(), expires_at: Date.now() + 60000 });
+      return code;
+    },
+    async batch(statements) {
+      const maps = [users, sessions, redemptions];
+      const snapshots = maps.map(map => [...map]);
+      try {
+        const results = [];
+        for (const statement of statements) results.push(await statement.run());
+        return results;
+      } catch (error) {
+        maps.forEach((map, i) => { map.clear(); for (const entry of snapshots[i]) map.set(...entry); });
+        throw error;
+      }
+    },
     prepare(sql) {
       let args = [];
       return {
         bind(...values) { args = values; return this; },
         async first() {
+          if (/INSERT INTO auth_attempt_windows/i.test(sql)) {
+            const [subject, now, expires] = args;
+            const previous = windows.get(subject);
+            const row = !previous || previous.expires_at <= now
+              ? { attempts: 1, expires_at: expires }
+              : { ...previous, attempts: Math.min(previous.attempts + 1, 13) };
+            windows.set(subject, row);
+            return row;
+          }
+          if (/SELECT i.token_hash FROM registration_invites/i.test(sql)) {
+            const [digest, email, now] = args;
+            const invitation = invitations.get(digest);
+            return invitation && invitation.email === email && invitation.expires_at > now && !redemptions.has(digest) ? { token_hash: digest } : null;
+          }
           if (/SELECT id, email, password_hash FROM users/i.test(sql)) {
             const row = [...users.values()].find((u) => u.email.toLowerCase() === String(args[0]).toLowerCase());
             return row ? { id: row.id, email: row.email, password_hash: row.password_hash } : null;
@@ -33,6 +67,14 @@ function makeDb() {
           return null;
         },
         async run() {
+          if (/INSERT INTO registration_invite_redemptions/i.test(sql)) {
+            const [digest, userId] = args;
+            const invitation = invitations.get(digest);
+            if (redemptions.has(digest)) throw new Error("UNIQUE constraint failed: registration_invite_redemptions.invite_hash");
+            if (!invitation || invitation.email !== users.get(userId)?.email || invitation.expires_at <= Date.now()) throw new Error("INVITE_UNAVAILABLE");
+            redemptions.set(digest, userId);
+            return { success: true };
+          }
           if (/INSERT INTO users/i.test(sql)) {
             const [id, email, password_hash, created_at] = args;
             if ([...users.values()].some((u) => u.email === email)) throw new Error("UNIQUE constraint failed: users.email");
@@ -52,7 +94,9 @@ function makeDb() {
   };
 }
 
-function envWithDb(db = makeDb()) { return { DB: db }; }
+const INVITE = "i".repeat(43);
+const RATE_KEY = "offline-rate-limit-key-at-least-32-characters";
+function envWithDb(db = makeDb()) { return { DB: db, REGISTRATION_ENABLED: "true", AUTH_RATE_LIMIT_KEY: RATE_KEY }; }
 let sequence = 0;
 function ip() { sequence += 1; return `198.51.100.${(sequence % 240) + 1}`; }
 function request(path, body, { origin = "https://recall.example", method = "POST", address = ip(), headers = {} } = {}) {
@@ -68,23 +112,64 @@ async function call(db, path, body, options = {}) {
   return { response, body: await response.json() };
 }
 async function register(db, email, password, options = {}) {
-  return call(db, "/api/auth/register", { email, password }, options);
+  const code = Buffer.from(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(email))).toString("base64url");
+  await db.seedInvite(email, code);
+  return call(db, "/api/auth/register", { email, password, inviteCode: code }, options);
 }
 async function login(db, email, password, options = {}) {
   return call(db, "/api/auth/login", { email, password }, options);
 }
 
 const acceptedPasswords = [
-  ["1 character", "a"],
-  ["digits only", "1234567890"],
-  ["lowercase only", "lowercase"],
-  ["Unicode", "密碼🔐é"],
-  ["non-empty whitespace", "   "],
-  ["129 characters", "x".repeat(129)],
-  ["512 characters", "y".repeat(512)],
+  ["12 characters", "a".repeat(12)],
+  ["128 characters", "x".repeat(128)],
+  ["digits only", "123456789012"],
+  ["Unicode", "密碼🔐é".repeat(3)],
+  ["whitespace", " ".repeat(12)],
 ];
+test("missing or invalid registration opt-in fails closed even with a legacy shared secret", async () => {
+  for (const configured of [undefined, null, "", false, true, "false", "TRUE"]) {
+    let accessed = false;
+    const response = await authApi(request("/api/auth/register", { email: "disabled@example.com", password: "valid-password", inviteCode: INVITE }), {
+      DB: { prepare() { accessed = true; throw new Error("unexpected storage access"); } }, REGISTRATION_ENABLED: configured, REGISTRATION_INVITE_CODE: INVITE,
+    }, "/api/auth/register");
+    assert.equal(response.status, 503);
+    assert.equal((await response.json()).code, "REGISTRATION_DISABLED");
+    assert.equal(response.headers.get("set-cookie"), null);
+    assert.equal(accessed, false);
+  }
+});
+
+test("missing, wrong and non-string supplied invites never create accounts or sessions", async () => {
+  for (const inviteCode of [undefined, null, "", 12345, {}, [], "wrong", "x".repeat(INVITE.length), INVITE + "x"]) {
+    const db = makeDb();
+    const result = await call(db, "/api/auth/register", { email: "invite@example.com", password: "valid-password", inviteCode });
+    assert.equal(result.response.status, 403);
+    assert.equal(result.body.code, "INVALID_INVITE_CODE");
+    assert.equal(result.response.headers.get("set-cookie"), null);
+    assert.equal(db.users.size, 0);
+    assert.equal(db.sessions.size, 0);
+  }
+});
+
+test("correct single-use invite creates session; login requires no registration opt-in", async () => {
+  const db = makeDb();
+  await db.seedInvite("valid@example.com");
+  const response = await authApi(request("/api/auth/register", { email: "valid@example.com", password: "valid-password", inviteCode: INVITE }),
+    { DB: db, REGISTRATION_ENABLED: "true", AUTH_RATE_LIMIT_KEY: RATE_KEY }, "/api/auth/register");
+  assert.equal(response.status, 201);
+  assert.equal(db.users.size, 1);
+  assert.equal(db.sessions.size, 1);
+  for (const flag of [/^rr_session=/, /; HttpOnly\b/, /; Secure\b/, /; SameSite=Lax\b/]) assert.match(response.headers.get("set-cookie"), flag);
+  for (const [password, expected] of [["valid-password", 200], ["wrong-password", 401]]) {
+    const result = await authApi(request("/api/auth/login", { email: "valid@example.com", password }), { DB: db, AUTH_RATE_LIMIT_KEY: RATE_KEY }, "/api/auth/login");
+    assert.equal(result.status, expected);
+    if (expected === 401) assert.equal((await result.json()).code, "INVALID_CREDENTIALS");
+  }
+});
+
 for (const [label, password] of acceptedPasswords) {
-  test(`registers and logs in with ${label} without password format/length policy`, async () => {
+  test(`registers with a valid invite and logs in with ${label}`, async () => {
     const db = makeDb();
     const email = `${label.replace(/[^a-z]/g, "")}@example.com`;
     const created = await register(db, email, password);
@@ -95,26 +180,57 @@ for (const [label, password] of acceptedPasswords) {
   });
 }
 
-test("rejects missing, null, empty, and non-string registration passwords", async () => {
-  for (const password of [undefined, null, "", 12345, {}, []]) {
+test("rejects invalid registration passwords including 11 and 129 characters", async () => {
+  for (const password of [undefined, null, "", 12345, {}, [], "a", "x".repeat(11), "x".repeat(129), "x".repeat(512)]) {
     const db = makeDb();
-    const payload = { email: "required@example.com" };
+    await db.seedInvite("required@example.com");
+    const payload = { email: "required@example.com", inviteCode: INVITE };
     if (password !== undefined) payload.password = password;
     const result = await call(db, "/api/auth/register", payload);
     assert.equal(result.response.status, 422, `${String(password)} status`);
-    assert.equal(result.body.code, "PASSWORD_REQUIRED");
+    assert.equal(result.body.code, "PASSWORD_LENGTH_INVALID");
+    assert.equal(db.users.size, 0);
+    assert.equal(db.sessions.size, 0);
+    assert.equal(result.response.headers.get("set-cookie"), null);
   }
 });
 
 test("rejects missing, null, empty, and non-string login passwords as invalid credentials", async () => {
   const db = makeDb();
-  await register(db, "login-required@example.com", "correct");
+  assert.equal((await register(db, "login-required@example.com", "correct-password")).response.status, 201);
   for (const password of [undefined, null, "", 12345, {}, []]) {
     const payload = { email: "login-required@example.com" };
     if (password !== undefined) payload.password = password;
     const result = await call(db, "/api/auth/login", payload);
     assert.equal(result.response.status, 401, `${String(password)} status`);
     assert.equal(result.body.code, "INVALID_CREDENTIALS");
+  }
+});
+
+test("unknown accounts and incorrect passwords both perform PBKDF2 before rejecting login", async () => {
+  const db = makeDb();
+  assert.equal((await register(db, "known@example.com", "correct-password")).response.status, 201);
+  const originalDeriveBits = crypto.subtle.deriveBits;
+  let derivations = 0;
+  crypto.subtle.deriveBits = function (...args) {
+    derivations += 1;
+    return originalDeriveBits.apply(this, args);
+  };
+  try {
+    for (const email of ["known@example.com", "unknown@example.com"]) {
+      for (const password of ["wrong-password", "short"]) {
+        const sessionsBefore = db.sessions.size;
+        derivations = 0;
+        const result = await login(db, email, password);
+        assert.equal(result.response.status, 401);
+        assert.deepEqual(result.body, { code: "INVALID_CREDENTIALS" });
+        assert.equal(derivations, 1, `${email} must perform PBKDF2 for a non-empty password`);
+        assert.equal(result.response.headers.get("set-cookie"), null);
+        assert.equal(db.sessions.size, sessionsBefore);
+      }
+    }
+  } finally {
+    crypto.subtle.deriveBits = originalDeriveBits;
   }
 });
 
@@ -140,6 +256,9 @@ test("hashes passwords with PBKDF2-SHA256 100000 iterations, random salts, and n
     assert.equal(iterations, "100000");
     assert.equal(atob(salt.replace(/-/g, "+").replace(/_/g, "/") + "==").length, 16);
     assert.equal(atob(derived.replace(/-/g, "+").replace(/_/g, "/") + "=").length, 32);
+    const key = await crypto.subtle.importKey("raw", new TextEncoder().encode("same-password"), "PBKDF2", false, ["deriveBits"]);
+    const bits = await crypto.subtle.deriveBits({ name: "PBKDF2", hash: "SHA-256", salt: Buffer.from(salt, "base64url"), iterations: 100000 }, key, 256);
+    assert.equal(Buffer.from(bits).toString("base64url"), derived);
   }
 });
 
@@ -171,7 +290,7 @@ test("returns 413 for an auth body over 8 KiB", async () => {
 
 test("logs in with an existing compatible PBKDF2-SHA256 hash", async () => {
   const db = makeDb();
-  const password = "legacy-compatible";
+  const password = "short"; // Existing accounts remain compatible with new registration rules.
   const salt = new Uint8Array(16);
   salt.fill(7);
   const key = await crypto.subtle.importKey("raw", new TextEncoder().encode(password), "PBKDF2", false, ["deriveBits"]);
@@ -183,7 +302,7 @@ test("logs in with an existing compatible PBKDF2-SHA256 hash", async () => {
   assert.equal(result.response.status, 200);
 });
 
-test("UI password fields keep required/confirm validation but remove password length and pattern constraints", async () => {
+test("UI keeps required/confirm fields without imposing registration-only HTML constraints on login", async () => {
   const authUi = await readFile(new URL("./recall/public/auth-ui.js", import.meta.url), "utf8");
   assert.match(authUi, /confirmInput\.required\s*=\s*mode\s*===\s*["']register["']/);
   assert.match(authUi, /password\s*!==\s*String\(confirmInput\?\.value/);

@@ -177,6 +177,8 @@ async function gradeWithGemini(env, userContext, answerImage, candidateCards) {
 }
 
 export async function grade(request, env) {
+  // Zero-cost policy: no upstream model API calls, even when a key is configured.
+  return json({ code: "AI_GRADING_DISABLED" }, 503);
   if (request.method !== "POST") {
     return json({ code: "METHOD_NOT_ALLOWED" }, 405);
   }

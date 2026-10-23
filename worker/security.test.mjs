@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import worker from './index.js';
 import { authApi, progressApi } from './recall/auth.js';
+import { grade } from './recall/worker.js';
 const original=globalThis.fetch;
 let network=0, writes=0, lookups=0;
 globalThis.fetch=async()=>{network++;throw new Error('unexpected external call');};
@@ -22,6 +23,21 @@ try {
  for(const [path,body] of [['/api/task/invalid',{}],['/api/lesson/invalid',{}],['/api/note',{}],['/api/note',{title:'x',subject:'invalid'}],['/api/note',{title:'x',lessonId:'invalid'}],['/api/focus',{action:'invalid'}],['/api/record',{hours:-1}],['/api/record',{'心情':'invalid'}]]){
   assert.equal((await worker.fetch(request(path,'POST',JSON.stringify(body),{'x-app-key':'secret'}),env)).status,400,path);
  }
+ // Registration must fail closed before touching any user storage.
+ const registration=await authApi(request('/api/auth/register','POST',JSON.stringify({email:'student@example.test',password:'long-enough-password'}),{origin:'https://app'}),{DB:{prepare(){throw Error('unexpected DB access');}}},'/api/auth/register');
+ assert.equal(registration.status,503);
+ assert.equal((await registration.json()).code,'REGISTRATION_DISABLED');
+ for (const key of [undefined, '', 'offline-dummy-key-never-send']) {
+  for (const method of ['GET', 'POST', 'PUT', 'DELETE']) {
+   for (const body of [undefined, '{}', '{invalid', JSON.stringify({question:'q',referenceAnswer:'r',answerText:'a'})]) {
+    if (method === 'GET' && body !== undefined) continue;
+    const disabledGrade=await grade(request('/api/grade',method,body),{...env,GEMINI_API_KEY:key});
+    assert.equal(disabledGrade.status,503);
+    assert.equal((await disabledGrade.json()).code,'AI_GRADING_DISABLED');
+   }
+  }
+ }
+ assert.equal(network,0,'disabled grading never calls an upstream API, even with a dummy key');
  const db={prepare(sql){return {bind(...args){this.args=args;return this;},async first(){lookups++;return null;},async run(){writes++;return {};}};}};
  for(const path of ['/api/auth/login','/api/auth/register','/api/auth/logout']){
   for(const origin of [undefined,'https://evil.example','null']){
@@ -55,6 +71,11 @@ try {
   expiresAt=1000; assert.equal((await (await me()).json()).authenticated,false);
   expiresAt=999; assert.equal((await (await me()).json()).authenticated,false);
   expiresAt=1001;
+  for (const key of [undefined, '', 'offline-dummy-key-never-send']) {
+   const disabled = await worker.fetch(request('/api/grade','POST',JSON.stringify({question:'q',referenceAnswer:'r',answerText:'a'}),{origin:'https://app',cookie:'rr_session='+token}),{DB:sessionDb,GEMINI_API_KEY:key});
+   assert.equal(disabled.status,503);
+   assert.deepEqual(await disabled.json(),{code:'AI_GRADING_DISABLED'});
+  }
   const over=await progressApi(request('/api/progress','PUT','中'.repeat(140000),{origin:'https://app',cookie:'rr_session='+token}),{DB:sessionDb});
   assert.equal(over.status,413);
   const invalid=await progressApi(request('/api/progress','PUT','[]',{origin:'https://app',cookie:'rr_session='+token}),{DB:sessionDb});

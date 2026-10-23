@@ -45,7 +45,12 @@ assert.equal(headerPng.readUInt32BE(20), 256);
 const asset = await worker.fetch(new Request("https://dashboard.example/recall/auth-ui.js"), env);
 assert.equal(asset.status, 200);
 assert.match(asset.headers.get("content-type"), /^text\/javascript/);
-assert.match(await asset.text(), /async function boot/);
+const servedAuthUi = (await asset.text()).replace(/\r\n/g, "\n");
+assert.match(servedAuthUi, /async function boot/);
+for (const path of ["./recall/public/auth-ui.js", "../docs/recall/auth-ui.js"]) {
+  assert.equal(servedAuthUi, (await readFile(new URL(path, import.meta.url), "utf8")).replace(/\r\n/g, "\n"), "served authentication UI matches Worker and Pages sources");
+}
+for (const html of [servedHtml, pagesHtml]) assert.match(html, /id="rrInviteCode"/);
 
 const unknown = await worker.fetch(new Request("https://dashboard.example/recall/nope"), env);
 assert.equal(unknown.status, 404);

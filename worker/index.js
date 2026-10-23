@@ -41,6 +41,17 @@ class HttpError extends Error {
   constructor(status, message) { super(message); this.status = status; }
 }
 
+class NoteError extends HttpError {
+  constructor(code) {
+    const messages = {
+      NOTE_UPLOAD_FAILED: "照片上傳未完成，筆記尚未建立。請保留草稿後重試。",
+      NOTE_CREATE_UNCERTAIN: "未能確認筆記是否建立。請先核對 Notion，勿直接重送；草稿請保留。",
+    };
+    super(502, messages[code]);
+    this.code = code;
+  }
+}
+
 async function notion(env, path, method = "GET", body, options = {}) {
   const safeRetry = !options.once && (method === "GET" || method === "PATCH" || path.endsWith("/query"));
   for (let attempt = 0; ; attempt++) {
@@ -386,46 +397,65 @@ async function postNote(env, body) {
     if (!ID_RE.test(body.lessonId)) throw new HttpError(400, "lessonId invalid");
     props[P.note.lesson] = { relation: [{ id: body.lessonId }] };
   }
-  const pagesIn = Array.isArray(body.pages) ? body.pages : [{ photos: body.photos }];
-  // Validate upload data before creating a Notion page or upload slot. Without
-  // this, malformed base64 could leave a partially-created note behind.
-  let checkedPhotos = 0;
-  const decodedPhotos = new Map();
-  for (const page of pagesIn) {
-    const photos = (Array.isArray(page && page.photos) ? page.photos : []).slice(0, 8);
-    for (const photo of photos) {
-      if (++checkedPhotos > 8) break;
-      if (photo == null) throw new HttpError(400, "invalid image data");
-      if (!/^image\/(jpeg|png|webp|gif)$/.test(photo.type || "") ||
-          typeof photo.data !== "string" || photo.data.length > 4_000_000) continue;
-      try {
-        const bytes = Uint8Array.from(atob(photo.data), (c) => c.charCodeAt(0));
-        if (!bytes.byteLength) throw new Error("empty image");
-        decodedPhotos.set(photo, bytes);
-      } catch { throw new HttpError(400, "invalid image data"); }
-    }
-  }
-  const pg = await notion(env, "/pages", "POST", { parent: { database_id: DB.notes }, properties: props });
-  const blocks = [];
+  const pagesIn = body.pages === undefined ? [{ photos: body.photos }] : body.pages;
+  if (!Array.isArray(pagesIn)) throw new HttpError(400, "invalid image data");
+  // Fully validate/decode before the first upstream write. Never silently drop
+  // invalid or excess images and then report that the note was saved.
   let count = 0;
-  for (let pi = 0; pi < pagesIn.length; pi++) {
-    const phs = (Array.isArray(pagesIn[pi] && pagesIn[pi].photos) ? pagesIn[pi].photos : []).slice(0, 8);
-    if (!phs.length) continue;
-    if (pagesIn.length > 1) blocks.push({ object: "block", type: "paragraph", paragraph: { rich_text: [{ type: "text", text: { content: `第 ${pi + 1} 頁` } }] } });
-    for (const ph of phs) {
-    if (++count > 8) break;
-    if (!/^image\/(jpeg|png|webp|gif)$/.test(ph.type || "") || typeof ph.data !== "string" || ph.data.length > 4_000_000) continue;
-    const up = await notion(env, "/file_uploads", "POST", { filename: String(ph.name || "photo.jpg").slice(0, 80), content_type: ph.type });
-    const bin = decodedPhotos.get(ph);
-    const form = new FormData();
-    form.append("file", new Blob([bin], { type: ph.type }), String(ph.name || "photo.jpg").slice(0, 80));
-    const r = await fetch(`${NOTION}/file_uploads/${up.id}/send`, { method: "POST", headers: { authorization: `Bearer ${env.NOTION_TOKEN}`, "notion-version": NOTION_VERSION }, body: form });
-    if (!r.ok) throw new HttpError(502, `Notion upload ${r.status}`);
-    blocks.push({ object: "block", type: "image", image: { type: "file_upload", file_upload: { id: up.id } } });
+  const prepared = pagesIn.map((page) => {
+    if (!page || typeof page !== "object" || Array.isArray(page)) throw new HttpError(400, "invalid image data");
+    const photos = page.photos === undefined ? [] : page.photos;
+    if (!Array.isArray(photos)) throw new HttpError(400, "invalid image data");
+    return photos.map((photo) => {
+      if (++count > 8) throw new HttpError(400, "too many photos");
+      if (!photo || !/^image\/(jpeg|png|webp|gif)$/.test(photo.type || "") ||
+          typeof photo.data !== "string" || photo.data.length > 4_000_000) throw new HttpError(400, "invalid image data");
+      let bytes;
+      try { bytes = Uint8Array.from(atob(photo.data), c => c.charCodeAt(0)); }
+      catch { throw new HttpError(400, "invalid image data"); }
+      if (!bytes.byteLength) throw new HttpError(400, "invalid image data");
+      return { name: String(photo.name || "photo.jpg").slice(0, 80), type: photo.type, bytes };
+    });
+  });
+  const blocks = [];
+  try {
+    for (let pi = 0; pi < prepared.length; pi++) {
+      const photos = prepared[pi];
+      if (!photos.length) continue;
+      if (prepared.length > 1) blocks.push({ object: "block", type: "paragraph", paragraph: { rich_text: [{ type: "text", text: { content: `第 ${pi + 1} 頁` } }] } });
+      for (const photo of photos) {
+        const upload = await notion(env, "/file_uploads", "POST", { filename: photo.name, content_type: photo.type });
+        if (typeof upload.id !== "string" || !ID_RE.test(upload.id)) throw new Error("invalid upload acknowledgement");
+        const form = new FormData();
+        form.append("file", new Blob([photo.bytes], { type: photo.type }), photo.name);
+        const response = await fetch(`${NOTION}/file_uploads/${upload.id}/send`, { method: "POST", headers: {
+          authorization: `Bearer ${env.NOTION_TOKEN}`, "notion-version": NOTION_VERSION,
+        }, body: form });
+        if (!response.ok) throw new Error("upload not acknowledged");
+        const sent = await response.json();
+        if (sent.id !== upload.id || sent.status !== "uploaded") throw new Error("upload not complete");
+        blocks.push({ object: "block", type: "image", image: { type: "file_upload", file_upload: { id: upload.id } } });
+      }
     }
+  } catch {
+    // No page creation has been attempted. Unattached upload lifetimes are
+    // controlled by Notion; there is no speculative delete/archive request.
+    throw new NoteError("NOTE_UPLOAD_FAILED");
   }
-  if (blocks.length) await notion(env, `/blocks/${pg.id}/children`, "PATCH", { children: blocks });
-  return { id: pg.id, title, photos: count };
+  let page;
+  try {
+    // POST is sent once. Attaching all children during creation removes the
+    // non-idempotent append PATCH and its duplicate-on-retry failure mode.
+    page = await notion(env, "/pages", "POST", {
+      parent: { database_id: DB.notes }, properties: props, ...(blocks.length ? { children: blocks } : {}),
+    }, { once: true });
+    if (typeof page.id !== "string" || !ID_RE.test(page.id)) throw new Error("invalid page acknowledgement");
+  } catch {
+    // A transport/server/acknowledgement failure can occur after commit.
+    // Never replay creation or blindly archive a page with an unknown outcome.
+    throw new NoteError("NOTE_CREATE_UNCERTAIN");
+  }
+  return { id: page.id, title, photos: count };
 }
 
 
@@ -703,7 +733,7 @@ export default {
       throw new HttpError(404, "not found");
     } catch (e) {
       const status = e instanceof HttpError ? e.status : 500;
-      return json({ error: status >= 500 ? "internal server error" : e.message || "error" }, status, env);
+      return json(e instanceof NoteError ? { error: e.message, code: e.code } : { error: status >= 500 ? "internal server error" : e.message || "error" }, status, env);
     }
   },
 };

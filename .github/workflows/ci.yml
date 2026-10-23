@@ -2,7 +2,7 @@ name: CI
 
 on:
   pull_request:
-    branches: [main, codex/note-invalid-image-before-write, codex/integration-backend-ci, codex/security-full-stack-validation]
+    branches: [main, codex/note-invalid-image-before-write, codex/integration-backend-ci, codex/security-full-stack-validation, codex/review-candidate-20261021]
   push:
     branches: [main]
   workflow_dispatch:
