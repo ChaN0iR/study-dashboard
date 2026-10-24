@@ -114,7 +114,8 @@ with sync_playwright() as p:
     if width>=900 and height>=560:
       rec=page.get_by_role('button',name='今日進度',exact=True); note=page.get_by_role('button',name='快速筆記',exact=True)
       rec.click(); assert rec.get_attribute('aria-expanded')=='true'
-      note.click(); assert note.get_attribute('aria-expanded')=='false'
+      assert note.get_attribute('aria-expanded')=='false'
+      note.click(); assert rec.get_attribute('aria-expanded')=='false' and note.get_attribute('aria-expanded')=='true'
     assert page.locator('body').evaluate('(e)=>e.scrollWidth<=e.clientWidth')
     assert not page.errors, page.errors
     results.append([width,height]); ctx.close()
