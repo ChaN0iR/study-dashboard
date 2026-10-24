@@ -360,7 +360,7 @@ with tempfile.TemporaryDirectory(prefix='desktop-cards-') as temp:
         browser.close()
     server.shutdown()
 if evidence: (evidence / 'browser-results.json').write_text(json.dumps(results,ensure_ascii=False,indent=2))
-print(json.dumps({'status':'PASS','desktop_cases':5,'mobile_pixel_comparisons':24,'results':results},ensure_ascii=False))
+print(json.dumps({'status':'PASS','desktop_cases':5,'mobile_pixel_comparisons':sum(1 for r in results if r.get('mobile')),'results':results},ensure_ascii=False))
 `;
 
 test('desktop card toggles, drafts, keyboard, resize and unchanged mobile layout/styles', { skip: !available }, () => {
@@ -371,5 +371,14 @@ test('desktop card toggles, drafts, keyboard, resize and unchanged mobile layout
   assert.equal(result.status, 0, result.error?.message || result.stderr || result.stdout);
   const report = JSON.parse(result.stdout.trim());
   assert.equal(report.status, 'PASS');
-  assert.equal(report.mobile_pixel_comparisons, 24);
+  const mobileResults = report.results.filter(r => r.mobile);
+  const mobileKeys = mobileResults.map(r => `${r.mobile[0]}x${r.mobile[1]}:${r.theme}:${r.tab}`).sort();
+  const expectedMobileKeys = [375, 390, 430, 899, 1100].flatMap(width => {
+    const height = ({375: 667, 390: 844, 430: 932, 899: 844, 1100: 559})[width];
+    const themes = width === 390 ? ['light', 'dark'] : ['light'];
+    return themes.flatMap(theme => ['today', 'record', 'notes'].map(tab => `${width}x${height}:${theme}:${tab}`));
+  }).sort();
+  assert.equal(mobileResults.length, 18, 'all six viewport/theme combinations cover three tabs');
+  assert.deepEqual(mobileKeys, expectedMobileKeys, 'all expected viewport/theme/tab comparisons ran exactly once');
+  assert.equal(report.mobile_pixel_comparisons, mobileResults.length, 'reported count is derived from collected browser results');
 });
