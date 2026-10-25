@@ -676,7 +676,10 @@ export default {
       throw new HttpError(404, "not found");
     } catch (e) {
       const status = e instanceof HttpError ? e.status : 500;
-      return json({ error: e.message || "error" }, status, env);
+      // Server and upstream errors may contain private diagnostic details.
+      // Keep expected client-facing 4xx validation messages unchanged.
+      const message = status >= 500 ? "internal server error" : e.message || "error";
+      return json({ error: message }, status, env, { "cache-control": "no-store" });
     }
   },
 };
