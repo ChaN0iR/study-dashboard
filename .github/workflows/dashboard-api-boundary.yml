@@ -6,8 +6,7 @@ on:
       - "worker/index.js"
       - "worker/test.mjs"
       - ".github/workflows/dashboard-api-boundary.yml"
-  push:
-    branches: ["fix/dashboard-private-5xx-errors"]
+  # One check per PR update; avoid duplicate push and PR jobs.
   workflow_dispatch:
 
 permissions:
