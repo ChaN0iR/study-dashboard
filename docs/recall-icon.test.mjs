@@ -30,8 +30,9 @@ test("achievement changes preserve shortcut, other markup, branding and Recall R
   }
 });
 
-test("PWA updates cache and versioned assets only, preserving the remaining shell", () => {
-  const upgrade = text => text.replace('"sd-v133"', '"sd-v136"').replace('style.css?v=123', 'style.css?v=124').replace('app.js?v=119', 'app.js?v=122');
+test("PWA scopes legacy cleanup and updates asset versions, preserving the remaining shell", () => {
+  const upgrade = text => text.replace('"sd-v133"', '"sd-v136"').replace('style.css?v=123', 'style.css?v=124').replace('app.js?v=119', 'app.js?v=122')
+    .replace('ks.filter((k) => k !== CACHE)', 'ks.filter((k) => /^sd-v\\d+$/.test(k) && k !== CACHE)');
   assert.equal(sw, upgrade(baseline("sw.js")));
   const shell = JSON.parse(sw.match(/^const SHELL = (\[[^\n]+\]);$/m)[1]);
   assert.equal(new Set(shell).size, shell.length);
@@ -144,6 +145,11 @@ with sync_playwright() as p:
     assert 'sd-v132' in page.evaluate('caches.keys()')
     assert page.locator('#recall-room-shortcut image').count() == 1
     assert page.evaluate("async () => (await (await caches.open('sd-v132')).match('index.html')).text()").find('recall-hippocampus-256.png') >= 0
+    # A sibling PWA shares the origin's CacheStorage, but not this app's cache namespace.
+    page.evaluate("""async () => {
+        const cache = await caches.open('sibling-pwa-v1');
+        await cache.put('sibling-marker', new Response('preserve sibling data'));
+    }""")
     Handler.legacy = False
     page.evaluate('navigator.serviceWorker.getRegistration().then(r => r.update()).then(() => true)')
     for attempt in range(100):
@@ -152,6 +158,8 @@ with sync_playwright() as p:
         page.wait_for_timeout(100)
     assert 'sd-v132' not in cached['keys'] and 'sd-v136' in cached['keys'], cached['keys']
     assert 'recall-hippocampus-256.png' not in cached['html']
+    assert 'sibling-pwa-v1' in cached['keys'], cached['keys']
+    assert page.evaluate("async () => (await (await caches.open('sibling-pwa-v1')).match('sibling-marker')).text()") == 'preserve sibling data'
     context.set_offline(True)
     for width,height in [(390,844),(1440,900)]:
         page.set_viewport_size({'width':width,'height':height})
@@ -170,7 +178,7 @@ with sync_playwright() as p:
             if evidence: page.screenshot(path=str(evidence/f'{width}x{height}-offline-upgraded-{theme}.png'),animations='disabled')
     context.close(); browser.close()
 server.shutdown()
-report = {'status':'PASS','responsive_cases':results,'cache_upgrade':'sd-v132 -> sd-v136 PASS','offline_silhouette':'light/dark PASS'}
+report = {'status':'PASS','responsive_cases':results,'cache_upgrade':'sd-v132 -> sd-v136 PASS','sibling_cache_preserved':'PASS','offline_silhouette':'light/dark PASS'}
 if evidence: (evidence/'browser-results.json').write_text(json.dumps(report,ensure_ascii=False,indent=2))
 print(json.dumps(report,ensure_ascii=False))
 `;
@@ -181,5 +189,6 @@ test("desktop/mobile light-dark currentColor, transparent rendering, unchanged U
   const report = JSON.parse(result.stdout.trim());
   assert.equal(report.status, "PASS");
   assert.equal(report.responsive_cases.length, 14);
+  assert.equal(report.sibling_cache_preserved, "PASS");
   assert.equal(report.offline_silhouette, "light/dark PASS");
 });
