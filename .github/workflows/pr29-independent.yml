@@ -1,9 +1,15 @@
-name: PR 29 independent desktop cards validation
+name: Dashboard docs and browser validation
 
 on:
   push:
-    branches:
-      - feature/desktop-cards-exclusive
+    branches: [main]
+  pull_request:
+    branches: [main]
+    paths:
+      - "docs/**"
+      - "scriptable-widget.js"
+      - "scripts/production-smoke.py"
+      - ".github/workflows/pr29-independent.yml"
   workflow_dispatch:
 
 permissions:
@@ -45,7 +51,7 @@ jobs:
           git diff --check
       - name: Independently run desktop card and browser tests
         run: node --test docs/desktop-cards.test.mjs
-      - name: Independently run docs suite, allowing only the documented baseline failure
+      - name: Run complete docs suite without failures or skips
         shell: bash
         run: |
           set +e
@@ -53,10 +59,7 @@ jobs:
           status=$?
           set -e
           cat "$RUNNER_TEMP/docs-suite.tap"
-          if [ "$status" -eq 0 ]; then
-            echo "All docs tests passed"
-            exit 0
-          fi
+          if [ "$status" -ne 0 ]; then exit "$status"; fi
           python - "$RUNNER_TEMP/docs-suite.tap" <<'PY'
           import pathlib, re, sys
           text = pathlib.Path(sys.argv[1]).read_text()
@@ -64,19 +67,39 @@ jobs:
               match = re.search(r'^[ℹ#]\s*'+key+r'\s+(\d+)\s*$', text, re.M)
               if not match: raise SystemExit('Missing TAP summary: '+key)
               return int(match.group(1))
-          if count('fail') != 1 or count('skipped') != 0:
-              raise SystemExit('Unexpected docs failures or skips')
-          if 'context.widgetTaskModel is not a function' not in text:
-              raise SystemExit('Failure differs from tracked baseline Issue #30')
-          if 'Scriptable 維持原有休息日模型與三餐過濾' not in text:
-              raise SystemExit('Known baseline test not identified')
-          print('Only known baseline failure (Issue #30); no other docs regressions')
+          if count('tests') == 0 or count('fail') != 0 or count('skipped') != 0 or count('cancelled') != 0:
+              raise SystemExit('Docs suite must run with no failures, skips or cancellations')
+          print('Complete docs suite passed; no baseline failure exemption')
           PY
       - name: Upload independent docs evidence
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: pr29-independent-docs-tap
+          name: dashboard-docs-tap
           path: ${{ runner.temp }}/docs-suite.tap
           if-no-files-found: ignore
           retention-days: 7
+  production-smoke:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install browser for production checks
+        run: |
+          python -m pip install 'playwright==1.56.0'
+          python -m playwright install --with-deps chromium
+      - name: Verify current production release, desktop, mobile and offline cache
+        run: python scripts/production-smoke.py --release-sha "$(git rev-parse origin/main)" --wait-seconds 240
+      - name: Upload production smoke evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: production-smoke-evidence
+          path: production-smoke-evidence/
+          if-no-files-found: error
+          retention-days: 14
