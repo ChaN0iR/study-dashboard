@@ -41,9 +41,18 @@ sw = read_url(SITE + 'sw.js').decode()
 cache_name = re.search(r'const CACHE = "([^"]+)";', sw).group(1)
 shell = json.loads(re.search(r'const SHELL = (\[[^\n]+\]);', sw).group(1))
 app_ref = next(entry for entry in shell if entry.startswith('app.js?'))
-assert json.loads(read_url(HEALTH)) == {'ok': True}
+# Use curl for the same read-only health probe already verified from the desktop.
+# Keep its failure evidence while allowing independent PWA checks to finish.
+health = subprocess.run(['curl', '--silent', '--show-error', '--fail-with-body',
+                         '--max-time', '30', HEALTH], capture_output=True, text=True)
+try:
+    health_ok = health.returncode == 0 and json.loads(health.stdout) == {'ok': True}
+except json.JSONDecodeError:
+    health_ok = False
+(output / 'health.json').write_text(json.dumps({'ok': health_ok, 'exit_code': health.returncode,
+    'response': health.stdout[:2000], 'error': health.stderr[:1000]}, indent=2))
 report = {'release_sha': args.release_sha, 'site': SITE, 'asset_sha256': hashes,
-          'health': 'PASS', 'cache': cache_name, 'cases': [],
+          'health': 'PASS' if health_ok else 'FAIL', 'cache': cache_name, 'cases': [],
           'limitations': ['Fresh browser profile, not a physically installed PWA',
                           'Legacy cache is seeded; no old Service Worker upgrade simulated']}
 
@@ -134,3 +143,5 @@ with sync_playwright() as p:
 
 (output / 'report.json').write_text(json.dumps(report, ensure_ascii=False, indent=2))
 print(json.dumps(report, ensure_ascii=False, indent=2))
+
+assert health_ok, 'Cloudflare health probe failed; see health.json (PWA evidence retained)'

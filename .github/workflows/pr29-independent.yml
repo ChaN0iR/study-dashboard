@@ -77,6 +77,20 @@ jobs:
           path: ${{ runner.temp }}/docs-suite.tap
           if-no-files-found: ignore
           retention-days: 7
+  production-smoke:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install browser for production checks
+        run: |
+          python -m pip install 'playwright==1.56.0'
+          python -m playwright install --with-deps chromium
       - name: Verify current production release, desktop, mobile and offline cache
         run: python scripts/production-smoke.py --release-sha "$(git rev-parse origin/main)"
       - name: Upload production smoke evidence
@@ -85,5 +99,5 @@ jobs:
         with:
           name: production-smoke-evidence
           path: production-smoke-evidence/
-          if-no-files-found: ignore
+          if-no-files-found: error
           retention-days: 14
