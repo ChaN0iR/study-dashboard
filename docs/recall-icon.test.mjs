@@ -132,10 +132,13 @@ with sync_playwright() as p:
                 pixel = {'new_rgb': whole_new.getpixel(coord), 'old_rgb': whole_old.getpixel(coord), 'element': owner}
             # Evidence from repeated Linux Chromium runs: replacing only the Recall
             # SVG reproducibly re-rasterizes exactly one anti-aliased pixel in
-            # adjacent #wk-link (190 -> 205 gray). Preserve the >10/255 check
+            # adjacent #wk-link (light: 190 -> 205 gray; measured dark:
+            # 85 -> 72 at group pixel 116,28). Preserve the >10/255 check
             # everywhere else; permit only that one neighboring pixel <=16/255.
             sibling_aa = bool(
-                changed and width == 900 and theme == 'light'
+                changed and width == 900
+                and (theme == 'light' or (theme == 'dark' and changed == (116, 28, 117, 29)
+                     and {pixel['new_rgb'], pixel['old_rgb']} == {(85, 85, 85), (72, 72, 72)}))
                 and len(set(pixel['new_rgb'])) == 1 and len(set(pixel['old_rgb'])) == 1
                 and changed[2]-changed[0] == 1 and changed[3]-changed[1] == 1
                 and pixel['element']['anchor'] == 'wk-link'
