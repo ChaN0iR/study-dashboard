@@ -29,11 +29,24 @@ jobs:
         working-directory: worker
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - uses: actions/setup-node@v4
         with:
           node-version: '24'
           cache: npm
           cache-dependency-path: worker/package-lock.json
       - run: npm ci --ignore-scripts
+      - name: Check committed diff and Worker input boundary syntax
+        run: |
+          git diff --check origin/main...HEAD
+          node --check worker/index.js
+          node --check worker/request-body.js
+          node --check worker/test.mjs
+        working-directory: .
       - name: Run mocked Worker, durable runtime and auth regressions
         run: npm test
+      - name: Check Cloudflare Worker bundle without deploying
+        run: ./node_modules/.bin/wrangler deploy --dry-run --outdir /tmp/worker-bundle
+        env:
+          WRANGLER_SEND_METRICS: 'false'
