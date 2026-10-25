@@ -1,0 +1,36 @@
+name: Dashboard API error boundary
+
+on:
+  pull_request:
+    paths:
+      - "worker/index.js"
+      - "worker/test.mjs"
+      - ".github/workflows/dashboard-api-boundary.yml"
+  push:
+    branches: ["fix/dashboard-private-5xx-errors"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  dashboard-errors:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: npm
+          cache-dependency-path: worker/package-lock.json
+      - name: Install locked test dependencies
+        run: npm ci --ignore-scripts
+        working-directory: worker
+      - name: Check JavaScript syntax
+        run: |
+          node --check worker/index.js
+          node --check worker/test.mjs
+          git diff --check
+      - name: Run Dashboard API mocked regression
+        run: node worker/test.mjs
