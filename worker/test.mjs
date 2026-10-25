@@ -268,6 +268,38 @@ for (const recallRoom of [false, true]) {
     "recallRoom never bypasses prerequisites");
   assert.equal(calls.filter((entry) => entry.method === "PATCH").length, before);
 }
+// Never return diagnostic information from upstream Notion, network, or
+// Durable Object failures in client-visible 5xx responses.
+const privateDiagnostic = "private-notion-token-and-account-marker";
+const baselineMockFetch = globalThis.fetch;
+try {
+  globalThis.fetch = async () => Response.json({ message: privateDiagnostic }, { status: 400 });
+  const upstreamFailure = await call("GET", "/api/state");
+  assert.equal(upstreamFailure.status, 502);
+  assert.match(upstreamFailure.headers.get("cache-control"), /no-store/);
+  assert.deepEqual(await upstreamFailure.json(), { error: "internal server error" });
+
+  globalThis.fetch = async () => { throw new Error(privateDiagnostic); };
+  const networkFailure = await call("GET", "/api/state");
+  assert.equal(networkFailure.status, 500);
+  assert.deepEqual(await networkFailure.json(), { error: "internal server error" });
+
+  const failedDurableEnv = { ...env, LESSON_AUTOMATION: {
+    idFromName() { throw new Error(privateDiagnostic); },
+  } };
+  const durableFailure = await worker.fetch(new Request("https://x/api/reschedule", {
+    headers: { "x-app-key": env.APP_KEY },
+  }), failedDurableEnv);
+  assert.equal(durableFailure.status, 500);
+  assert.deepEqual(await durableFailure.json(), { error: "internal server error" });
+} finally {
+  globalThis.fetch = baselineMockFetch;
+}
+const expectedClientError = await call("GET", "/api/state", null, "wrong-key");
+assert.equal(expectedClientError.status, 401);
+assert.deepEqual(await expectedClientError.json(), { error: "bad app key" },
+  "safe validation errors must remain actionable");
+
 console.log("worker ok,", calls.length, "mock notion calls");
 
 globalThis.fetch = nativeFetch;
