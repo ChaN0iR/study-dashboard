@@ -9,6 +9,21 @@ before(() => {
 });
 after(() => { globalThis.fetch = nativeFetch; });
 
+test("login storage failure stays private and never issues a session", async () => {
+  const secret = "private-d1-diagnostic-marker";
+  const response = await authApi(new Request("https://dashboard.example/api/auth/login", {
+    method: "POST",
+    headers: { origin: "https://dashboard.example", "content-type": "application/json", "cf-connecting-ip": "storage-failure-test" },
+    body: JSON.stringify({ email: "student@example.com", password: "test" }),
+  }), { DB: { prepare() { throw new Error(secret); } } }, "/api/auth/login");
+  assert.equal(response.status, 503);
+  assert.equal(response.headers.get("set-cookie"), null);
+  assert.match(response.headers.get("cache-control"), /no-store/);
+  const body = await response.text();
+  assert.deepEqual(JSON.parse(body), { code: "AUTH_STORAGE_ERROR" });
+  assert.ok(!body.includes(secret));
+});
+
 function makeDb() {
   const users = new Map();
   const sessions = new Map();
