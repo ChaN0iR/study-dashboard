@@ -1,3 +1,4 @@
+import { readLimitedText, BodyTooLarge } from "./request-body.js";
 // Offline smoke test: mocks Notion and exercises every endpoint.
 import worker from "./index.js";
 import { DB, P } from "./config.js";
@@ -268,6 +269,84 @@ for (const recallRoom of [false, true]) {
     "recallRoom never bypasses prerequisites");
   assert.equal(calls.filter((entry) => entry.method === "PATCH").length, before);
 }
+// API boundary regression: rejected JSON must never reach Notion or Durable Objects.
+const sendRawNote = (body, headers = {}) => worker.fetch(new Request("https://x/api/note", {
+  method: "POST",
+  headers: { "x-app-key": "k", "content-type": "application/json", ...headers },
+  body,
+  ...(body instanceof ReadableStream ? { duplex: "half" } : {}),
+}), env);
+for (const raw of ["{", "null", "[]", "true", "3", '"string"']) {
+  const before = calls.length;
+  const response = await sendRawNote(raw);
+  assert.equal(response.status, 400, "malformed/non-object JSON is rejected");
+  assert.deepEqual(await response.json(), { error: "invalid JSON" });
+  assert.equal(calls.length, before, "invalid JSON cannot write to Notion");
+}
+const beforeLimit = calls.length;
+const announcedLarge = await sendRawNote("{}", { "content-length": "12000001" });
+assert.equal(announcedLarge.status, 413, "over-limit Content-Length rejected");
+assert.deepEqual(await announcedLarge.json(), { error: "request too large" });
+assert.equal(calls.length, beforeLimit, "rejected declared size never reaches Notion");
+
+let oversizedCanceled = false;
+const oversizedStream = new ReadableStream({
+  start(controller) {
+    controller.enqueue(new Uint8Array(6_000_000));
+    controller.enqueue(new Uint8Array(6_000_001));
+  },
+  cancel() { oversizedCanceled = true; },
+});
+const streamedLarge = await sendRawNote(oversizedStream, { "content-length": "1" });
+assert.equal(streamedLarge.status, 413, "actual stream size is authoritative");
+assert.deepEqual(await streamedLarge.json(), { error: "request too large" });
+assert.equal(oversizedCanceled, true, "oversized stream must be canceled");
+assert.equal(calls.length, beforeLimit, "oversized body performs zero Notion calls");
+assert.equal(await readLimitedText(new Request("https://x", { method: "POST", body: "中" }), 3), "中",
+  "limit is UTF-8 bytes, not JS string length");
+await assert.rejects(readLimitedText(new Request("https://x", { method: "POST", body: "中" }), 2), BodyTooLarge);
+const utf8 = new TextEncoder().encode("中");
+const splitUtf8 = new ReadableStream({
+  start(controller) {
+    controller.enqueue(utf8.slice(0, 1));
+    controller.enqueue(utf8.slice(1));
+    controller.close();
+  },
+});
+assert.equal(await readLimitedText(new Request("https://x", { method: "POST", body: splitUtf8, duplex: "half" }), 3), "中",
+  "incremental decoding must preserve split UTF-8 characters");
+
+// Private upstream messages must never escape in 5xx responses.
+const privateDiagnostic = "private-notion-token-and-account-marker";
+const baselineMockFetch = globalThis.fetch;
+try {
+  globalThis.fetch = async () => Response.json({ message: privateDiagnostic }, { status: 400 });
+  const upstreamFailure = await call("GET", "/api/state");
+  assert.equal(upstreamFailure.status, 502);
+  assert.match(upstreamFailure.headers.get("cache-control"), /no-store/);
+  assert.deepEqual(await upstreamFailure.json(), { error: "internal server error" });
+
+  globalThis.fetch = async () => { throw new Error(privateDiagnostic); };
+  const networkFailure = await call("GET", "/api/state");
+  assert.equal(networkFailure.status, 500);
+  assert.deepEqual(await networkFailure.json(), { error: "internal server error" });
+
+  const failedDurableEnv = { ...env, LESSON_AUTOMATION: {
+    idFromName() { throw new Error(privateDiagnostic); },
+  } };
+  const durableFailure = await worker.fetch(new Request("https://x/api/reschedule", {
+    headers: { "x-app-key": env.APP_KEY },
+  }), failedDurableEnv);
+  assert.equal(durableFailure.status, 500);
+  assert.deepEqual(await durableFailure.json(), { error: "internal server error" });
+} finally {
+  globalThis.fetch = baselineMockFetch;
+}
+const expectedClientError = await call("GET", "/api/state", null, "wrong-key");
+assert.equal(expectedClientError.status, 401);
+assert.deepEqual(await expectedClientError.json(), { error: "bad app key" },
+  "safe validation errors must remain actionable");
+
 console.log("worker ok,", calls.length, "mock notion calls");
 
 globalThis.fetch = nativeFetch;
