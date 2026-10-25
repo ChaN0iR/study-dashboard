@@ -15,9 +15,27 @@ for (const name of ["isLifeTask", "isStudyTask"]) {
 }
 vm.runInNewContext(["STUDY_TASK_TYPES", "EXPLICIT_STUDY_TASK", "ADMIN_ONLY_TASK", "ADMIN_OPERATION"]
   .map(name => appSource.split("\n").find(line => line.startsWith(`  const ${name} =`))).join("\n"), context);
-const start = widgetSource.indexOf("const WIDGET_STUDY_TASK_TYPES");
-const end = widgetSource.indexOf("const today =", start);
-vm.runInNewContext(widgetSource.slice(0, widgetSource.indexOf("const KEY_NAME")) + "\n" + widgetSource.slice(start, end), context);
+// Execute the shipped widget's selection blocks, without Scriptable UI or API calls.
+// Missing boundaries or duplicate start markers fail instead of slicing at -1.
+function widgetBlock(from, to) {
+  const start = widgetSource.indexOf(from);
+  const end = widgetSource.indexOf(to, start + from.length);
+  assert.ok(start >= 0 && end > start, `widget fixture boundaries: ${from} -> ${to}`);
+  assert.equal(widgetSource.indexOf(from, start + from.length), -1, `unique widget boundary: ${from}`);
+  return widgetSource.slice(start, end);
+}
+const widgetFixture = [
+  widgetBlock('// 讀書儀表板 Widget (Scriptable)', 'const KEY_NAME'),
+  widgetBlock('const tm =', '\n\nif (!st)'),
+  widgetBlock('const tasks =', '// 依進度改變型態'),
+  widgetBlock('const keys = cur ?', 'const GAP ='),
+  'globalThis.result = { tasks, open, fit, doNow, total, done, current: cur && cur[2] };',
+].join('\n');
+function widgetSelection(tasks, min, day = 0) {
+  const fixture = { st: { tasks }, nowMin: min, tp: { getDay: () => day }, mode: 'start' };
+  vm.runInNewContext(widgetFixture, fixture, { timeout: 1000 });
+  return fixture.result;
+}
 const policy = context.TaskPolicy;
 const today = "2026-10-18";
 const routineSlot = { start: "07:00", end: "07:45", name: "Anki＋單字", keys: ["anki", "單字"] };
@@ -69,18 +87,46 @@ test("每日必做例外不改變平日睡前或既有跨日／跳過／去重�
   assert.equal(result.tasks[0].done, false);
 });
 
-test("Scriptable 維持原有休息日模型與三餐過濾，不跟隨 Dashboard 選課例外", () => {
+test("Scriptable 保留實際出貨的任務與時段選擇，不套用 Dashboard 週日過濾", () => {
   const rows = [row("anki", dailyTitles[0]), row("vocab", "英文單字複習"), row("walk", "飯後散步"), row("study", "物理第02堂")];
-  for (const min of [7 * 60 + 15, 10 * 60, 20 * 60 + 50, 21 * 60 + 10]) {
-    const result = context.widgetTaskModel({ today, tasks: rows }, { date: today, wd: "Sun", min });
-    assert.deepEqual(new Set(ids(result.tasks)), new Set(["anki", "vocab", "walk"]));
-    assert.deepEqual(new Set(ids(result.visibleOpen)), new Set(["anki", "vocab", "walk"]));
-    assert.equal(result.total, 3);
+  const before = JSON.stringify(rows);
+  for (const min of [7 * 60 + 15, 10 * 60, 12 * 60 + 15, 20 * 60 + 50, 21 * 60 + 10]) {
+    const result = widgetSelection(rows, min);
+    assert.deepEqual(ids(result.tasks), ["anki", "vocab", "walk", "study"]);
+    assert.deepEqual(ids(result.doNow), ["anki", "vocab"]);
+    assert.equal(result.total, 4);
     assert.equal(result.done, 0);
   }
-  const lunch = context.widgetTaskModel({ today, tasks: rows }, { date: today, wd: "Sun", min: 12 * 60 + 15 });
-  assert.deepEqual(ids(lunch.visibleOpen), ["walk"]);
-  assert.equal(lunch.total, 3);
+  assert.equal(JSON.stringify(rows), before);
+});
+
+test("Scriptable 略過不計分、完成不重列，當前時段優先，無匹配時取排序前兩項", () => {
+  const rows = [row('later', '物理第02堂', { order: 4 }), row('done', '化學完成', { done: true }),
+    row('skip', '化學略過', { skipped: true, order: -1 }), row('first', '飯後散步', { order: 1 }),
+    row('chem', '化學練習', { order: 3 }), row('meal', '午餐', { order: 2 })];
+  const before = JSON.stringify(rows);
+  const chemistry = widgetSelection(rows, 10 * 60);
+  assert.deepEqual(ids(chemistry.tasks), ['later', 'done', 'first', 'chem', 'meal']);
+  assert.deepEqual(ids(chemistry.open), ['first', 'meal', 'chem', 'later']);
+  assert.deepEqual(ids(chemistry.fit), ['chem']);
+  assert.deepEqual(ids(chemistry.doNow), ['chem']);
+  assert.equal(chemistry.total, 5);
+  assert.equal(chemistry.done, 1);
+  assert.deepEqual(ids(widgetSelection(rows, 12 * 60 + 15).doNow), ['meal']);
+  assert.deepEqual(ids(widgetSelection(rows, 20 * 60 + 45).doNow), ['first', 'meal']);
+  for (const day of [0, 4]) {
+    const rest = widgetSelection(rows, 16 * 60 + 45, day);
+    assert.equal(rest.current, '輕度運動');
+    assert.deepEqual(ids(rest.fit), ['first']);
+    assert.deepEqual(ids(rest.doNow), ['first']);
+  }
+  const weekday = widgetSelection(rows, 16 * 60 + 45, 1);
+  assert.equal(weekday.current, '重量訓練＋洗澡');
+  assert.deepEqual(ids(weekday.fit), []);
+  assert.deepEqual(ids(weekday.doNow), ['first', 'meal']);
+  assert.deepEqual(ids(widgetSelection(rows.map(task => ({ ...task, done: true })), 10 * 60).doNow), []);
+  assert.equal(widgetSelection([], 10 * 60).total, 0);
+  assert.equal(JSON.stringify(rows), before);
 });
 
 
