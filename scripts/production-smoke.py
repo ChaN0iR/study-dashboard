@@ -8,6 +8,7 @@ import hashlib
 import json
 import re
 import subprocess
+import time
 from pathlib import Path
 from urllib.parse import urlsplit
 from urllib.request import urlopen
@@ -19,8 +20,13 @@ HEALTH = 'https://study-dashboard-api.tw-ching.workers.dev/health'
 parser = argparse.ArgumentParser()
 parser.add_argument('--release-sha', required=True)
 parser.add_argument('--output', default='production-smoke-evidence')
+parser.add_argument('--wait-seconds', type=int, default=0)
+parser.add_argument('--allow-legacy-cleanup', action='store_true')
 args = parser.parse_args()
 assert re.fullmatch(r'[0-9a-f]{40}', args.release_sha), 'Expected a full immutable release SHA'
+if args.allow_legacy_cleanup:
+    assert args.release_sha in {'5771bdc49dfdd0ea09439d717797be12357cf86d',
+                                '0b0314ee9374f9cb24b98138e1771340e7662c43'}, 'Legacy exception is restricted to known pre-fix releases'
 output = Path(args.output)
 output.mkdir(parents=True, exist_ok=True)
 
@@ -31,13 +37,32 @@ def read_url(url):
         return response.read()
 
 
-hashes = {}
-for path in ['index.html', 'app.js', 'sw.js', 'style.css', 'config.js', 'manifest.webmanifest']:
-    expected = subprocess.check_output(['git', 'show', f'{args.release_sha}:docs/{path}'])
-    actual = read_url(SITE + path)
-    assert actual == expected, f'Deployed {path} differs from {args.release_sha}'
-    hashes[path] = hashlib.sha256(actual).hexdigest()
-sw = read_url(SITE + 'sw.js').decode()
+# Pages publication can complete after the main push starts this workflow.
+# Retry only until the exact immutable release assets are present; never accept drift.
+expected_assets = {path: subprocess.check_output(['git', 'show', f'{args.release_sha}:docs/{path}'])
+                   for path in ['index.html', 'app.js', 'sw.js', 'style.css', 'config.js', 'manifest.webmanifest']}
+deadline = time.monotonic() + max(0, args.wait_seconds)
+while True:
+    mismatches = []
+    actual_assets = {}
+    for path, expected in expected_assets.items():
+        try:
+            actual_assets[path] = read_url(SITE + path)
+            if actual_assets[path] != expected:
+                mismatches.append(path + ': content differs')
+        except OSError as error:
+            mismatches.append(path + ': ' + str(error))
+    (output / 'asset-check.json').write_text(json.dumps({'release_sha': args.release_sha,
+        'matched': not mismatches, 'mismatches': mismatches}, indent=2))
+    if not mismatches:
+        break
+    if time.monotonic() >= deadline:
+        raise AssertionError('Deployed assets do not match release: ' + '; '.join(mismatches))
+    print('Waiting for Pages assets: ' + '; '.join(mismatches), flush=True)
+    time.sleep(min(10, max(0, deadline - time.monotonic())))
+hashes = {path: hashlib.sha256(content).hexdigest() for path, content in actual_assets.items()}
+sw = actual_assets['sw.js'].decode()
+require_sibling_preservation = not args.allow_legacy_cleanup
 cache_name = re.search(r'const CACHE = "([^"]+)";', sw).group(1)
 shell = json.loads(re.search(r'const SHELL = (\[[^\n]+\]);', sw).group(1))
 app_ref = next(entry for entry in shell if entry.startswith('app.js?'))
@@ -80,6 +105,11 @@ with sync_playwright() as p:
       const cache = await caches.open(legacy);
       await cache.put('index.html', new Response('smoke legacy marker'));
     }""", legacy)
+    if require_sibling_preservation:
+        page.evaluate("""async () => {
+          const cache = await caches.open('sibling-pwa-smoke');
+          await cache.put('sibling-marker', new Response('preserve sibling data'));
+        }""")
     page.goto(SITE + '?demo=1', wait_until='networkidle')
     page.wait_for_function('navigator.serviceWorker.controller !== null')
     page.wait_for_function("""async ({name, shell, legacy}) => {
@@ -93,6 +123,14 @@ with sync_playwright() as p:
     """, {'name': cache_name, 'path': app_ref})
     assert hashlib.sha256(cached_app.encode()).hexdigest() == hashes['app.js']
     report['cache_install_and_seeded_legacy_cleanup'] = 'PASS'
+    if require_sibling_preservation:
+        assert 'sibling-pwa-smoke' in page.evaluate('caches.keys()')
+        assert page.evaluate("""async () =>
+          (await (await caches.open('sibling-pwa-smoke')).match('sibling-marker')).text()
+        """) == 'preserve sibling data'
+        report['sibling_cache_preserved_on_production'] = 'PASS'
+    else:
+        report['sibling_cache_preserved_on_production'] = 'KNOWN_PRE_FIX_RELEASE_EXPLICIT_COMPATIBILITY_MODE'
 
     record = page.get_by_role('button', name='今日進度', exact=True)
     note = page.get_by_role('button', name='快速筆記', exact=True)
