@@ -35,5 +35,6 @@ jobs:
           node --check worker/request-body.js
           node --check worker/test.mjs
           git diff --check origin/main...HEAD
-      - name: Mocked Dashboard API boundary test
-        run: node worker/test.mjs
+      - name: Full mocked Worker regression (includes request boundary test)
+        run: npm test
+        working-directory: worker
