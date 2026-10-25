@@ -1,0 +1,31 @@
+✔ 每日必做依任務內容判定，不依完成狀態或提醒卡片 (3.27094ms)
+✔ 週日保留生活、每日必做與最近補做課程，不修改輸入 (14.399765ms)
+✔ 休息日每日必做照常標為當下，完成或 blocked 不強制標示 (0.318491ms)
+✔ 每日必做例外不改變平日睡前或既有跨日／跳過／去重政策 (0.398852ms)
+✖ Scriptable 維持原有休息日模型與三餐過濾，不跟隨 Dashboard 選課例外 (0.377635ms)
+✔ 週日沒有補做時保留最近一項未完成課程，完成後接續下一項 (0.364937ms)
+✔ 週日補做依最早日期與課序，排除未來、已跳過與不可補做，不產生新 ID (0.442769ms)
+✔ 補做前置未完成時先提供可做課程；只有 blocked 時仍保留真實任務且不解除 blocked (0.336216ms)
+✔ 週日睡前邊界仍隱藏一般課程，生活與每日必做照舊 (0.464325ms)
+✔ 週日同 ID 仍選今天原筆，不用過期副本的補做或前置狀態 (0.404653ms)
+ℹ tests 10
+ℹ suites 0
+ℹ pass 9
+ℹ fail 1
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 109.351429
+
+✖ failing tests:
+
+test at docs/rest-day-policy.test.mjs:72:1
+✖ Scriptable 維持原有休息日模型與三餐過濾，不跟隨 Dashboard 選課例外 (0.377635ms)
+  TypeError: context.widgetTaskModel is not a function
+      at TestContext.<anonymous> (file:///tmp/pr29-base-restday.PDEB1y/docs/rest-day-policy.test.mjs:75:28)
+      at Test.runInAsyncScope (node:async_hooks:227:14)
+      at Test.run (node:internal/test_runner/test:1382:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:960:18)
+      at Test.postRun (node:internal/test_runner/test:1522:19)
+      at Test.run (node:internal/test_runner/test:1447:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:960:7)

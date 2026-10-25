@@ -1,0 +1,11 @@
+✔ index.html references the updated desktop card assets exactly once (1.922605ms)
+✔ SW cache and shell match the index.html static asset references (4.263901ms)
+✔ desktop card toggles, drafts, keyboard, resize and unchanged mobile layout/styles (84954.416373ms)
+ℹ tests 3
+ℹ suites 0
+ℹ pass 3
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 85284.914088

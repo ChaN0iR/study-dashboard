@@ -1,0 +1,255 @@
+[
+  {
+    "desktop": [
+      900,
+      560
+    ],
+    "toggle_keyboard_draft_resize_save": "PASS"
+  },
+  {
+    "desktop": [
+      1024,
+      768
+    ],
+    "toggle_keyboard_draft_resize_save": "PASS"
+  },
+  {
+    "desktop": [
+      1440,
+      900
+    ],
+    "toggle_keyboard_draft_resize_save": "PASS"
+  },
+  {
+    "desktop": [
+      1515,
+      1008
+    ],
+    "toggle_keyboard_draft_resize_save": "PASS"
+  },
+  {
+    "desktop": [
+      1920,
+      1080
+    ],
+    "toggle_keyboard_draft_resize_save": "PASS"
+  },
+  {
+    "storage": "invalid",
+    "fallback": "PASS"
+  },
+  {
+    "storage": "read-blocked",
+    "fallback": "PASS"
+  },
+  {
+    "storage": "write-blocked",
+    "fallback": "PASS"
+  },
+  {
+    "api_save_failures": [
+      "record",
+      "note"
+    ],
+    "exclusive_state": "PASS",
+    "note_draft_retained": true
+  },
+  {
+    "mobile": [
+      375,
+      667
+    ],
+    "theme": "light",
+    "tab": "today",
+    "layout_style_equal": true,
+    "changed_pixels": 0,
+    "max_channel_delta": 0
+  },
+  {
+    "mobile": [
+      375,
+      667
+    ],
+    "theme": "light",
+    "tab": "record",
+    "layout_style_equal": true,
+    "changed_pixels": 13,
+    "max_channel_delta": 1
+  },
+  {
+    "mobile": [
+      375,
+      667
+    ],
+    "theme": "light",
+    "tab": "notes",
+    "layout_style_equal": true,
+    "changed_pixels": 0,
+    "max_channel_delta": 0
+  },
+  {
+    "mobile": [
+      390,
+      844
+    ],
+    "theme": "light",
+    "tab": "today",
+    "layout_style_equal": true,
+    "changed_pixels": 0,
+    "max_channel_delta": 0
+  },
+  {
+    "mobile": [
+      390,
+      844
+    ],
+    "theme": "light",
+    "tab": "record",
+    "layout_style_equal": true,
+    "changed_pixels": 0,
+    "max_channel_delta": 0
+  },
+  {
+    "mobile": [
+      390,
+      844
+    ],
+    "theme": "light",
+    "tab": "notes",
+    "layout_style_equal": true,
+    "changed_pixels": 0,
+    "max_channel_delta": 0
+  },
+  {
+    "mobile": [
+      390,
+      844
+    ],
+    "theme": "dark",
+    "tab": "today",
+    "layout_style_equal": true,
+    "changed_pixels": 0,
+    "max_channel_delta": 0
+  },
+  {
+    "mobile": [
+      390,
+      844
+    ],
+    "theme": "dark",
+    "tab": "record",
+    "layout_style_equal": true,
+    "changed_pixels": 0,
+    "max_channel_delta": 0
+  },
+  {
+    "mobile": [
+      390,
+      844
+    ],
+    "theme": "dark",
+    "tab": "notes",
+    "layout_style_equal": true,
+    "changed_pixels": 0,
+    "max_channel_delta": 0
+  },
+  {
+    "mobile": [
+      430,
+      932
+    ],
+    "theme": "light",
+    "tab": "today",
+    "layout_style_equal": true,
+    "changed_pixels": 0,
+    "max_channel_delta": 0
+  },
+  {
+    "mobile": [
+      430,
+      932
+    ],
+    "theme": "light",
+    "tab": "record",
+    "layout_style_equal": true,
+    "changed_pixels": 0,
+    "max_channel_delta": 0
+  },
+  {
+    "mobile": [
+      430,
+      932
+    ],
+    "theme": "light",
+    "tab": "notes",
+    "layout_style_equal": true,
+    "changed_pixels": 0,
+    "max_channel_delta": 0
+  },
+  {
+    "mobile": [
+      899,
+      844
+    ],
+    "theme": "light",
+    "tab": "today",
+    "layout_style_equal": true,
+    "changed_pixels": 2,
+    "max_channel_delta": 1
+  },
+  {
+    "mobile": [
+      899,
+      844
+    ],
+    "theme": "light",
+    "tab": "record",
+    "layout_style_equal": true,
+    "changed_pixels": 0,
+    "max_channel_delta": 0
+  },
+  {
+    "mobile": [
+      899,
+      844
+    ],
+    "theme": "light",
+    "tab": "notes",
+    "layout_style_equal": true,
+    "changed_pixels": 2,
+    "max_channel_delta": 1
+  },
+  {
+    "mobile": [
+      1100,
+      559
+    ],
+    "theme": "light",
+    "tab": "today",
+    "layout_style_equal": true,
+    "changed_pixels": 7,
+    "max_channel_delta": 1
+  },
+  {
+    "mobile": [
+      1100,
+      559
+    ],
+    "theme": "light",
+    "tab": "record",
+    "layout_style_equal": true,
+    "changed_pixels": 0,
+    "max_channel_delta": 0
+  },
+  {
+    "mobile": [
+      1100,
+      559
+    ],
+    "theme": "light",
+    "tab": "notes",
+    "layout_style_equal": true,
+    "changed_pixels": 7,
+    "max_channel_delta": 1
+  }
+]
