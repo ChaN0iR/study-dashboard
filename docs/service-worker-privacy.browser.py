@@ -24,6 +24,9 @@ marker = 'synthetic-private-test-data'
 class Handler(http.server.SimpleHTTPRequestHandler):
     offline = False
     shell_cookies = []
+    worker_override = None
+    shell_failure = None
+    redirect_target_hits = 0
 
     def log_message(self, *_):
         pass
@@ -34,7 +37,23 @@ class Handler(http.server.SimpleHTTPRequestHandler):
             return
         path = self.path.split('?')[0]
         if path == '/sw.js':
-            body, kind = worker, 'application/javascript'
+            body, kind = type(self).worker_override or worker, 'application/javascript'
+        elif path == '/redirect-target':
+            type(self).redirect_target_hits += 1
+            body, kind = marker.encode(), 'text/plain'
+        elif path == '/app.js' and type(self).shell_failure:
+            failure = type(self).shell_failure
+            self.send_response(302 if failure == 'redirect' else 404 if failure == '404' else 200)
+            self.send_header('Content-Type', 'application/javascript')
+            if failure == 'redirect':
+                self.send_header('Location', '/redirect-target')
+            elif failure in ['private', 'no-store']:
+                self.send_header('Cache-Control', failure)
+            elif failure == 'vary-star':
+                self.send_header('Vary', '*')
+            self.end_headers()
+            self.wfile.write(marker.encode())
+            return
         elif path == '/probe.html':
             body, kind = b'<!doctype html><title>Offline privacy test</title>', 'text/html'
         elif path in ['/private-cookie', '/private-nostore', '/api/progress']:
@@ -111,6 +130,70 @@ try:
                               'hidden_set_cookie': True, 'install_omits_cookies': True, 'runtime_cache_empty': True,
                               'old_private_evicted': True, 'private_offline_unavailable': True,
                               'static_shell_offline_available': True}))
+            context.close()
+            Handler.offline = False
+            # Each failed upgrade starts from a distinct, synthetic installed SW.
+            # The fixture uses its own cache and never touches production data.
+            baseline = b"""
+const CACHE = 'fixture-stable-shell';
+self.addEventListener('install', e => e.waitUntil((async () => {
+  await (await caches.open(CACHE)).put('/index.html', new Response('stable offline shell'));
+  await self.skipWaiting();
+})()));
+self.addEventListener('activate', e => e.waitUntil(self.clients.claim()));
+self.addEventListener('fetch', e => e.respondWith(fetch(e.request).catch(async () =>
+  (await caches.open(CACHE)).match('/index.html'))));
+"""
+            failures = []
+            for failure in ['private', 'no-store', 'redirect', '404', 'vary-star']:
+                Handler.worker_override = baseline
+                Handler.shell_failure = None
+                Handler.redirect_target_hits = 0
+                isolated = browser.new_context()
+                try:
+                    probe = isolated.new_page()
+                    probe.goto(origin + '/probe.html')
+                    probe.evaluate("""async () => {
+                        await navigator.serviceWorker.register('/sw.js');
+                        await navigator.serviceWorker.ready;
+                    }""")
+                    probe.wait_for_function('navigator.serviceWorker.controller !== null')
+                    Handler.worker_override = worker
+                    Handler.shell_failure = failure
+                    state = probe.evaluate("""async () => {
+                        const registration = await navigator.serviceWorker.getRegistration();
+                        let timer;
+                        const terminal = new Promise((resolve, reject) => {
+                            timer = setTimeout(() => reject(new Error('upgrade did not terminate')), 15000);
+                            registration.addEventListener('updatefound', () => {
+                                const candidate = registration.installing;
+                                const check = () => {
+                                    if (['redundant', 'activated'].includes(candidate.state)) resolve(candidate.state);
+                                };
+                                candidate.addEventListener('statechange', check);
+                                check();
+                            }, {once: true});
+                        });
+                        try { await registration.update(); return await terminal; }
+                        finally { clearTimeout(timer); }
+                    }""")
+                    assert state == 'redundant', failure + ': unsafe worker installed'
+                    keys = probe.evaluate('() => caches.keys()')
+                    assert keys == ['fixture-stable-shell'], (failure, 'partial candidate cache', keys)
+                    assert Handler.redirect_target_hits == 0, 'install followed redirect'
+                    isolated.set_offline(True)
+                    Handler.offline = True
+                    body = probe.evaluate("async () => (await fetch('/index.html')).text()")
+                    assert body == 'stable offline shell', failure + ': previous worker lost'
+                    failures.append(failure)
+                finally:
+                    isolated.close()
+                    Handler.offline = False
+                    Handler.worker_override = None
+                    Handler.shell_failure = None
+            print(json.dumps({'failed_upgrade_status': 'PASS', 'rejected_cases': failures,
+                              'partial_cache_absent': True, 'previous_offline_shell_preserved': True,
+                              'redirect_target_not_requested': True}))
         finally:
             browser.close()
 finally:
