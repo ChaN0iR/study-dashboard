@@ -56,4 +56,4 @@ node --test worker/note-staging-acceptance.test.mjs
 
 `candidate-integration.yml` 只在 #38 分支的 PR 執行，以該 PR head 與固定 #39 `bd9fe2107998d693a87578906962a520327fa85e`、共同基準 `d96c45cc8008e21a1c5ca71e099e84c453586e9f` 組合暫存檔案樹。若基準不符或有衝突直接失敗；候選更新須明確刷新 pin，不會自動追蹤可變 branch。
 
-CI 不建立 merge commit、不更新 refs，也不發布；在暫存目錄執行完整 Worker tests、打包 dry-run、預設 staging plan、前端 129 項零跳過及 Chromium 隱私／失敗升級驗收。證據 artifact 保存 base、兩個 head、組合 tree 與各測試輸出。此結果只證明指定組合的離線相容性，不能取代真實 Notion 或 iPhone 驗收，也不是合併／部署授權。
+CI 不建立 merge commit、不更新 refs，也不發布；歷史視覺測試僅透過 GIT_DIR 讀取原 checkout 的 git objects，當前資產仍從組合暫存目錄讀取。在暫存目錄執行完整 Worker tests、打包 dry-run、預設 staging plan、前端 129 項零跳過及 Chromium 隱私／失敗升級驗收。證據 artifact 保存 base、兩個 head、組合 tree 與各測試輸出。此結果只證明指定組合的離線相容性，不能取代真實 Notion 或 iPhone 驗收，也不是合併／部署授權。

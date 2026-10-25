@@ -76,6 +76,9 @@ jobs:
           ./node_modules/.bin/wrangler deploy --dry-run --outdir "$RUNNER_TEMP/candidate-bundle" | tee "$RUNNER_TEMP/candidate-evidence/bundle.log"
       - name: Verify combined frontend without skips and real Chromium privacy
         shell: bash
+        env:
+          # Historical visual regressions read git show/archive; current files stay in the ephemeral tree.
+          GIT_DIR: ${{ github.workspace }}/.git
         run: |
           set -euo pipefail
           cd "$RUNNER_TEMP/candidate-integration"
