@@ -1,0 +1,39 @@
+name: Worker offline regression
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - "worker/**"
+      - "docs/recall/**"
+      - "docs/icons/recall-hippocampus-256.png"
+      - ".github/workflows/worker-offline.yml"
+  push:
+    branches: [main]
+    paths:
+      - "worker/**"
+      - "docs/recall/**"
+      - "docs/icons/recall-hippocampus-256.png"
+      - ".github/workflows/worker-offline.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  worker-offline:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: worker
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: worker/package-lock.json
+      - run: npm ci --ignore-scripts
+      - name: Run mocked Worker, durable runtime and auth regressions
+        run: npm test
