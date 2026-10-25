@@ -8,7 +8,8 @@ const page = '22222222222222222222222222222222';
 const live = { mode: 'live', databaseId: staging, token: 'synthetic-test-token',
   confirmation: `WRITE SYNTHETIC NOTE TO ${staging}` };
 function mock({ title = STAGING_TITLE, database = staging, schema = true, failSend = false,
-  failCreate = false, badReadback = false } = {}) {
+  failCreate = false, badReadback = false, duplicateUpload = false, wrongParent = false,
+  invalidImage = false, duplicateBlock = false } = {}) {
   const calls = [];
   let uploads = 0;
   const fetchImpl = async (url, init) => {
@@ -22,7 +23,7 @@ function mock({ title = STAGING_TITLE, database = staging, schema = true, failSe
         [P.note.title]: {type: 'title'}, [P.note.date]: {type: 'date'},
         [P.note.status]: {type: 'select', select: { options: [{name: '未複習'}] }},
       } : {} });
-    if (u.pathname === '/v1/file_uploads') return Response.json({ id: `33333333-3333-3333-3333-${String(++uploads).padStart(12, '0')}` });
+    if (u.pathname === '/v1/file_uploads') return Response.json({ id: `33333333-3333-3333-3333-${String(duplicateUpload ? 1 : ++uploads).padStart(12, '0')}` });
     if (u.pathname.endsWith('/send')) {
       assert.ok(init.body instanceof FormData);
       return new Response('', {status: failSend ? 503 : 200});
@@ -33,12 +34,15 @@ function mock({ title = STAGING_TITLE, database = staging, schema = true, failSe
       assert.match(body.properties[P.note.title].title[0].text.content, /^\[STAGING ACCEPTANCE\] /);
       assert.deepEqual(body.children.map(b => b.type), ['paragraph', 'image', 'paragraph', 'image']);
       if (failCreate) throw new Error('synthetic-test-token upstream secret');
-      return Response.json({id: page});
+      return Response.json({id: page, parent: {database_id: wrongParent ? page : staging},
+        properties: body.properties});
     }
     if (u.pathname === `/v1/blocks/${page}/children`) return Response.json({has_more: false,
       results: badReadback ? [] : [
-        {type: 'paragraph', paragraph: {rich_text: [{plain_text: '第 1 頁'}]}}, {type: 'image'},
-        {type: 'paragraph', paragraph: {rich_text: [{plain_text: '第 2 頁'}]}}, {type: 'image'},
+        {type: 'paragraph', paragraph: {rich_text: [{plain_text: '第 1 頁'}]}}, {type: 'image', id: '44444444-4444-4444-4444-444444444444',
+          image: invalidImage ? undefined : {type: 'file', file: {url: 'https://example.test/signed-secret-one'}}},
+        {type: 'paragraph', paragraph: {rich_text: [{plain_text: '第 2 頁'}]}}, {type: 'image', id: duplicateBlock ? '44444444-4444-4444-4444-444444444444' : '55555555-5555-5555-5555-555555555555',
+          image: {type: 'file', file: {url: 'https://example.test/signed-secret-two'}}},
       ]});
     throw new Error('unexpected endpoint');
   };
@@ -116,4 +120,29 @@ test('parallel invocation cannot overlap the process-wide staging override', asy
     await assert.rejects(runAcceptance({...live, fetchImpl: m.fetchImpl}), /Only one/);
   } finally { release(); }
   assert.equal((await first).status, 'PASS');
+});
+
+
+test('reused upload identity is rejected before second send or page creation', async () => {
+  const m = mock({duplicateUpload: true});
+  await assert.rejects(runAcceptance({...live, fetchImpl: m.fetchImpl}), error => {
+    assert.equal(error.evidence.pageCreateAttempted, false);
+    return true;
+  });
+  assert.equal(m.calls.filter(c => c.path.endsWith('/send')).length, 1);
+  assert.equal(m.calls.some(c => c.path === '/v1/pages'), false);
+});
+
+test('wrong created parent and incomplete or duplicate image blocks cannot pass acceptance', async () => {
+  for (const options of [{wrongParent: true}, {invalidImage: true}, {duplicateBlock: true}]) {
+    const m = mock(options);
+    await assert.rejects(runAcceptance({...live, fetchImpl: m.fetchImpl}), error => {
+      assert.equal(error.evidence.pageId, page, 'retain known page identity for manual review');
+      assert.equal(error.evidence.pageCreateAttempted, true);
+      assert.equal(JSON.stringify(error.evidence).includes('signed-secret'), false);
+      return true;
+    });
+    assert.equal(m.calls.filter(c => c.path === '/v1/pages').length, 1);
+    if (options.wrongParent) assert.equal(m.calls.some(c => c.path.includes('/blocks/')), false);
+  }
 });

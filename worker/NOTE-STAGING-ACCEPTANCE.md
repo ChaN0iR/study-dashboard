@@ -32,7 +32,7 @@ node --test worker/note-staging-acceptance.test.mjs
 - `NOTION_STAGING_TOKEN`：明確提供的 integration token；工具不讀正式 Worker secrets。
 - `NOTION_STAGING_CONFIRM`：`WRITE SYNTHETIC NOTE TO ` 加上小寫、去連字號的測試 database ID。
 
-此命令只對固定 `https://api.notion.com/v1` 呼叫，禁止 redirect，每次 15 秒逾時，無 retry：先讀 database identity/title/schema，再上傳兩張合成 1px PNG，以候選 Worker 建立唯一 `[STAGING ACCEPTANCE]` 筆記，最後只讀回該筆記的 blocks。成功要求段落／圖片／段落／圖片與頁次標籤符合預期。
+此命令只對固定 `https://api.notion.com/v1` 呼叫，禁止 redirect，每次 15 秒逾時，無 retry：先讀 database identity/title/schema，再上傳兩張合成 1px PNG，以候選 Worker 建立唯一 `[STAGING ACCEPTANCE]` 筆記，最後只讀回該筆記的 blocks。成功要求建頁回應 parent 與合成標題正確、候選回應 id/title/photos 相符、段落／圖片／段落／圖片與頁次標籤符合預期，且兩張圖片有不同 block UUID 與 HTTPS file URL。拒絕重複 upload UUID（含連字號／大小寫變形）。只檢查 URL 結構，不下載影像或輸出 signed URL；這不能取代人工核對實際圖片內容。
 
 ## 結果與不明提交
 

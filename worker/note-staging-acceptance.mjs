@@ -30,6 +30,7 @@ export async function runAcceptance({ mode = "plan", databaseId, token, confirma
   const originalFetch = globalThis.fetch;
   const originalNotes = DB.notes;
   const uploads = new Set();
+  const uploadIds = new Set();
   let uploadsCreated = 0;
   let uploadsSent = 0;
   let pageId;
@@ -72,7 +73,8 @@ export async function runAcceptance({ mode = "plan", databaseId, token, confirma
         uploadsCreated++;
         const response = await call("/file_uploads", init);
         const data = await json(response.clone());
-        if (!idPattern.test(data.id || "") || uploads.has(data.id)) throw new Error("Invalid upload identity");
+        if (!idPattern.test(data.id || "") || uploadIds.has(normalize(data.id))) throw new Error("Invalid upload identity");
+        uploadIds.add(normalize(data.id));
         uploads.add(data.id);
         return response;
       }
@@ -94,6 +96,9 @@ export async function runAcceptance({ mode = "plan", databaseId, token, confirma
         const page = await json(response.clone());
         if (!idPattern.test(page.id || "")) throw new Error("Invalid created page identity");
         pageId = page.id;
+        if (normalize(page.parent?.database_id) !== normalize(databaseId) || page.archived || page.in_trash ||
+            page.properties?.[P.note.title]?.title?.map((t) => t.plain_text ?? t.text?.content ?? "").join("") !== title)
+          throw new Error("Created page identity mismatch");
         stage = "readback";
         return response;
       }
@@ -107,11 +112,19 @@ export async function runAcceptance({ mode = "plan", databaseId, token, confirma
       ] })) }),
     }), { APP_KEY: "local-staging-only", NOTION_TOKEN: token });
     if (!response.ok || !pageId) throw new Error("Candidate note request did not complete");
+    const result = await response.json();
+    if (normalize(result.id) !== normalize(pageId) || result.title !== title || result.photos !== 2)
+      throw new Error("Candidate note response mismatch");
     const blocks = await json(await call(`/blocks/${pageId}/children?page_size=100`));
     if (blocks.has_more || blocks.results?.map((b) => b.type).join(",") !== "paragraph,image,paragraph,image" ||
         blocks.results[0].paragraph.rich_text.map((t) => t.plain_text ?? t.text?.content ?? "").join("") !== "第 1 頁" ||
         blocks.results[2].paragraph.rich_text.map((t) => t.plain_text ?? t.text?.content ?? "").join("") !== "第 2 頁")
       throw new Error("Created note block readback mismatch");
+    const images = [blocks.results[1], blocks.results[3]];
+    if (images.some((block) => !idPattern.test(block.id || "") || block.image?.type !== "file" ||
+        !URL.canParse(block.image.file?.url) || new URL(block.image.file.url).protocol !== "https:") ||
+        normalize(images[0].id) === normalize(images[1].id))
+      throw new Error("Created image file readback mismatch");
     return { mode, status: "PASS", pageId, networkCalls, photos: 2, cleanup: "manual review only" };
   } catch {
     // Do not echo upstream errors, tokens, signed file URLs, or note contents.
