@@ -3,8 +3,26 @@ const SHELL = ["icons/recall-hippocampus-256.png?v=hippocampus-1", "./", "index.
 // The static shell is the only intentionally persisted response set.
 // Version rotation evicts responses cached by older, broad same-origin handlers.
 self.addEventListener("install", (e) => {
-  e.waitUntil(caches.open(CACHE).then((cache) => cache.addAll(SHELL)));
-  self.skipWaiting();
+  e.waitUntil((async () => {
+    // Fetch anonymously from the network; hidden Set-Cookie cannot be inspected.
+    // Validate the complete set before persisting any response.
+    const entries = await Promise.all(SHELL.map(async (entry) => {
+      const request = new Request(new URL(entry, self.registration.scope), {
+        credentials: "omit", cache: "no-store", redirect: "error",
+      });
+      const response = await fetch(request);
+      const policy = response.headers.get("cache-control") || "";
+      if (response.status !== 200 || response.type === "opaque" || response.redirected ||
+          /(?:^|,)\s*(?:private|no-store)(?:\s|=|,|$)/i.test(policy) ||
+          (response.headers.get("vary") || "").split(",").some((v) => v.trim() === "*")) {
+        throw new Error("Unsafe static shell response");
+      }
+      return [request, response];
+    }));
+    const cache = await caches.open(CACHE);
+    await Promise.all(entries.map(([request, response]) => cache.put(request, response)));
+    await self.skipWaiting();
+  })());
 });
 self.addEventListener("activate", (e) => {
   // This PWA may share github.io with other apps. Never remove their caches.

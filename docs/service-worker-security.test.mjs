@@ -14,6 +14,7 @@ function harness() {
   const stores = new Map();
   const calls = [];
   let online = true;
+  let installResponse;
   let networkResponse = () => new Response("network body", {
     headers: { "cache-control": "public, max-age=3600" },
   });
@@ -40,11 +41,14 @@ function harness() {
     clients: { claim: async () => {} },
   };
   vm.runInNewContext(source, {
-    self, caches, URL, Response, Headers, location: { origin },
+    self, caches, URL, Request, Response, Headers, location: { origin },
     fetch: async (request, options) => {
       calls.push({ url: request.url, options });
       if (!online) throw new Error("offline");
-      return networkResponse(request);
+      if (request.credentials === "omit" && !installResponse) {
+        return new Response("offline shell: " + request.url.slice(scope.length));
+      }
+      return (request.credentials === "omit" ? installResponse : networkResponse)(request);
     },
   });
   const request = (path, { mode = "cors", headers = {} } = {}) => ({
@@ -66,6 +70,7 @@ function harness() {
     event, request, caches, calls,
     offline() { online = false; },
     response(fn) { networkResponse = fn; },
+    installResponse(fn) { installResponse = fn; },
   };
 }
 
@@ -81,8 +86,9 @@ test("cookie-bearing or private runtime GET is never cached, including browser H
       "synthetic confidential response");
     assert.equal(await (await sw.caches.open(cacheName)).match(sw.request(path)), undefined);
   }
-  assert.equal(sw.calls.length, paths.length);
-  assert.ok(sw.calls.every((entry) => entry.options?.cache === "no-store"),
+  const runtimeCalls = sw.calls.filter((entry) => entry.options);
+  assert.equal(runtimeCalls.length, paths.length);
+  assert.ok(runtimeCalls.every((entry) => entry.options?.cache === "no-store"),
     "every same-origin runtime fetch must bypass browser HTTP cache");
   sw.offline();
   for (const path of paths) {
@@ -130,4 +136,31 @@ test("stale dashboard cache is evicted, sibling caches are preserved and never u
   assert.equal((await sw.event("fetch", sw.request("/study-dashboard/custom.json"))).type, "error");
   const owned = await sw.caches.open(cacheName);
   assert.equal(await owned.match("/study-dashboard/private"), undefined);
+});
+
+test("install requests omit credentials, bypass HTTP cache and reject redirects", async () => {
+  const sw = harness();
+  sw.installResponse((request) => {
+    assert.equal(request.credentials, "omit");
+    assert.equal(request.cache, "no-store");
+    assert.equal(request.redirect, "error");
+    return new Response("anonymous static shell");
+  });
+  await sw.event("install");
+  assert.ok(sw.calls.length > 0);
+});
+
+test("unsafe install response rejects the entire shell before any cache write", async () => {
+  for (const options of [
+    { headers: { "Cache-Control": "private, max-age=60" } },
+    { headers: { "Cache-Control": "public, no-store" } },
+    { headers: { Vary: "Accept-Encoding, *" } },
+    { status: 404 }, { status: 206 },
+  ]) {
+    const sw = harness();
+    sw.installResponse((request) => new Response("body",
+      request.url.includes("app.js") ? options : {}));
+    await assert.rejects(sw.event("install"), /Unsafe static shell response/);
+    assert.deepEqual(await sw.caches.keys(), [], "no partial shell may be written");
+  }
 });

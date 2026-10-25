@@ -23,6 +23,7 @@ marker = 'synthetic-private-test-data'
 
 class Handler(http.server.SimpleHTTPRequestHandler):
     offline = False
+    shell_cookies = []
 
     def log_message(self, *_):
         pass
@@ -39,6 +40,7 @@ class Handler(http.server.SimpleHTTPRequestHandler):
         elif path in ['/private-cookie', '/private-nostore', '/api/progress']:
             body, kind = json.dumps({'marker': marker}).encode(), 'application/json'
         else:
+            type(self).shell_cookies.append(self.headers.get("Cookie"))
             return super().do_GET()
         self.send_response(200)
         self.send_header('Content-Type', kind)
@@ -65,6 +67,8 @@ try:
             context = browser.new_context()
             page = context.new_page()
             page.goto(origin + '/probe.html')
+            context.add_cookies([{'name': 'existing_session', 'value': 'synthetic',
+                                 'url': origin}])
             page.evaluate("""async oldCache => {
                 await (await caches.open(oldCache)).put('/stale-private', new Response('synthetic stale'));
                 await navigator.serviceWorker.register('/sw.js');
@@ -72,6 +76,8 @@ try:
             }""", 'sd-v135' if args.expected_cache == 'sd-v136' else 'sd-v136')
             page.wait_for_function('navigator.serviceWorker.controller !== null')
             page.wait_for_function("name => caches.keys().then(keys => keys.includes(name))", arg=args.expected_cache)
+            assert Handler.shell_cookies, 'shell install did not reach server'
+            assert all(cookie is None for cookie in Handler.shell_cookies), 'install sent cookies'
             # Activation's claim occurs after eviction; verify stale body, not
             # only the version name, so a cache bump cannot hide leaked bytes.
             stale = page.evaluate("async () => !!(await caches.match('/stale-private'))")
@@ -102,7 +108,7 @@ try:
             shell = page.evaluate("async () => (await fetch('/index.html')).text()")
             assert '<html' in shell.lower(), 'static shell is unavailable offline'
             print(json.dumps({'status': 'PASS', 'chromium': browser.version,
-                              'hidden_set_cookie': True, 'runtime_cache_empty': True,
+                              'hidden_set_cookie': True, 'install_omits_cookies': True, 'runtime_cache_empty': True,
                               'old_private_evicted': True, 'private_offline_unavailable': True,
                               'static_shell_offline_available': True}))
         finally:
