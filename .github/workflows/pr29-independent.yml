@@ -94,7 +94,15 @@ jobs:
           python -m pip install 'playwright==1.56.0'
           python -m playwright install --with-deps chromium
       - name: Verify current production release, desktop, mobile and offline cache
-        run: python scripts/production-smoke.py --release-sha "$(git rev-parse origin/main)" --wait-seconds 240
+        shell: bash
+        run: |
+          release_sha="$(git rev-parse origin/main)"
+          if [ "$GITHUB_EVENT_NAME" = "push" ]; then release_sha="$GITHUB_SHA"; fi
+          smoke_args=(--release-sha "$release_sha" --wait-seconds 240)
+          if [ "$GITHUB_EVENT_NAME" != "push" ] && { [ "$release_sha" = "5771bdc49dfdd0ea09439d717797be12357cf86d" ] || [ "$release_sha" = "0b0314ee9374f9cb24b98138e1771340e7662c43" ]; }; then
+            smoke_args+=(--allow-legacy-cleanup)
+          fi
+          python scripts/production-smoke.py "${smoke_args[@]}"
       - name: Upload production smoke evidence
         if: always()
         uses: actions/upload-artifact@v4
