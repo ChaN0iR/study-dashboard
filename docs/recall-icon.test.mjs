@@ -135,7 +135,9 @@ with sync_playwright() as p:
             # adjacent #wk-link (190 -> 205 gray). Preserve the >10/255 check
             # everywhere else; permit only that one neighboring pixel <=16/255.
             sibling_aa = bool(
-                changed and changed[2]-changed[0] == 1 and changed[3]-changed[1] == 1
+                changed and width == 900 and theme == 'light'
+                and len(set(pixel['new_rgb'])) == 1 and len(set(pixel['old_rgb'])) == 1
+                and changed[2]-changed[0] == 1 and changed[3]-changed[1] == 1
                 and pixel['element']['anchor'] == 'wk-link'
                 and before_noise is None and after_noise is None
                 and max(abs(a-b) for a,b in zip(pixel['new_rgb'],pixel['old_rgb'])) <= 16
@@ -155,7 +157,7 @@ with sync_playwright() as p:
             assert shortcut.get_attribute('aria-disabled') == 'true' and shortcut.get_attribute('href') is None
             assert shortcut.evaluate('el => getComputedStyle(el).pointerEvents') == 'none'
             assert not errors, errors
-            results.append({'viewport':[width,height],'theme':theme,'icon_px':icon['width'],'hitbox_px':[box['width'],box['height']],'currentColor':colors['fill'],'transparent':True,'other_shortcut_pixel_diff_gt10':0,'edge_center_click':'PASS','initialization':'PASS','sibling_aa':sibling_aa,'raster_diff':pixel})
+            results.append({'viewport':[width,height],'theme':theme,'icon_px':icon['width'],'hitbox_px':[box['width'],box['height']],'currentColor':colors['fill'],'transparent':True,'other_shortcut_pixel_diff_gt10':1 if sibling_aa else 0,'edge_center_click':'PASS','initialization':'PASS','sibling_aa':sibling_aa,'raster_diff':pixel})
             context.close()
     Handler.legacy = True
     context = browser.new_context(viewport={'width':390,'height':844},service_workers='allow')
