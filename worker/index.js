@@ -1,3 +1,4 @@
+import { readLimitedText, BodyTooLarge } from "./request-body.js";
 import { DB, P, MOODS, SUBJECTS, STATUS_DONE, STATUS_TODO } from "./config.js";
 import { createAutomation, DAILY_CRON } from "./automation.js";
 import { AutomationJournal } from "./journal.js";
@@ -336,7 +337,6 @@ async function postTask(env, id, body, automation) {
 
 async function postRecord(env, body) {
   const today = taipeiDate();
-  const rec = await getOrCreateRecord(env, today);
   const props = {};
   if ("hours" in body) props[P.record.hours] = wr.number(num(body.hours, "hours", 24));
   if ("minutes" in body) props[P.record.minutes] = wr.number(num(body.minutes, "minutes", 1440));
@@ -347,6 +347,7 @@ async function postRecord(env, body) {
     if (body["心情"] && !MOODS.includes(body["心情"])) throw new HttpError(400, "mood invalid");
     props[P.record.mood] = wr.select(body["心情"] || null);
   }
+  const rec = await getOrCreateRecord(env, today);
   if (!Object.keys(props).length) return shapeRecord(rec);
   return shapeRecord(await notion(env, `/pages/${rec.id}`, "PATCH", { properties: props }));
 }
@@ -474,6 +475,7 @@ async function startFocus(env, body, now, justDone) {
 
 async function postFocus(env, body) {
   const action = body.action;
+  if (!["stats", "add", "delete", "switch", "start", "pause", "resume", "stop", "subject"].includes(action)) throw new HttpError(400, "bad action");
   if (action === "stats") {
     const all = await queryAll(env, DB.focus, { sorts: [{ property: F.start, direction: "descending" }] });
     const by = {};
@@ -640,7 +642,14 @@ export default {
         throw new HttpError(500, "worker secrets not configured");
 
       const readBody = async () => {
-        try { return (await request.json()) || {}; } catch { throw new HttpError(400, "invalid JSON"); }
+        try {
+          const body = JSON.parse(await readLimitedText(request, 12_000_000));
+          if (!body || typeof body !== "object" || Array.isArray(body)) throw new Error();
+          return body;
+        } catch (error) {
+          if (error instanceof BodyTooLarge) throw new HttpError(413, "request too large");
+          throw new HttpError(400, "invalid JSON");
+        }
       };
       const seg = path.split("/").filter(Boolean); // ["api", ...]
       if (seg[0] !== "api") throw new HttpError(404, "not found");
@@ -676,7 +685,7 @@ export default {
       throw new HttpError(404, "not found");
     } catch (e) {
       const status = e instanceof HttpError ? e.status : 500;
-      return json({ error: e.message || "error" }, status, env);
+      return json({ error: status >= 500 ? "internal server error" : e.message || "error" }, status, env);
     }
   },
 };
