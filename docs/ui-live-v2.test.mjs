@@ -22,11 +22,11 @@ test("V2 bridges existing tasks instead of storing or writing duplicate state", 
   assert.match(bridge, /new MutationObserver\(queueRender\)/);
   assert.doesNotMatch(bridge, /\bfetch\s*\(|XMLHttpRequest|localStorage|sessionStorage|indexedDB|WebSocket|navigator\.serviceWorker/);
   assert.doesNotMatch(bridge, /window\.CONFIG|\/api\/|NOTION_TOKEN|APP_KEY|setInterval/);
-  assert.doesNotMatch(bridge, /aria-checked"\s*,|\.classList\.add\("done"\)/);
+  assert.doesNotMatch(bridge, /\.setAttribute\(\s*["']aria-checked["']|\.classList\.add\(\s*["']done["']\)/);
 });
 
 test("V2 cannot inadvertently stop real focus session on navigation", () => {
-  assert.match(bridge, /button\[data-t=record\]/);
+  assert.match(bridge, /button\[data-t="record"\]/);
   assert.match(bridge, /querySelector\("#fc-main"\)/);
   assert.match(bridge, /timer\?\.focus\(/);
   assert.doesNotMatch(bridge, /timer\?\.click\(|#fc-main"\)\.click\(/);
