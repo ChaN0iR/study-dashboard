@@ -60,8 +60,9 @@ export function mountLiveV2() {
 
   const render = () => {
     const raw = count.textContent.trim();
-    const match = /^(\d+)\s*\/\s*(\d+)$/.exec(raw);
     const rows = getRows();
+    const emptyList = !raw && rows.length === 0 && !!tasks.querySelector(".empty");
+    const match = /^(\d+)\s*\/\s*(\d+)$/.exec(raw) || (emptyList ? ["0/0", "0", "0"] : null);
     const taipeiDate = new Intl.DateTimeFormat("sv-SE", {
       timeZone: "Asia/Taipei", year: "numeric", month: "2-digit", day: "2-digit"
     }).format(new Date());
@@ -75,7 +76,7 @@ export function mountLiveV2() {
     const next = dataUnavailable ? null : rows.find(available);
 
     hero.classList.toggle("sd-v2-unverified", dataUnavailable);
-    hero.classList.toggle("sd-v2-complete", !next && !dataUnavailable && done === total);
+    hero.classList.toggle("sd-v2-complete", !next && !dataUnavailable && total > 0 && done === total);
     progress.textContent = dataUnavailable ? "尚未取得可靠任務資料" :
       (new URLSearchParams(window.location.search).get("demo") === "1" ? "示範資料 · " : "") +
       done + " / " + total + (pending ? " · 更新中（未確認）" : " 已完成");
@@ -100,7 +101,8 @@ export function mountLiveV2() {
       subject.textContent = note && !note.hidden ? "依目前排程政策" : "今日任務";
       title.textContent = pending ? "任務更新仍在同步" :
         note && !note.hidden ? "目前以原有排程為準" :
-        blocked ? "尚有待解鎖或同步中的任務" : "目前顯示的任務已完成";
+        blocked ? "尚有待解鎖或同步中的任務" :
+        total === 0 ? "目前沒有顯示任務" : "目前顯示的任務已完成";
       description.textContent = note && !note.hidden ? note.textContent :
         "需要查看其他任務或進度，請使用原本的任務清單。";
     }
