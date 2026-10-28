@@ -14,7 +14,7 @@ from playwright.sync_api import sync_playwright
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--sw-source', type=pathlib.Path)
-parser.add_argument('--expected-cache', default='sd-v137')
+parser.add_argument('--expected-cache', default='sd-v138')
 args = parser.parse_args()
 docs = pathlib.Path(__file__).resolve().parent
 worker = (args.sw_source or docs / 'sw.js').read_bytes()
