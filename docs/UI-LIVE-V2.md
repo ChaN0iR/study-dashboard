@@ -29,11 +29,21 @@ Browser test launches a loopback-only server and Chromium with fixed Taiwan dayt
 
 Screenshots and JSON evidence appear in the `live-ui-v2` Actions artifact.
 
+## Combined PWA + V2 release candidate
+
+This integration branch combines #39 and #42 on their common main base without changing or merging either original PR.
+
+- `app.js?v=123` in `docs/index.html`, `sd-v138` in `docs/sw.js`. Both versions must move together.
+- Install-time static shell now also contains `ui-live-v2.js` and `ui-live-v2.css?v=1` so `?demo=1&ui=v2` can load the optional card while offline. Assets are fetched anonymously, no redirects, and rejected if marked private/no-store.
+- All runtime same-origin requests still bypass HTTP cache and are **never** added to CacheStorage; offline fallback only serves exact static shell URLs, not API data.
+- `docs/service-worker-security.test.mjs` checks exact URL matching for optional modules, and `docs/ui-v2-offline.browser.py` launches a real Chromium PWA, installs SW online, then reloads the isolated demo while offline.
+- The default site still uses the original screens and action handlers. This does not replace the XP, task or focus data model.
+
 ## Unfinished release gates
 
-1. Current PWA shell is `app.js?v=122`, `sd-v136`; the candidate changes `app.js` but **deliberately leaves `docs/index.html` and `docs/sw.js` untouched**. Prior to any merge/deployment, coordinate a single version bump of `app.js`, SW shell and related snapshot tests **on top of #39** (its `sd-v137` privacy fix). Without this, an installed PWA could use stale `app.js`.
-2. Validate the flag on a separate HTTPS test site, including iPhone Installed PWA and no data disclosure. Do not test against real study data until authorized.
-3. Check performance/accessibility at narrow landscape viewports, dark mode, keyboard navigation, and Offline. Confirm no duplicated tasks or writes and rollback after API rejection.
-4. Obtain explicit merge/deployment approval. Do not promote this branch by itself to GitHub Pages.
+1. **All** integration CI checks must succeed on the same HEAD: PWA privacy/Chromium, opt-in browser with synthetic API failure, offline PWA reload, and original desktop/Recall regression suite. Treat failures as blockers.
+2. Verify on a separate HTTPS test site and actual iPhone Installed PWA (including old-to-new upgrade and accessibility). Do not test against live study data without authorization.
+3. Coordinate merging/superseding PR #39 and #42; this branch intentionally includes both. **Never merge this together with those PRs blindly**.
+4. Obtain explicit permission for any merge and release. The main GitHub Pages site and Cloudflare Worker are not modified by this branch.
 
 PR #40 remains a separate synthetic design concept. This candidate is a **vertical slice**, not the entire V2 visual redesign; the remaining panels should be migrated incrementally only after their actual data contracts are understood.
