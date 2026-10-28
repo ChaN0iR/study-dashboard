@@ -127,9 +127,12 @@ export function mountLiveV2() {
   taskButton.addEventListener("click", () => {
     if (taskButton.disabled) return;
     document.querySelector('#tabs button[data-t="today"]')?.click();
-    const target = tasks.querySelector(".task-item:not(.done):not(.blocked) .task-activity");
-    (target || tasks).scrollIntoView({ behavior: "smooth", block: "center" });
-    target?.focus({ preventScroll: true });
+    // Match the exact actionable row selected by the hero. A pending
+    // optimistic write can leave an earlier non-done but disabled row.
+    const target = getRows().find(available)?.querySelector(".task-activity");
+    if (!target) return;
+    target.scrollIntoView({ behavior: "smooth", block: "center" });
+    target.focus({ preventScroll: true });
   });
 
   $("#sd-v2-focus").addEventListener("click", () => {
