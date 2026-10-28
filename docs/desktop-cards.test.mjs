@@ -8,15 +8,15 @@ const sw = readFileSync(new URL('./sw.js', import.meta.url), 'utf8');
 const shell = JSON.parse(sw.match(/^const SHELL = (\[[^\n]+\]);$/m)[1]);
 
 test('index.html references the updated desktop card assets exactly once', () => {
-  assert.deepEqual([...html.matchAll(/<script\b[^>]*\bsrc="(app\.js[^\"]*)"/g)].map(m => m[1]), ['app.js?v=122']);
+  assert.deepEqual([...html.matchAll(/<script\b[^>]*\bsrc="(app\.js[^\"]*)"/g)].map(m => m[1]), ['app.js?v=123']);
   assert.deepEqual([...html.matchAll(/<link\b[^>]*\bhref="(style\.css[^\"]*)"/g)].map(m => m[1]), ['style.css?v=124']);
 });
 
 test('SW cache and shell match the index.html static asset references', () => {
-  assert.match(sw, /^const CACHE = "sd-v137";$/m);
+  assert.match(sw, /^const CACHE = "sd-v138";$/m);
   assert.equal(new Set(shell).size, shell.length, 'shell has no duplicate entries');
-  for (const entry of ['./', 'index.html', 'app.js?v=122', 'style.css?v=124']) assert.ok(shell.includes(entry), entry);
-  assert.deepEqual(shell.filter(entry => /^(app\.js|style\.css)(\?|$)/.test(entry)), ['style.css?v=124', 'app.js?v=122']);
+  for (const entry of ['./', 'index.html', 'app.js?v=123', 'style.css?v=124']) assert.ok(shell.includes(entry), entry);
+  assert.deepEqual(shell.filter(entry => /^(app\.js|style\.css)(\?|$)/.test(entry)), ['style.css?v=124', 'app.js?v=123']);
   const references = [...html.matchAll(/<(?:script|link)\b[^>]*\b(?:src|href)="([^\"]+)"/g)].map(m => m[1]);
   for (const reference of references) assert.ok(shell.includes(reference), `shell includes ${reference}`);
   for (const entry of shell) assert.ok(existsSync(new URL(entry.split('?')[0], import.meta.url)), `shell file exists: ${entry}`);
