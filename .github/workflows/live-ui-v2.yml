@@ -5,6 +5,9 @@ on:
     branches: [main]
     paths:
       - "docs/app.js"
+      - "docs/index.html"
+      - "docs/sw.js"
+      - "docs/ui-v2-offline.browser.py"
       - "docs/ui-live-v2.js"
       - "docs/ui-live-v2.css"
       - "docs/ui-live-v2.test.mjs"
@@ -36,6 +39,7 @@ jobs:
           node --check docs/ui-live-v2.js
           node --check docs/ui-live-v2.test.mjs
           python -m py_compile docs/ui-live-v2.browser.py
+          python -m py_compile docs/ui-v2-offline.browser.py
           node --test docs/ui-live-v2.test.mjs
       - name: Install independent browser
         run: |
@@ -47,6 +51,10 @@ jobs:
         run: |
           mkdir -p "$LIVE_UI_V2_EVIDENCE"
           python docs/ui-live-v2.browser.py | tee "$RUNNER_TEMP/live-ui-v2-results.json"
+      - name: Chromium offline PWA dynamic asset integration (synthetic only)
+        env:
+          LIVE_UI_V2_EVIDENCE: ${{ runner.temp }}/live-ui-v2
+        run: python docs/ui-v2-offline.browser.py | tee "$RUNNER_TEMP/live-ui-v2-offline-results.json"
       - name: Attach screenshots and test evidence
         if: always()
         uses: actions/upload-artifact@v4
@@ -55,5 +63,6 @@ jobs:
           path: |
             ${{ runner.temp }}/live-ui-v2/
             ${{ runner.temp }}/live-ui-v2-results.json
+            ${{ runner.temp }}/live-ui-v2-offline-results.json
           if-no-files-found: warn
           retention-days: 14
