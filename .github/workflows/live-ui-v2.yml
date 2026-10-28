@@ -45,6 +45,7 @@ jobs:
         env:
           LIVE_UI_V2_EVIDENCE: ${{ runner.temp }}/live-ui-v2
         run: |
+          set -o pipefail
           mkdir -p "$LIVE_UI_V2_EVIDENCE"
           python docs/ui-live-v2.browser.py | tee "$RUNNER_TEMP/live-ui-v2-results.json"
       - name: Attach screenshots and test evidence
