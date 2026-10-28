@@ -160,7 +160,14 @@ try:
                     page.locator("#sd-v2-focus").click()
                     assert page.locator("#fc-main").get_attribute("data-state") == before
                     assert page.evaluate("document.activeElement.id === 'fc-main'")
-                    page.locator('#tabs button[data-t="today"]').click()
+                    # Desktop hides mobile bottom tabs; exercise the
+                    # same existing tab handler without a non-visible click.
+                    if width >= 900:
+                        page.evaluate("""() =>
+                            document.querySelector('#tabs button[data-t="today"]').click()
+                        """)
+                    else:
+                        page.locator('#tabs button[data-t="today"]').click()
 
                     check = page.locator("#tasks .task-item:not(.done):not(.blocked) .chk:not([disabled])").first
                     check.click()
