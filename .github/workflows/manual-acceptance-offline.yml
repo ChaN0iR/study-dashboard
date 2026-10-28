@@ -1,0 +1,37 @@
+name: Manual acceptance result checker (offline)
+
+on:
+  pull_request:
+    branches:
+      - main
+      - fix/notion-note-upload-before-create
+    paths:
+      - "scripts/check-manual-acceptance.mjs"
+      - "scripts/check-manual-acceptance.test.mjs"
+      - "worker/MANUAL-ACCEPTANCE-QUICKSTART.md"
+      - ".github/workflows/manual-acceptance-offline.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  manual-acceptance:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+      - name: Source and formatting checks
+        run: |
+          git diff --check
+          node --check scripts/check-manual-acceptance.mjs
+          node --check scripts/check-manual-acceptance.test.mjs
+      - name: Verify synthetic result guardrails without network or secrets
+        run: |
+          node --test scripts/check-manual-acceptance.test.mjs
+          node scripts/check-manual-acceptance.mjs </dev/null >/dev/null && exit 1 || test "$?" -eq 1
