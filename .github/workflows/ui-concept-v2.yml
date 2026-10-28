@@ -41,6 +41,7 @@ jobs:
         env:
           UI_PREVIEW_EVIDENCE: ${{ runner.temp }}/ui-concept-v2
         run: |
+          set -o pipefail
           mkdir -p "$UI_PREVIEW_EVIDENCE"
           python docs/ui-concept-v2/browser.test.py | tee "$RUNNER_TEMP/ui-concept-v2-result.json"
       - name: Upload evidence (screenshots and summary)
