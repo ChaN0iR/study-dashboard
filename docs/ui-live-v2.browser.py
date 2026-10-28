@@ -128,8 +128,31 @@ try:
                     assert not outside, outside
                     page.screenshot(path=str(EVIDENCE / (str(width) + "-" + theme + ".png")),
                                     full_page=True)
+                    # Reproduce a task which is not done but temporarily
+                    # disabled (optimistic API write). The hero and its CTA
+                    # must agree on the *same* next actionable task.
+                    page.evaluate("""() => {
+                      const first = [...document.querySelectorAll('#tasks .task-item')]
+                        .find(r => !r.classList.contains('done') &&
+                          !r.classList.contains('blocked') &&
+                          r.querySelector('.chk:not([disabled])'));
+                      first.querySelector('.chk').disabled = true;
+                    }""")
+                    page.wait_for_function("""previous => {
+                      const title = document.querySelector('#sd-v2-title')?.textContent;
+                      return title && title !== previous &&
+                        !document.querySelector('#sd-v2-task').disabled;
+                    }""", arg=first)
+                    second = first_actionable(page)
                     page.locator("#sd-v2-task").click()
                     assert page.evaluate("document.activeElement.classList.contains('task-activity')")
+                    assert page.evaluate("document.activeElement.textContent.trim()") == second
+                    page.evaluate("""() => {
+                      document.querySelector('#tasks .task-item .chk').disabled = false;
+                    }""")
+                    page.wait_for_function("""previous =>
+                      document.querySelector('#sd-v2-title')?.textContent === previous
+                    """, arg=first)
 
                     # Focus shortcut only navigates and focuses the existing focus
                     # control. It must never click it, which could end a session.
