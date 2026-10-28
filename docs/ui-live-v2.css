@@ -1,0 +1,155 @@
+/* Study Dashboard V2 opt-in only: no existing control sizing or layout replaced. */
+body.sd-v2-live{
+  --sd-v2-deep:#214c40;
+  --sd-v2-soft:#e4efe7;
+  --sd-v2-ink:#f9fffa;
+}
+.sd-v2-live .sd-v2-hero{
+  position:relative;
+  flex:0 0 auto;
+  min-width:0;
+  overflow:visible;
+  margin:12px 0;
+  border:1px solid #3d6d5c;
+  border-radius:18px;
+  background:linear-gradient(122deg,#285b4b 0%,#204b40 72%,#1b4037 100%);
+  color:var(--sd-v2-ink);
+  padding:20px;
+  box-shadow:0 10px 30px rgba(23,75,56,.13);
+}
+.sd-v2-live .sd-v2-head{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:12px;
+}
+.sd-v2-live .sd-v2-eyebrow{
+  font-size:11px;
+  font-weight:700;
+  letter-spacing:.1em;
+  color:#b7dccc;
+}
+.sd-v2-live .sd-v2-switch{
+  color:#e8f4eb;
+  font-size:12px;
+  text-underline-offset:4px;
+  white-space:nowrap;
+}
+.sd-v2-live .sd-v2-subject{
+  display:block;
+  margin-top:16px;
+  color:#c3e0d1;
+  font-size:12px;
+  font-weight:600;
+}
+.sd-v2-live .sd-v2-title{
+  margin:5px 0 8px;
+  color:var(--sd-v2-ink);
+  font-size:clamp(20px,2vw,26px);
+  font-weight:750;
+  letter-spacing:-.025em;
+  line-height:1.28;
+  overflow-wrap:anywhere;
+}
+.sd-v2-live .sd-v2-description{
+  color:#e1eee6;
+  font-size:12px;
+  line-height:1.6;
+  margin:0 0 16px;
+}
+.sd-v2-live .sd-v2-foot{
+  display:flex;
+  justify-content:space-between;
+  align-items:end;
+  flex-wrap:wrap;
+  gap:12px;
+}
+.sd-v2-live .sd-v2-progress{
+  min-width:92px;
+  display:flex;
+  flex-direction:column;
+  gap:8px;
+  font-size:12px;
+  color:#d8eee0;
+  font-variant-numeric:tabular-nums;
+}
+.sd-v2-live .sd-v2-track{
+  display:block;
+  height:5px;
+  min-width:110px;
+  overflow:hidden;
+  background:rgba(255,255,255,.22);
+  border-radius:99px;
+}
+.sd-v2-live .sd-v2-track i{
+  display:block;
+  height:100%;
+  width:0;
+  border-radius:inherit;
+  background:#d1efca;
+  transition:width .2s ease;
+}
+.sd-v2-live .sd-v2-actions{
+  display:flex;
+  align-items:center;
+  gap:8px;
+  flex-wrap:wrap;
+}
+.sd-v2-live .sd-v2-actions button{
+  min-height:42px;
+  padding:8px 12px;
+  background:#f5fff8;
+  border:1px solid #f5fff8;
+  color:#224e42;
+  border-radius:10px;
+  font-size:12px;
+  font-weight:700;
+  cursor:pointer;
+}
+.sd-v2-live .sd-v2-actions button + button{
+  background:transparent;
+  color:#f5fff8;
+  border-color:rgba(255,255,255,.53);
+}
+.sd-v2-live .sd-v2-actions button:disabled{
+  opacity:.46;
+  cursor:not-allowed;
+}
+.sd-v2-live .sd-v2-actions button:focus-visible,
+.sd-v2-live .sd-v2-switch:focus-visible{
+  outline:3px solid #e6ecb1;
+  outline-offset:3px;
+}
+.sd-v2-live .sd-v2-unverified{background:#4c5957;border-color:#727d79}
+.sd-v2-live .sd-v2-complete{background:linear-gradient(135deg,#406b53,#275a48)}
+@media (min-width:900px) and (min-height:560px){
+  .sd-v2-live main>.col>.sd-v2-hero{
+    display:flex!important;
+    flex:0 0 auto!important;
+    flex-direction:column;
+    overflow:visible!important;
+    margin:0!important;
+  }
+}
+@media (max-width:899px), (max-height:559px){
+  body.sd-v2-live:not([data-tab="today"]) main>.col>.sd-v2-hero{display:none!important}
+  body.sd-v2-live[data-tab="today"] main>.col>.sd-v2-hero{
+    display:flex!important;
+    flex-direction:column;
+    /* The legacy today-tab rule uses :not(#now), with ID specificity, and
+       otherwise stretches this extra card over #now and its controls. */
+    flex:0 0 auto!important;
+    min-height:0!important;
+    overflow:visible!important;
+    margin:8px 0 12px;
+  }
+}
+@media (max-width:355px){
+  .sd-v2-live .sd-v2-hero{padding:14px}
+  .sd-v2-live .sd-v2-actions{width:100%}
+  .sd-v2-live .sd-v2-actions button{flex:1;padding-inline:8px}
+  .sd-v2-live .sd-v2-track{min-width:88px}
+}
+@media(prefers-reduced-motion:reduce){
+  .sd-v2-live .sd-v2-track i{transition:none}
+}

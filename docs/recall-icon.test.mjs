@@ -21,7 +21,7 @@ test("transparent currentColor silhouette preserves accessible disabled/no-href 
 
 test("achievement changes preserve shortcut, other markup, branding and Recall Room assets", () => {
   // Only the documented achievement markup and versioned static asset references may differ.
-  const normalize = text => text.replace(' id="achievement-xp-rules"', '').replace('style.css?v=124', 'style.css?v=123').replace('app.js?v=122', 'app.js?v=119');
+  const normalize = text => text.replace(' id="achievement-xp-rules"', '').replace('style.css?v=124', 'style.css?v=123').replace('app.js?v=123', 'app.js?v=119');
   assert.equal(normalize(html), baseline("index.html"));
   assert.equal(link, baseline("index.html").match(shortcut)[0]);
   for (const file of [ "config.js", "recall-room.css", "recall-room.js", "recall/index.html", "recall/auth-ui.js", "manifest.webmanifest", "icons/recall-hippocampus-256.png"]) {
@@ -31,13 +31,20 @@ test("achievement changes preserve shortcut, other markup, branding and Recall R
 });
 
 test("PWA scopes legacy cleanup and updates asset versions, preserving the remaining shell", () => {
-  const upgrade = text => text.replace('"sd-v133"', '"sd-v136"').replace('style.css?v=123', 'style.css?v=124').replace('app.js?v=119', 'app.js?v=122')
+  const upgrade = text => text.replace('"sd-v133"', '"sd-v138"').replace('style.css?v=123', 'style.css?v=124').replace('app.js?v=119', 'app.js?v=123')
     .replace('ks.filter((k) => k !== CACHE)', 'ks.filter((k) => /^sd-v\\d+$/.test(k) && k !== CACHE)');
-  assert.equal(sw, upgrade(baseline("sw.js")));
+  assert.match(sw, /^const CACHE = "sd-v138";$/m);
+  // The fetch policy intentionally changes; asset ownership and shell content must not.
   const shell = JSON.parse(sw.match(/^const SHELL = (\[[^\n]+\]);$/m)[1]);
   assert.equal(new Set(shell).size, shell.length);
   assert.ok(shell.includes("index.html"));
-  assert.deepEqual(shell, JSON.parse(upgrade(baseline("sw.js")).match(/^const SHELL = (\[[^\n]+\]);$/m)[1]));
+  // The opt-in module and stylesheet are extra static shell assets,
+  // not part of the historical Recall Room asset snapshot.
+  const expected = JSON.parse(upgrade(baseline("sw.js")).match(/^const SHELL = (\[[^\n]+\]);$/m)[1]);
+  const appIndex = expected.indexOf("app.js?v=123");
+  assert.ok(appIndex >= 0);
+  expected.splice(appIndex + 1, 0, "ui-live-v2.js", "ui-live-v2.css?v=1");
+  assert.deepEqual(shell, expected);
 });
 
 const available = spawnSync("chromium", ["--version"]).status === 0 && spawnSync("python3", ["-c", "import playwright.sync_api, PIL"]).status === 0;
@@ -179,10 +186,10 @@ with sync_playwright() as p:
     Handler.legacy = False
     page.evaluate('navigator.serviceWorker.getRegistration().then(r => r.update()).then(() => true)')
     for attempt in range(100):
-        cached = page.evaluate("""async () => { const keys=await caches.keys(); const r=await caches.match('index.html',{cacheName:'sd-v136'}); return {keys,html:r?await r.text():''}; }""")
+        cached = page.evaluate("""async () => { const keys=await caches.keys(); const r=await caches.match('index.html',{cacheName:'sd-v138'}); return {keys,html:r?await r.text():''}; }""")
         if 'sd-v132' not in cached['keys'] and 'fill="currentColor" aria-hidden="true" focusable="false"' in cached['html']: break
         page.wait_for_timeout(100)
-    assert 'sd-v132' not in cached['keys'] and 'sd-v136' in cached['keys'], cached['keys']
+    assert 'sd-v132' not in cached['keys'] and 'sd-v138' in cached['keys'], cached['keys']
     assert 'recall-hippocampus-256.png' not in cached['html']
     assert 'sibling-pwa-v1' in cached['keys'], cached['keys']
     assert page.evaluate("async () => (await (await caches.open('sibling-pwa-v1')).match('sibling-marker')).text()") == 'preserve sibling data'
@@ -204,7 +211,7 @@ with sync_playwright() as p:
             if evidence: page.screenshot(path=str(evidence/f'{width}x{height}-offline-upgraded-{theme}.png'),animations='disabled')
     context.close(); browser.close()
 server.shutdown()
-report = {'status':'PASS','responsive_cases':results,'cache_upgrade':'sd-v132 -> sd-v136 PASS','sibling_cache_preserved':'PASS','offline_silhouette':'light/dark PASS'}
+report = {'status':'PASS','responsive_cases':results,'cache_upgrade':'sd-v132 -> sd-v138 PASS','sibling_cache_preserved':'PASS','offline_silhouette':'light/dark PASS'}
 if evidence: (evidence/'browser-results.json').write_text(json.dumps(report,ensure_ascii=False,indent=2))
 print(json.dumps(report,ensure_ascii=False))
 `;
