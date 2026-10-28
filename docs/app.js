@@ -1300,6 +1300,12 @@
     fcPlace(); fcMq.addEventListener("change", fcPlace);
     fcLoad(); setInterval(fcRender, 1000); setInterval(fcLoad, 8000);
     document.addEventListener("visibilitychange", () => { if (!document.hidden) fcLoad(); });
+    // V2 is explicitly opt-in and observes the existing rendered task/focus UI.
+    // No new task store, API client or timer is installed.
+    if (qs.get("ui") === "v2") {
+      import("./ui-live-v2.js").then(({ mountLiveV2 }) => mountLiveV2())
+        .catch((error) => console.warn("V2 UI unavailable; default interface retained", error));
+    }
     load();
     setInterval(() => {
       const previousSlot = activeScheduleKey;
