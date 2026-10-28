@@ -1,0 +1,56 @@
+name: UI Concept V2 isolated preview
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - "docs/ui-concept-v2/**"
+      - ".github/workflows/ui-concept-v2.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  preview:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Validate source and committed diff
+        run: |
+          node --check docs/ui-concept-v2/controller-v2.js
+          node --check docs/ui-concept-v2/preview.test.mjs
+          python -m py_compile docs/ui-concept-v2/browser.test.py
+          git diff --check HEAD^ HEAD
+      - name: Static isolation and UX contracts
+        run: node --test docs/ui-concept-v2/preview.test.mjs
+      - name: Install independent Chromium for visual regression
+        run: |
+          python -m pip install --disable-pip-version-check 'playwright==1.56.0'
+          python -m playwright install --with-deps chromium
+      - name: Browser responsive and interaction regression (synthetic only)
+        env:
+          UI_PREVIEW_EVIDENCE: ${{ runner.temp }}/ui-concept-v2
+        run: |
+          set -o pipefail
+          mkdir -p "$UI_PREVIEW_EVIDENCE"
+          python docs/ui-concept-v2/browser.test.py | tee "$RUNNER_TEMP/ui-concept-v2-result.json"
+      - name: Upload evidence (screenshots and summary)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ui-concept-v2-evidence
+          path: |
+            ${{ runner.temp }}/ui-concept-v2/
+            ${{ runner.temp }}/ui-concept-v2-result.json
+          if-no-files-found: warn
+          retention-days: 14
