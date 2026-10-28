@@ -131,11 +131,16 @@ body.sd-v2-live{
     margin:0!important;
   }
 }
-@media (max-width:899px){
+@media (max-width:899px), (max-height:559px){
   body.sd-v2-live:not([data-tab="today"]) main>.col>.sd-v2-hero{display:none!important}
   body.sd-v2-live[data-tab="today"] main>.col>.sd-v2-hero{
     display:flex!important;
     flex-direction:column;
+    /* The legacy today-tab rule uses :not(#now), with ID specificity, and
+       otherwise stretches this extra card over #now and its controls. */
+    flex:0 0 auto!important;
+    min-height:0!important;
+    overflow:visible!important;
     margin:8px 0 12px;
   }
 }
