@@ -225,7 +225,12 @@ try:
                 assert page.evaluate("document.activeElement.id === 'fc-main'")
                 assert not any(method == "POST" for method, _ in calls), (
                     "opening focus must not start or stop a persisted focus session")
-                page.locator('#tabs button[data-t="today"]').click()
+                if width >= 900:
+                    page.evaluate("""() =>
+                        document.querySelector('#tabs button[data-t="today"]').click()
+                    """)
+                else:
+                    page.locator('#tabs button[data-t="today"]').click()
                 page.locator("#tasks .task-item:not(.done):not(.blocked) .chk:not([disabled])").first.click()
                 page.wait_for_function("""() =>
                   document.querySelector('#banner')?.hidden === false &&
