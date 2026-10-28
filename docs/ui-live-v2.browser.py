@@ -184,8 +184,11 @@ try:
 
                     # Disabling the query flag must leave original app unchanged.
                     page.goto(origin + "/index.html?demo=1", wait_until="load")
+                    # The app loads demo tasks asynchronously after DOM load.
+                    page.wait_for_function("""() =>
+                      document.querySelectorAll('#tasks .task-item').length > 0
+                    """, timeout=10000)
                     assert page.locator("#sd-v2-live").count() == 0
-                    assert page.locator("#tasks .task-item").count() > 0
                     results.append({"case": str(width) + "x" + str(height) + " " + theme,
                                     "demo_bridge": "PASS", "flag_off": "PASS"})
                     context.close()
