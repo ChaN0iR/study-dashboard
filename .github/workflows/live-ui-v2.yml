@@ -49,12 +49,15 @@ jobs:
         env:
           LIVE_UI_V2_EVIDENCE: ${{ runner.temp }}/live-ui-v2
         run: |
+          set -o pipefail
           mkdir -p "$LIVE_UI_V2_EVIDENCE"
           python docs/ui-live-v2.browser.py | tee "$RUNNER_TEMP/live-ui-v2-results.json"
       - name: Chromium offline PWA dynamic asset integration (synthetic only)
         env:
           LIVE_UI_V2_EVIDENCE: ${{ runner.temp }}/live-ui-v2
-        run: python docs/ui-v2-offline.browser.py | tee "$RUNNER_TEMP/live-ui-v2-offline-results.json"
+        run: |
+          set -o pipefail
+          python docs/ui-v2-offline.browser.py | tee "$RUNNER_TEMP/live-ui-v2-offline-results.json"
       - name: Attach screenshots and test evidence
         if: always()
         uses: actions/upload-artifact@v4
