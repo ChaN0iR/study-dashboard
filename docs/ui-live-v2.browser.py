@@ -63,6 +63,13 @@ def install_route(page, mock_api=False):
     def handler(route):
         request = route.request
         url = request.url
+        # The desktop app optionally probes AnkiConnect on localhost:8765.
+        # Intercept that known optional integration with a synthetic response
+        # instead of reaching a real local app or misclassifying it as leakage.
+        if url == "http://127.0.0.1:8765/" and request.method == "POST":
+            route.fulfill(status=200, headers={"Content-Type": "application/json"},
+                          body='{"result":[],"error":null}')
+            return
         if not url.startswith(origin + "/"):
             outside.append(url)
             route.abort()
