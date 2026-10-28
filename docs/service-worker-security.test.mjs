@@ -113,6 +113,21 @@ test("offline fallback serves only explicit static shell and dashboard entry nav
   }
 });
 
+test("V2 optional module and stylesheet remain offline only at exact allowed URLs", async () => {
+  const sw = harness();
+  await sw.event("install");
+  sw.offline();
+  for (const resource of ["ui-live-v2.js", "ui-live-v2.css?v=1"]) {
+    const response = await sw.event("fetch", sw.request("/study-dashboard/" + resource));
+    assert.equal(response.status, 200);
+    assert.equal(await response.text(), "offline shell: " + resource);
+  }
+  for (const resource of ["ui-live-v2.js?v=2", "ui-live-v2.css?v=wrong"]) {
+    const response = await sw.event("fetch", sw.request("/study-dashboard/" + resource));
+    assert.equal(response.type, "error", "unlisted cache-bust should not silently use an older module");
+  }
+});
+
 test("authenticated static requests never receive fallback from pre-cached shell", async () => {
   const sw = harness();
   await sw.event("install");
