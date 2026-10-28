@@ -75,7 +75,9 @@ jobs:
               raise SystemExit('All 13 cache/privacy/recall tests must run and pass')
           PYVERIFY
       - name: Verify no private runtime response persists in real Chromium
-        run: python3 docs/service-worker-privacy.browser.py | tee "$RUNNER_TEMP/pwa-private-response.json"
+        run: |
+          set -o pipefail
+          python3 docs/service-worker-privacy.browser.py | tee "$RUNNER_TEMP/pwa-private-response.json"
       - name: Upload cache regression evidence
         if: always()
         uses: actions/upload-artifact@v4
