@@ -111,7 +111,7 @@ export function build(outDirectory) {
   html = replaceOnce(html, "<body>", "<body>\n" + banner, "visible staging banner");
 
   const qa = readFileSync(new URL("./pr43-diagnostics.js", import.meta.url), "utf8");
-  reject(!qa.includes("PR43_STAGING_DIAGNOSTICS"), "Missing intended synthetic QA script");
+  reject(qa.includes("PR43_STAGING_DIAGNOSTICS"), "Missing intended synthetic QA script");
   html = replaceOnce(html, "</body>",
     '<script>\n' + qa + '\n</script>\n</body>', "embedded offline-capable QA");
   writeFileSync(join(out, "index.html"), html);
