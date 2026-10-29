@@ -120,3 +120,73 @@ jobs:
           print("PR43_REMOTE_STAGING_VERIFIED=PASS")
           print("No Cloudflare write operations, no production requests, no secrets, no Notion calls")
           PY
+
+      - name: Install isolated Chromium for real HTTPS staging smoke
+        run: |
+          set -euo pipefail
+          python3 -m pip install --disable-pip-version-check 'playwright==1.56.0'
+          python3 -m playwright install --with-deps chromium
+      - name: Real published HTTPS homepage and PWA browser smoke (read-only synthetic)
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json
+          from playwright.sync_api import sync_playwright
+
+          root = "https://study-dashboard-pr43-synth-20261029.pages.dev"
+          results = []
+          with sync_playwright() as p:
+              browser = p.chromium.launch(headless=True)
+              try:
+                  for width, height in ((390, 844), (1440, 900)):
+                      context = browser.new_context(
+                          viewport={"width": width, "height": height},
+                          service_workers="allow", reduced_motion="reduce")
+                      page = context.new_page()
+                      errors, outside = [], []
+                      page.on("pageerror", lambda err: errors.append(str(err)))
+                      page.on("request", lambda req: outside.append(req.url)
+                              if not req.url.startswith(root + "/") else None)
+                      page.goto(root + "/?demo=1&ui=v2", wait_until="load", timeout=30000)
+                      page.wait_for_function("""() =>
+                          document.querySelector('#sd-v2-live') &&
+                          document.querySelector('#sd-v2-count')?.textContent.includes('示範資料') &&
+                          document.querySelector('#mode')?.textContent.includes('示範')
+                      """, timeout=20000)
+                      page.evaluate("""async () => await navigator.serviceWorker.ready.then(() => true)""")
+                      page.reload(wait_until="load")
+                      page.wait_for_function("""() =>
+                          navigator.serviceWorker.controller &&
+                          document.querySelector('#sd-v2-live') &&
+                          document.querySelector('#sd-v2-count')?.textContent.includes('示範資料')
+                      """, timeout=20000)
+                      state = page.evaluate("""async () => {
+                          const cache = await caches.open('sd-v138');
+                          return {
+                            banner: Boolean(document.querySelector('#pr43-staging-banner')),
+                            qaButton: Boolean(document.querySelector('#pr43-qa-open')),
+                            controller: navigator.serviceWorker.controller?.scriptURL,
+                            caches: await caches.keys(),
+                            v2Js: Boolean(await cache.match('ui-live-v2.js')),
+                            v2Css: Boolean(await cache.match('ui-live-v2.css?v=1')),
+                            apiBase: window.CONFIG.API_BASE,
+                            doneTitlesEmpty: Object.keys(window.CONFIG.DONE_TITLES).length === 0,
+                            noHorizontalOverflow: document.documentElement.scrollWidth <= innerWidth
+                          };
+                      }""")
+                      assert state["banner"] and state["qaButton"], state
+                      assert state["controller"] == root + "/sw.js", state
+                      assert state["v2Js"] and state["v2Css"], state
+                      assert state["apiBase"] == "" and state["doneTitlesEmpty"], state
+                      assert state["noHorizontalOverflow"], state
+                      assert not outside and not errors, {"outside": outside, "errors": errors}
+                      results.append({"width": width, "status": "PASS",
+                                      "controller": "sd-v138", "demoOnly": True,
+                                      "externalRequests": len(outside),
+                                      "browserErrors": len(errors)})
+                      context.close()
+              finally:
+                  browser.close()
+          print("PR43_LIVE_BROWSER_SMOKE=" + json.dumps(results, ensure_ascii=False))
+          print("PR43_LIVE_BROWSER_SMOKE=PASS")
+          PY
