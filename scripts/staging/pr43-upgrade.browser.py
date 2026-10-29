@@ -10,6 +10,7 @@ import json
 import os
 import subprocess
 import tempfile
+import time
 from pathlib import Path
 from threading import Thread
 from urllib.parse import urlsplit
@@ -27,6 +28,31 @@ def original(path, commit):
         ["git", "show", commit + ":" + path], cwd=ROOT,
         capture_output=True, text=True, check=True
     ).stdout
+
+def wait_for_cache_state(page, label, timeout_sec=20):
+    """Use page.evaluate, which AWAITS JS Promise results.
+
+    Playwright wait_for_function may consider an async Promise object truthy
+    before caches.keys() resolves; never use it for cache gate checks.
+    """
+    end = time.monotonic() + timeout_sec
+    snapshot = None
+    while time.monotonic() < end:
+        snapshot = page.evaluate("""async () => {
+          const keys = await caches.keys();
+          return {
+            keys,
+            ready: keys.includes('sd-v138') &&
+                   !keys.includes('sd-v137') &&
+                   !keys.includes('sd-v136') &&
+                   keys.includes('another-app-offline-v1')
+          };
+        }""")
+        if snapshot["ready"]:
+            return snapshot
+        time.sleep(0.15)
+    raise AssertionError({"message": label + " not satisfied", "snapshot": snapshot})
+
 
 with tempfile.TemporaryDirectory(prefix="pr43-upgrade-") as folder:
     website = Path(folder) / "site"
@@ -151,12 +177,7 @@ with tempfile.TemporaryDirectory(prefix="pr43-upgrade-") as folder:
                   const reg = await navigator.serviceWorker.getRegistration();
                   await reg.update();
                 }""")
-                page.wait_for_function("""async () => {
-                  const names = await caches.keys();
-                  return names.includes('sd-v138') &&
-                    !names.includes('sd-v137') &&
-                    !names.includes('sd-v136');
-                }""", timeout=18000)
+                wait_for_cache_state(page, "activation and removal of old sd-v cache")
                 before_reload_cache_names = page.evaluate("caches.keys()")
                 page.reload(wait_until="load")
                 page.wait_for_function("""() =>
@@ -166,23 +187,7 @@ with tempfile.TemporaryDirectory(prefix="pr43-upgrade-") as folder:
                 # SW install/activate/claim can race a navigation. The
                 # no-old-cache condition must still hold after the app reload,
                 # not just at one instant before reload.
-                try:
-                    page.wait_for_function("""async () => {
-                      const keys = await caches.keys();
-                      return keys.includes('sd-v138') &&
-                        !keys.includes('sd-v137') &&
-                        !keys.includes('sd-v136');
-                    }""", timeout=7000)
-                except Exception:
-                    details = page.evaluate("""async () => ({
-                      keys: await caches.keys(),
-                      controller: navigator.serviceWorker.controller?.scriptURL,
-                      registration: (await navigator.serviceWorker.getRegistration())?.active?.state
-                    })""")
-                    raise AssertionError({
-                        "message": "Old cache reappeared or remained after SW upgrade and reload",
-                        "details": details
-                    })
+                wait_for_cache_state(page, "old sd-v cache must remain deleted after reload", timeout_sec=8)
                 after = page.evaluate("""async () => {
                   const cache = await caches.open('sd-v138');
                   const sibling = await caches.open('another-app-offline-v1');
