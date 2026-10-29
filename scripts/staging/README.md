@@ -23,9 +23,10 @@ node --test scripts/staging/pr43-staging.test.mjs
 node scripts/staging/build-pr43.mjs /tmp/pr43-synthetic-preview
 # 自動瀏覽器測試需要 playwright 1.56.0 及 Chromium：
 python scripts/staging/pr43-staging.browser.py
+python scripts/staging/pr43-upgrade.browser.py
 ```
 
-Workflow `pr43-staging-synthetic.yml` 自動執行 Node fail-closed tests 與真實 Chromium **合成 standalone 模擬**，涵蓋 390/1440px：連網初檢、完整斷網後 SW 重開、未知同源與 `/api/pr43-synthetic-private` 離線拒絕、恢復連網、缺少 SW 時的假陽性拒絕。測試不連正式網域，沒有 Cloudflare credentials。
+Workflow `pr43-staging-synthetic.yml` 自動執行 Node fail-closed tests 與真實 Chromium **合成 standalone 模擬**，涵蓋 390/1440px：連網初檢、完整斷網後 SW 重開、未知同源與 `/api/pr43-synthetic-private` 離線拒絕、恢復連網、缺少 SW 時的假陽性拒絕。另有使用 **#39 sd-v137 與 #43 sd-v138 指定 commit 的真實原版 SW** 執行的本機升級測試：舊版安裝、合成 sd-v136 私人快取及 sibling cache 種子、故意以 404 讓新版升級失敗並保留舊離線 shell、修復後重試、等待新 SW activate 真正完成、驗證舊快取刪除及 V2 資產快取。測試不連正式網域，沒有 Cloudflare credentials。
 
 通過後 Actions artifact 包含可部署的 **STAGING ONLY ZIP**、原始測試 JSON／截圖及 `BUILD-EVIDENCE.json`。Artifacts 不是已發布的網址。
 
@@ -40,7 +41,7 @@ Workflow `pr43-staging-synthetic.yml` 自動執行 Node fail-closed tests 與真
 4. 不要把完整 User-Agent、runId 或私人 URL 貼入公開 PR。僅將通過的布林摘要記錄為「使用者回報」，不能宣稱獨立裝置稽核。
 5. 不以此測試推論真實帳號或正式 Worker 的資料流完整；產品沒有合併或部署，下一步仍需獨立 review、rollback 與明確 release authorization。
 
-**Important:** 這份合成測試包未執行完整 sd-v137→sd-v138 *舊版本升級*，僅涵蓋 sd-v138 的離線／安全與實機操作；若 release gate 要求同一 App 進行真正版本升級，需另準備嚴格隔離的舊版合成 Worker，不能把清空快取或直接安裝新 App 冒充升級 PASS。
+**Important:** #39 `sd-v137` → #43 `sd-v138` 的真實版本更新，已由 **本機 Chromium** 以兩份精確原始 SW 成功驗證，也已測試升級失敗仍保留舊版，以及 sibling cache 不刪除。但這**不能替代真正 iPhone Installed PWA 的舊版→新版更新驗收**；單純新增「PR43測試」主畫面 App 並不等於升級舊 App。若要關閉 iPhone upgrade release gate，需另外取得使用者授權，在隔離 HTTPS Origin 執行舊版→新版的連續部署與實機驗收；不可挪用正式或既有 #39 測試 Origin。
 
 ## 不會執行
 
