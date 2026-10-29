@@ -34,6 +34,7 @@ jobs:
           node --check scripts/staging/pr43-diagnostics.js
           node --test scripts/staging/pr43-staging.test.mjs
           python -m py_compile scripts/staging/pr43-staging.browser.py
+          python -m py_compile scripts/staging/pr43-upgrade.browser.py
       - name: Install synthetic browser test dependencies
         run: |
           python -m pip install --disable-pip-version-check 'playwright==1.56.0'
@@ -45,6 +46,12 @@ jobs:
           set -o pipefail
           mkdir -p "$PR43_STAGING_EVIDENCE"
           python scripts/staging/pr43-staging.browser.py | tee "$RUNNER_TEMP/pr43-browser.json"
+      - name: Chromium exact PR39 sd-v137 to PR43 sd-v138 upgrade and failed-update rollback
+        env:
+          PR43_STAGING_EVIDENCE: ${{ runner.temp }}/pr43-staging-evidence
+        run: |
+          set -o pipefail
+          python scripts/staging/pr43-upgrade.browser.py | tee "$RUNNER_TEMP/pr43-upgrade.json"
       - name: Package deployment-ready synthetic assets without deploying
         env:
           PREVIEW_DIR: ${{ runner.temp }}/pr43-synthetic-preview
@@ -70,6 +77,7 @@ jobs:
           path: |
             ${{ runner.temp }}/pr43-staging-evidence/
             ${{ runner.temp }}/pr43-browser.json
+            ${{ runner.temp }}/pr43-upgrade.json
             ${{ runner.temp }}/pr43-build.json
             ${{ runner.temp }}/pr43-synthetic-preview.zip
           if-no-files-found: warn
