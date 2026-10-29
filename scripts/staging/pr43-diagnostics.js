@@ -101,7 +101,9 @@
     const xhr = new XMLHttpRequest();
     xhr.open("GET", path + "?nonce=" + crypto.randomUUID());
     xhr.timeout = 7000;
-    xhr.onload = () => resolve({ networkResponded: true, status: xhr.status });
+    // Some WebKit/Chromium SW failures surface onload with status 0.
+    // Only an actual HTTP status demonstrates that the network responded.
+    xhr.onload = () => resolve({ networkResponded: xhr.status > 0, status: xhr.status });
     xhr.onerror = () => resolve({ networkResponded: false, status: null });
     xhr.ontimeout = () => resolve({ networkResponded: false, status: null });
     xhr.send();
