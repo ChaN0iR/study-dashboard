@@ -38,14 +38,25 @@ def wait_stage(page, stage):
 
 def serve(directory):
     class QuietHandler(http.server.SimpleHTTPRequestHandler):
+        offline = False
+
         def log_message(self, *_):
             pass
+
+        def do_GET(self):
+            if type(self).offline:
+                # A real broken transport, not an HTTP 503. Playwright's
+                # context offline switch may not cover SW-owned fetches.
+                self.close_connection = True
+                self.connection.close()
+                return
+            return super().do_GET()
     server = http.server.ThreadingHTTPServer(
         ("127.0.0.1", 0), functools.partial(QuietHandler, directory=str(directory))
     )
     thread = Thread(target=server.serve_forever, daemon=True)
     thread.start()
-    return server, thread, "http://127.0.0.1:" + str(server.server_port)
+    return server, thread, "http://127.0.0.1:" + str(server.server_port), QuietHandler
 
 report = []
 with tempfile.TemporaryDirectory(prefix="pr43-staging-") as folder:
@@ -56,7 +67,7 @@ with tempfile.TemporaryDirectory(prefix="pr43-staging-") as folder:
     assert evidence["sourceSWIdentical"] is True
     assert evidence["backendEnabled"] is False
 
-    server, thread, origin = serve(out)
+    server, thread, origin, transport = serve(out)
     try:
         with sync_playwright() as playwright:
             browser = playwright.chromium.launch(headless=True)
@@ -109,6 +120,7 @@ with tempfile.TemporaryDirectory(prefix="pr43-staging-") as folder:
                     assert all(v is True for v in first["checks"].values()), first
                     assert first["displayMode"] == "standalone"
 
+                    transport.offline = True
                     context.set_offline(True)
                     page.goto(url, wait_until="load")
                     page.wait_for_function("""() =>
@@ -125,6 +137,7 @@ with tempfile.TemporaryDirectory(prefix="pr43-staging-") as folder:
                     page.screenshot(path=str(EVIDENCE / ("offline-" + str(width) + ".png")),
                                     full_page=True)
 
+                    transport.offline = False
                     context.set_offline(False)
                     page.reload(wait_until="load")
                     page.wait_for_function("""() =>
@@ -167,6 +180,7 @@ with tempfile.TemporaryDirectory(prefix="pr43-staging-") as folder:
             finally:
                 browser.close()
     finally:
+        transport.offline = False
         server.shutdown()
         server.server_close()
         thread.join(timeout=5)
