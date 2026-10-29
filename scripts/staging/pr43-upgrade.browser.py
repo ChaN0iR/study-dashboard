@@ -41,6 +41,8 @@ with tempfile.TemporaryDirectory(prefix="pr43-upgrade-") as folder:
     class Switchable(http.server.SimpleHTTPRequestHandler):
         version = "old"
         break_new_install = False
+        old_script_served = 0
+        new_script_served = 0
 
         def log_message(self, *_):
             pass
@@ -49,6 +51,10 @@ with tempfile.TemporaryDirectory(prefix="pr43-upgrade-") as folder:
             path = urlsplit(self.path).path
             if path == "/sw.js":
                 script = old_script if type(self).version == "old" else new_script
+                if type(self).version == "old":
+                    type(self).old_script_served += 1
+                else:
+                    type(self).new_script_served += 1
                 data = script.encode()
                 self.send_response(200)
                 self.send_header("Content-Type", "text/javascript; charset=utf-8")
@@ -151,6 +157,7 @@ with tempfile.TemporaryDirectory(prefix="pr43-upgrade-") as folder:
                     !names.includes('sd-v137') &&
                     !names.includes('sd-v136');
                 }""", timeout=18000)
+                before_reload_cache_names = page.evaluate("caches.keys()")
                 page.reload(wait_until="load")
                 page.wait_for_function("""() =>
                   navigator.serviceWorker.controller &&
@@ -191,6 +198,14 @@ with tempfile.TemporaryDirectory(prefix="pr43-upgrade-") as folder:
                     controller: Boolean(navigator.serviceWorker.controller)
                   };
                 }""")
+                print(json.dumps({
+                    "stage": "debug-pr43-upgrade",
+                    "beforeReload": before_reload_cache_names,
+                    "afterReload": after["names"],
+                    "oldScriptServed": Switchable.old_script_served,
+                    "newScriptServed": Switchable.new_script_served,
+                    "browser": after,
+                }, ensure_ascii=False), flush=True)
                 assert after["names"].count("sd-v138") == 1
                 assert "sd-v137" not in after["names"], after
                 assert after["sibling"] == "SIBLING_OK", after
