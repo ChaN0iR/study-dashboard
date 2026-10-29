@@ -77,13 +77,14 @@ with tempfile.TemporaryDirectory(prefix="pr43-staging-") as folder:
                     outside = []
                     errors = []
                     page.on("pageerror", lambda e: errors.append(str(e)))
-                    def route_check(route):
-                        if not route.request.url.startswith(origin + "/"):
-                            outside.append(route.request.url)
-                            route.abort()
-                        else:
-                            route.continue_()
-                    page.route("**/*", route_check)
+                    # Do not route same-origin requests through Playwright:
+                    # route.continue_ can bypass the browser's offline network
+                    # switch and return a local HTTP 404 while "offline".
+                    page.on("request", lambda req: outside.append(req.url)
+                            if not req.url.startswith(origin + "/") else None)
+                    page.route("https://**", lambda route: route.abort())
+                    page.route("http://localhost/**", lambda route: route.abort())
+                    page.route("http://127.0.0.1:8765/**", lambda route: route.abort())
                     url = origin + "/?demo=1&ui=v2"
                     page.goto(url, wait_until="load")
                     page.wait_for_function("""() =>
