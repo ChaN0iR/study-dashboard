@@ -1,0 +1,76 @@
+name: PR43 iPhone staging preview (BUILD ONLY)
+
+on:
+  pull_request:
+    branches:
+      - integration/pwa-v2-offline-optin
+      - main
+    paths:
+      - "scripts/staging/**"
+      - ".github/workflows/pr43-staging-synthetic.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  synthetic-iphone-preview:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 18
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Static isolation, pristine SW, and packaging tests
+        run: |
+          git diff --check
+          node --check scripts/staging/build-pr43.mjs
+          node --check scripts/staging/pr43-diagnostics.js
+          node --test scripts/staging/pr43-staging.test.mjs
+          python -m py_compile scripts/staging/pr43-staging.browser.py
+      - name: Install synthetic browser test dependencies
+        run: |
+          python -m pip install --disable-pip-version-check 'playwright==1.56.0'
+          python -m playwright install --with-deps chromium
+      - name: Run browser iPhone viewport, offline relaunch and failure-path checks
+        env:
+          PR43_STAGING_EVIDENCE: ${{ runner.temp }}/pr43-staging-evidence
+        run: |
+          set -o pipefail
+          mkdir -p "$PR43_STAGING_EVIDENCE"
+          python scripts/staging/pr43-staging.browser.py | tee "$RUNNER_TEMP/pr43-browser.json"
+      - name: Package deployment-ready synthetic assets without deploying
+        env:
+          PREVIEW_DIR: ${{ runner.temp }}/pr43-synthetic-preview
+        run: |
+          set -o pipefail
+          node scripts/staging/build-pr43.mjs "$PREVIEW_DIR" | tee "$RUNNER_TEMP/pr43-build.json"
+          python - <<'PY'
+          import json, os, pathlib, shutil
+          root = pathlib.Path(os.environ['PREVIEW_DIR'])
+          report = json.loads((root / 'BUILD-EVIDENCE.json').read_text())
+          assert report['sourceSWIdentical']
+          assert not report['backendEnabled']
+          assert report['operations']['cloudflareDeploys'] == 0
+          assert (root/'sw.js').exists()
+          shutil.make_archive(str(root), 'zip', str(root))
+          print('STAGING_ONLY ZIP created; no deployment performed')
+          PY
+      - name: Upload browser screenshots, exact SHA report and isolated ZIP
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pr43-staging-build-only-evidence
+          path: |
+            ${{ runner.temp }}/pr43-staging-evidence/
+            ${{ runner.temp }}/pr43-browser.json
+            ${{ runner.temp }}/pr43-build.json
+            ${{ runner.temp }}/pr43-synthetic-preview.zip
+          if-no-files-found: warn
+          retention-days: 14
