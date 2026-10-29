@@ -26,9 +26,15 @@ def load_result(page):
 def wait_stage(page, stage):
     page.wait_for_function("""expected => {
       try {
-        return JSON.parse(document.querySelector('#pr43-qa-json').textContent).stage === expected;
+        const result = JSON.parse(document.querySelector('#pr43-qa-json').textContent);
+        return result.stage === expected || result.status === 'FAIL';
       } catch { return false; }
-    }""", arg=stage, timeout=12000)
+    }""", arg=stage, timeout=20000)
+    actual = load_result(page)
+    assert actual["stage"] == stage, {
+        "expected": stage, "actual": actual,
+        "message": "QA step did not advance; do not claim success"
+    }
 
 def serve(directory):
     class QuietHandler(http.server.SimpleHTTPRequestHandler):
