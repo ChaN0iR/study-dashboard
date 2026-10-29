@@ -156,6 +156,26 @@ with tempfile.TemporaryDirectory(prefix="pr43-upgrade-") as folder:
                   navigator.serviceWorker.controller &&
                   document.querySelector('#sd-v2-count')?.textContent.includes('示範資料')
                 """)
+                # SW install/activate/claim can race a navigation. The
+                # no-old-cache condition must still hold after the app reload,
+                # not just at one instant before reload.
+                try:
+                    page.wait_for_function("""async () => {
+                      const keys = await caches.keys();
+                      return keys.includes('sd-v138') &&
+                        !keys.includes('sd-v137') &&
+                        !keys.includes('sd-v136');
+                    }""", timeout=7000)
+                except Exception:
+                    details = page.evaluate("""async () => ({
+                      keys: await caches.keys(),
+                      controller: navigator.serviceWorker.controller?.scriptURL,
+                      registration: (await navigator.serviceWorker.getRegistration())?.active?.state
+                    })""")
+                    raise AssertionError({
+                        "message": "Old cache reappeared or remained after SW upgrade and reload",
+                        "details": details
+                    })
                 after = page.evaluate("""async () => {
                   const cache = await caches.open('sd-v138');
                   const sibling = await caches.open('another-app-offline-v1');
