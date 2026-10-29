@@ -59,6 +59,8 @@ test("the entire strict SW static shell is copied, and no live private backend i
   }
   assert.equal(contentOf(dir, "_redirects").trim(), "/index.html / 200");
   assert.match(contentOf(dir, "_headers"), /noindex, nofollow/);
+  assert.match(contentOf(dir, "_headers"), /Content-Security-Policy: default-src 'self'; connect-src 'self'/);
+  assert.match(contentOf(dir, "_headers"), /frame-ancestors 'none'/);
   assert.match(contentOf(dir, "404.html"), /404/);
   assert.ok(readdirSync(dir).length > 5);
 }));
