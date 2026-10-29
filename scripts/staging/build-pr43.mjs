@@ -123,7 +123,7 @@ export function build(outDirectory) {
   writeFileSync(join(out, "404.html"),
     "<!doctype html><html lang=\"zh-Hant\"><meta charset=\"utf-8\"><title>404 · PR43 STAGING ONLY</title><body><h1>404 · 合成測試沒有此路由</h1></body></html>\n");
   writeFileSync(join(out, "_headers"),
-    "/*\n  X-Robots-Tag: noindex, nofollow, noarchive\n  X-Content-Type-Options: nosniff\n  Referrer-Policy: no-referrer\n/sw.js\n  Cache-Control: no-cache, no-store, must-revalidate\n");
+    "/*\n  X-Robots-Tag: noindex, nofollow, noarchive\n  X-Content-Type-Options: nosniff\n  Referrer-Policy: no-referrer\n  Content-Security-Policy: default-src 'self'; connect-src 'self'; img-src 'self' data: blob:; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'; object-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'\n/sw.js\n  Cache-Control: no-cache, no-store, must-revalidate\n");
   // The public result is not an attestation of a deployed environment.
   const report = {
     mode: "STAGING_ONLY_OFFLINE_BUILD", candidate: CANDIDATE_SHA,
