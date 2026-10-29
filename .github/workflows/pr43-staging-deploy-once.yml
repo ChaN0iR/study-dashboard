@@ -1,0 +1,109 @@
+# One-time opt-in staging deployment. This file is intentionally not merged.
+# Scope: PR #44's synthetic assets ONLY; never run on production/main.
+name: PR43 one-time isolated Cloudflare Pages staging upload
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+    branches: [integration/pwa-v2-offline-optin]
+    paths:
+      - ".github/workflows/pr43-staging-deploy-once.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  staging-pages:
+    if: ${{ github.event.pull_request.number == 44 && github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.head.ref == 'staging/pr43-iphone-synthetic-preview' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 14
+    env:
+      PROJECT_NAME: study-dashboard-pr43-synth-20261029
+      PRODUCTION_BRANCH: pr43-staging-only
+      WRANGLER_SEND_METRICS: "false"
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+      - name: Verify this is the exact authorized isolated PR44 source
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "${{ github.event.pull_request.head.sha }}"
+          test "$(git rev-parse 10c395f57b78fb92248e59bbe2c4edd456e43fca:docs/sw.js)" = "$(git hash-object docs/sw.js)"
+          node --test scripts/staging/pr43-staging.test.mjs
+      - name: Build synthetic static files and confirm never connected to production
+        env:
+          PREVIEW_DIR: ${{ runner.temp }}/pr43-synthetic-staging-only
+        run: |
+          set -euo pipefail
+          node scripts/staging/build-pr43.mjs "$PREVIEW_DIR" > "$RUNNER_TEMP/pr43-build.json"
+          python3 - <<'PY'
+          import json, pathlib, os, hashlib
+          root = pathlib.Path(os.environ["PREVIEW_DIR"])
+          manifest = json.loads((root/"BUILD-EVIDENCE.json").read_text())
+          assert manifest["sourceSWIdentical"] and manifest["demoForced"] and manifest["v2Forced"]
+          assert manifest["backendEnabled"] is False
+          assert manifest["cache"] == "sd-v138"
+          assert manifest["candidate"] == "10c395f57b78fb92248e59bbe2c4edd456e43fca"
+          assert manifest["operations"] == {"cloudflareDeploys":0,"notionCalls":0,"workerCalls":0}
+          actual = hashlib.sha256((root/"sw.js").read_bytes()).hexdigest()
+          assert actual == "38f9b999064b0ec58f59db68458add1892232978275fe331ca5abe899cabaec0"
+          conf = (root/"config.js").read_text()
+          assert "study-dashboard-api" not in conf
+          print("Verified isolated synthetic-only package and exact source SW SHA-256")
+          PY
+      - name: Guard Cloudflare credentials (do not print token or account ID)
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          set -euo pipefail
+          if [ -z "${CLOUDFLARE_API_TOKEN:-}" ] || [ -z "${CLOUDFLARE_ACCOUNT_ID:-}" ]; then
+            echo "::error::STAGING_NOT_DEPLOYED: missing configured Cloudflare GitHub Actions secrets. Do not paste credentials into chat."
+            exit 19
+          fi
+          echo "Required pre-existing Cloudflare credentials are configured."
+      - name: Install pinned repository Wrangler (not Cloudflare Worker)
+        run: npm ci --prefix worker --ignore-scripts --no-audit --no-fund
+      - name: Create NEW Direct Upload project and upload only synthetic static files
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          PREVIEW_DIR: ${{ runner.temp }}/pr43-synthetic-staging-only
+        run: |
+          set -euo pipefail
+          # This command MUST succeed as a newly created project.
+          # If the name already exists, fail; NEVER overwrite an existing site.
+          ./worker/node_modules/.bin/wrangler pages project create "$PROJECT_NAME" --production-branch "$PRODUCTION_BRANCH"
+          ./worker/node_modules/.bin/wrangler pages deploy "$PREVIEW_DIR" --project-name "$PROJECT_NAME" --branch "$PRODUCTION_BRANCH" --commit-hash 10c395f57b78fb92248e59bbe2c4edd456e43fca --commit-message "PR43 isolated synthetic staging only"
+      - name: Independently verify public HTTPS response, static SW, and denylisted API
+        env:
+          PREVIEW_DIR: ${{ runner.temp }}/pr43-synthetic-staging-only
+        run: |
+          set -euo pipefail
+          SITE="https://${PROJECT_NAME}.pages.dev"
+          test "$SITE" != "https://study-dashboard-pr39-staging-only.pages.dev"
+          for n in $(seq 1 18); do
+            if curl --fail --silent --show-error --max-time 12 "$SITE/" -o "$RUNNER_TEMP/remote-index.html"; then break; fi
+            sleep 4
+          done
+          test -s "$RUNNER_TEMP/remote-index.html"
+          grep -q 'PR #43 · STAGING ONLY' "$RUNNER_TEMP/remote-index.html"
+          test "$(curl -sS --max-time 15 -o /dev/null -w '%{http_code}' "$SITE/index.html")" = "200"
+          curl -fsS --max-time 15 "$SITE/sw.js" -o "$RUNNER_TEMP/remote-sw.js"
+          cmp -s "$RUNNER_TEMP/remote-sw.js" "$PREVIEW_DIR/sw.js"
+          test "$(sha256sum "$RUNNER_TEMP/remote-sw.js" | cut -d' ' -f1)" = "38f9b999064b0ec58f59db68458add1892232978275fe331ca5abe899cabaec0"
+          test "$(curl -sS --max-time 15 -o /dev/null -w '%{http_code}' "$SITE/api/pr43-does-not-exist")" = "404"
+          curl -fsS --max-time 15 "$SITE/config.js?v=90" | grep -q '"API_BASE": ""'
+          curl -fsS --max-time 15 "$SITE/manifest.webmanifest?v=stethoscope-1" | grep -q PR43
+          curl -fsSI --max-time 15 "$SITE/" | grep -qi 'x-robots-tag: noindex'
+          curl -fsSI --max-time 15 "$SITE/" | grep -qi 'content-security-policy:'
+          curl -fsSI --max-time 15 "$SITE/app.js?v=123" | grep -qi 'content-type: .*javascript'
+          echo "VERIFIED_STAGING_ONLY_PUBLIC_URL=$SITE"
+          echo "REMOTE_PR43_SW_SHA256=38f9b999064b0ec58f59db68458add1892232978275fe331ca5abe899cabaec0"
+          echo "No merges, no production Worker, no Notion activity."
