@@ -53,7 +53,9 @@ export function build(outDirectory) {
     artifacts.add(pathname);
   }
 
-  // Preserve exact, byte-for-byte candidate SW for true iPhone validation.
+  // SW is not a shell entry. Copy it independently, and preserve the
+  // byte-for-byte candidate that governs privacy and offline fallback.
+  copyFileSync(join(docs, "sw.js"), join(out, "sw.js"));
   reject(sha(readFileSync(join(out, "sw.js"))) === sha(sw),
     "Candidate SW byte identity failed");
 
