@@ -2,7 +2,7 @@ name: PR45 silent background sync fail-closed V2
 
 on:
   pull_request:
-    branches: [integration/pwa-v2-offline-optin]
+    branches: [main, integration/pwa-v2-offline-optin]
     paths:
       - "docs/**"
       - ".github/workflows/pr45-v2-silent-refresh.yml"
@@ -13,7 +13,7 @@ permissions:
 
 jobs:
   silent-sync:
-    if: ${{ github.event_name == 'workflow_dispatch' || (github.event.pull_request.head.ref == 'review/pr43-silent-sync-verification-v139' && github.event.pull_request.base.ref == 'integration/pwa-v2-offline-optin') }}
+    if: ${{ github.event_name == 'workflow_dispatch' || (github.event.pull_request.head.ref == 'review/pr43-silent-sync-verification-v139') }}
     runs-on: ubuntu-24.04
     timeout-minutes: 23
     steps:
@@ -30,7 +30,7 @@ jobs:
       - name: Enforce isolated source, version coupling, and syntax
         run: |
           set -euo pipefail
-          git diff --check origin/integration/pwa-v2-offline-optin...HEAD
+          git diff --check origin/main...HEAD
           node --check docs/app.js
           node --check docs/ui-live-v2.js
           node --check docs/sw.js
