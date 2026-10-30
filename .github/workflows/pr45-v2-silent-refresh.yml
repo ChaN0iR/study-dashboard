@@ -34,7 +34,7 @@ jobs:
           node --check docs/app.js
           node --check docs/ui-live-v2.js
           node --check docs/sw.js
-          python -m py_compile docs/ui-live-v2.browser.py docs/ui-v2-offline.browser.py docs/service-worker-privacy.browser.py
+          python -m py_compile docs/ui-live-v2.browser.py docs/ui-v2-offline.browser.py docs/service-worker-privacy.browser.py docs/sw-upgrade-v139.browser.py
           python - <<'PY'
           from pathlib import Path
           sw = Path("docs/sw.js").read_text()
@@ -91,6 +91,12 @@ jobs:
           set -o pipefail
           python docs/ui-v2-offline.browser.py | tee "$RUNNER_TEMP/offline-results.json"
           python docs/service-worker-privacy.browser.py | tee "$RUNNER_TEMP/privacy-results.json"
+      - name: Verify actual sd-v136 production SW to sd-v139 with failed upgrade and synthetic private cache
+        env:
+          PR45_UPGRADE_EVIDENCE: ${{ runner.temp }}/v2-evidence
+        run: |
+          set -o pipefail
+          python docs/sw-upgrade-v139.browser.py | tee "$RUNNER_TEMP/sw-upgrade-results.json"
       - name: Save read-only and loopback test results
         if: always()
         uses: actions/upload-artifact@v4
@@ -101,6 +107,7 @@ jobs:
             ${{ runner.temp }}/v2-results.json
             ${{ runner.temp }}/offline-results.json
             ${{ runner.temp }}/privacy-results.json
+            ${{ runner.temp }}/sw-upgrade-results.json
             ${{ runner.temp }}/v2-evidence/
           if-no-files-found: warn
           retention-days: 14
