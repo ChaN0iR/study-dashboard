@@ -67,7 +67,8 @@ export function mountLiveV2() {
       timeZone: "Asia/Taipei", year: "numeric", month: "2-digit", day: "2-digit"
     }).format(new Date());
     const renderedDate = document.querySelector("#date .dl")?.textContent.trim() || "";
-    const dataUnavailable = !match || !document.querySelector("#banner")?.hidden ||
+    const dataUnavailable = !match || tasks.dataset.stateVerified !== "true" ||
+      !document.querySelector("#banner")?.hidden ||
       !renderedDate.startsWith(taipeiDate);
     const done = match ? Number(match[1]) : 0;
     const total = match ? Number(match[2]) : 0;
@@ -116,7 +117,7 @@ export function mountLiveV2() {
   };
   const observer = new MutationObserver(queueRender);
   observer.observe(tasks, { childList: true, subtree: true,
-    attributes: true, attributeFilter: ["aria-checked", "disabled"] });
+    attributes: true, attributeFilter: ["aria-checked", "disabled", "data-state-verified"] });
   observer.observe(count, { childList: true, characterData: true, subtree: true });
   const banner = document.querySelector("#banner");
   if (banner) observer.observe(banner, { attributes: true, attributeFilter: ["hidden"] });
