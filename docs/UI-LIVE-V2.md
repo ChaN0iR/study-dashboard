@@ -12,7 +12,7 @@ With a **branch preview/server** running this candidate, add `?ui=v2` to the ori
 
 - `docs/app.js` is changed only to conditionally import `ui-live-v2.js` when `ui=v2` appears. Without the flag no new module, CSS, or DOM subtree is loaded.
 - `ui-live-v2.js` observes **rendered** `#tasks`, `#task-count`, `#banner`, and existing policy note. It displays the first **actionable nonblocked task** in the current authoritative sort; it never stores a second task list or calls the API.
-- The hero never marks optimistic updates as verified. Disabled pending checkboxes are noted as unconfirmed; API errors, missing count, or stale Taiwan date display an unverified warning.
+- The hero never marks optimistic updates as verified. Disabled pending checkboxes are noted as unconfirmed; API errors, missing count, or stale Taiwan date display an unverified warning. A successful `/api/state` load sets `#tasks[data-state-verified=true]`; a failed **silent** refresh sets it to `false`, and the V2 hero disables its action and marks cached same-day data unverified until the next successful load.
 - "查看任務" navigates to/focuses the existing task row, where the normal task guard, Notion sync, pending state, and rollback apply unchanged.
 - "前往專注計時" **only focuses** the existing `#fc-main` on the record tab; it never clicks that control or issues a focus API call (clicking the original main button can stop an active session).
 - UI-only CSS is loaded on opt-in and scoped under `body.sd-v2-live`. The existing cards, XP, schedule, Recall Room, notes, and focus timer remain the original implementations. No new persisted preference.
@@ -33,7 +33,7 @@ Screenshots and JSON evidence appear in the `live-ui-v2` Actions artifact.
 
 This integration branch combines #39 and #42 on their common main base without changing or merging either original PR.
 
-- `app.js?v=123` in `docs/index.html`, `sd-v138` in `docs/sw.js`. Both versions must move together.
+- **Original iPhone-tested #43** uses `app.js?v=123` / `sd-v138`. The stacked silent-refresh hardening candidate uses `app.js?v=124` / `sd-v139`; it is a **distinct** candidate and requires a separate release acceptance decision. Both versions must move together.
 - Install-time static shell now also contains `ui-live-v2.js` and `ui-live-v2.css?v=1` so `?demo=1&ui=v2` can load the optional card while offline. Assets are fetched anonymously, no redirects, and rejected if marked private/no-store.
 - All runtime same-origin requests still bypass HTTP cache and are **never** added to CacheStorage; offline fallback only serves exact static shell URLs, not API data.
 - `docs/service-worker-security.test.mjs` checks exact URL matching for optional modules, and `docs/ui-v2-offline.browser.py` launches a real Chromium PWA, installs SW online, then reloads the isolated demo while offline.
