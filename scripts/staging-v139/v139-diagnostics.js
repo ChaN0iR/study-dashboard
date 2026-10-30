@@ -35,7 +35,7 @@
   document.head.append(styles);
   document.body.insertAdjacentHTML("beforeend", [
     '<dialog id="pr45-qa" aria-label="PR45 iPhone PWA 合成驗收">',
-    '<h2>PR #43｜主畫面 App 驗收</h2>',
+    '<h2>PR #45｜主畫面 App 驗收</h2>',
     '<p>僅限 STAGING ONLY。沒有登入、Notion、Worker 或正式學習紀錄。請從主畫面的「PR45測試」圖示操作。</p>',
     '<p id="pr45-qa-status" role="status" aria-live="polite">按 1 開始</p>',
     '<div class="qa-steps">',
