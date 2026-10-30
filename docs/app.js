@@ -884,9 +884,17 @@
         throw new Error("儀表板狀態資料不完整");
       state = incoming;
       xpVerified = !DEMO;
+      // Explicit read-only verification marker for opt-in V2. A silent background
+      // refresh failure must not make cached same-day task data look current.
+      $("tasks").dataset.stateVerified = "true";
       banner(""); renderAll();
       await loadReschedule();
-    } catch (e) { xpVerified = false; if (!silent) showError(e); renderAll(); }
+    } catch (e) {
+      xpVerified = false;
+      $("tasks").dataset.stateVerified = "false";
+      if (!silent) showError(e);
+      renderAll();
+    }
   }
 
   // Desktop-only enhancement: collapse the entire card, not just its editor.
@@ -1300,6 +1308,12 @@
     fcPlace(); fcMq.addEventListener("change", fcPlace);
     fcLoad(); setInterval(fcRender, 1000); setInterval(fcLoad, 8000);
     document.addEventListener("visibilitychange", () => { if (!document.hidden) fcLoad(); });
+    // V2 is explicitly opt-in and observes the existing rendered task/focus UI.
+    // No new task store, API client or timer is installed.
+    if (qs.get("ui") === "v2") {
+      import("./ui-live-v2.js").then(({ mountLiveV2 }) => mountLiveV2())
+        .catch((error) => console.warn("V2 UI unavailable; default interface retained", error));
+    }
     load();
     setInterval(() => {
       const previousSlot = activeScheduleKey;
