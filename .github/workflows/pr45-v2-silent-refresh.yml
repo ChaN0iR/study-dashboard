@@ -1,0 +1,106 @@
+name: PR45 silent background sync fail-closed V2
+
+on:
+  pull_request:
+    branches: [integration/pwa-v2-offline-optin]
+    paths:
+      - "docs/**"
+      - ".github/workflows/pr45-v2-silent-refresh.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  silent-sync:
+    if: ${{ github.event_name == 'workflow_dispatch' || (github.event.pull_request.head.ref == 'review/pr43-silent-sync-verification-v139' && github.event.pull_request.base.ref == 'integration/pwa-v2-offline-optin') }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 23
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Enforce isolated source, version coupling, and syntax
+        run: |
+          set -euo pipefail
+          git diff --check origin/integration/pwa-v2-offline-optin...HEAD
+          node --check docs/app.js
+          node --check docs/ui-live-v2.js
+          node --check docs/sw.js
+          python -m py_compile docs/ui-live-v2.browser.py docs/ui-v2-offline.browser.py docs/service-worker-privacy.browser.py
+          python - <<'PY'
+          from pathlib import Path
+          sw = Path("docs/sw.js").read_text()
+          app = Path("docs/app.js").read_text()
+          html = Path("docs/index.html").read_text()
+          v2 = Path("docs/ui-live-v2.js").read_text()
+          assert 'const CACHE = "sd-v139";' in sw
+          assert '"app.js?v=124"' in sw and 'src="app.js?v=124"' in html
+          assert 'dataset.stateVerified = "true"' in app
+          assert 'dataset.stateVerified = "false"' in app
+          assert 'tasks.dataset.stateVerified !== "true"' in v2
+          print('v139 fail-closed source contracts PASS')
+          PY
+      - name: Run full frontend suite including privacy and V2 contracts
+        run: |
+          set -euo pipefail
+          node --test --test-concurrency=1 docs/*.test.mjs > "$RUNNER_TEMP/frontend.tap" 2>&1 || {
+            cat "$RUNNER_TEMP/frontend.tap"; exit 1;
+          }
+          tail -n 18 "$RUNNER_TEMP/frontend.tap"
+          python - <<'PY'
+          import os, re, pathlib
+          text = pathlib.Path(os.environ['RUNNER_TEMP'], "frontend.tap").read_text()
+          def count(key):
+              x = re.search(r"^[ℹ#]\s*" + key + r"\s+(\d+)\s*$", text, re.M)
+              if not x: raise AssertionError('missing TAP summary '+key)
+              return int(x.group(1))
+          assert count('tests') >= 135 and count('pass') == count('tests')
+          assert count('fail') == count('skipped') == count('cancelled') == 0
+          print('FULL_FRONTEND_TESTS_PASS', count('tests'))
+          PY
+      - name: Install browser dependencies
+        run: |
+          set -euo pipefail
+          python -m pip install --disable-pip-version-check 'playwright==1.56.0' 'Pillow==12.0.0'
+          python -m playwright install --with-deps chromium
+          python - <<'PY'
+          from pathlib import Path
+          from playwright.sync_api import sync_playwright
+          with sync_playwright() as p: executable = p.chromium.executable_path
+          Path('/usr/local/bin/chromium').symlink_to(executable)
+          PY
+      - name: Test silent same-day background API failure and recovery in real Chromium
+        env:
+          LIVE_UI_V2_EVIDENCE: ${{ runner.temp }}/v2-evidence
+        run: |
+          set -o pipefail
+          mkdir -p "$LIVE_UI_V2_EVIDENCE"
+          python docs/ui-live-v2.browser.py | tee "$RUNNER_TEMP/v2-results.json"
+      - name: Test installed offline dynamic V2 cache and private data boundaries
+        env:
+          LIVE_UI_V2_EVIDENCE: ${{ runner.temp }}/v2-evidence
+        run: |
+          set -o pipefail
+          python docs/ui-v2-offline.browser.py | tee "$RUNNER_TEMP/offline-results.json"
+          python docs/service-worker-privacy.browser.py | tee "$RUNNER_TEMP/privacy-results.json"
+      - name: Save read-only and loopback test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pr45-silent-refresh-evidence
+          path: |
+            ${{ runner.temp }}/frontend.tap
+            ${{ runner.temp }}/v2-results.json
+            ${{ runner.temp }}/offline-results.json
+            ${{ runner.temp }}/privacy-results.json
+            ${{ runner.temp }}/v2-evidence/
+          if-no-files-found: warn
+          retention-days: 14
