@@ -44,7 +44,8 @@ test("preview disables all real API access and previously completed personal his
   assert.match(config, /"DONE_TITLES": \{\}/);
   assert.match(config, /"SCHEDULE": \[\]/);
   assert.doesNotMatch(config, /study-dashboard-api|NOTION_TOKEN|APP_KEY/);
-  assert.match(html, /PR #43 · STAGING ONLY/);
+  assert.match(html, /PR #45 · STAGING ONLY/);
+  assert.doesNotMatch(html, /PR #43/);
   assert.match(html, /PR45_STAGING_DIAGNOSTICS/);
   assert.doesNotMatch(html, /href="https?:\/\//);
   assert.doesNotMatch(html, /src="recall-room.js/);
