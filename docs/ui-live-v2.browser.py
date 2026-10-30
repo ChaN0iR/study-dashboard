@@ -52,6 +52,7 @@ def first_actionable(page):
 def install_route(page, mock_api=False):
     outside = []
     requests = []
+    failure = {"state": False}
     tasks = [
         {"id": "synthetic-chem", "title": "普化｜週期表複習題 30 分鐘",
          "done": False, "skipped": False, "source": "今日", "date": FIXED_DATE,
@@ -78,7 +79,10 @@ def install_route(page, mock_api=False):
         if mock_api and path.startswith("/sandbox-api/"):
             requests.append((request.method, path))
             headers = {"Content-Type": "application/json", "Cache-Control": "no-store"}
-            if path == "/sandbox-api/api/state" and request.method == "GET":
+            if path == "/sandbox-api/api/state" and request.method == "GET" and failure["state"]:
+                route.fulfill(status=503, headers=headers,
+                              body='{"error":"synthetic background refresh failure"}')
+            elif path == "/sandbox-api/api/state" and request.method == "GET":
                 route.fulfill(status=200, headers=headers, body=json.dumps({
                     "today": FIXED_DATE,
                     "tasks": tasks,
@@ -103,7 +107,7 @@ def install_route(page, mock_api=False):
             return
         route.continue_()
     page.route("**/*", handler)
-    return outside, requests
+    return outside, requests, failure
 
 try:
     with sync_playwright() as playwright:
@@ -119,7 +123,7 @@ try:
                     page = context.new_page()
                     errors = []
                     page.on("pageerror", lambda error: errors.append(str(error)))
-                    outside, calls = install_route(page)
+                    outside, calls, _ = install_route(page)
                     page.goto(origin + "/index.html?demo=1&ui=v2", wait_until="load")
                     page.wait_for_function("""() => {
                       const hero = document.querySelector('#sd-v2-title');
@@ -214,13 +218,36 @@ try:
                 })();
                 """)
                 page = context.new_page()
-                outside, calls = install_route(page, mock_api=True)
+                outside, calls, failure = install_route(page, mock_api=True)
                 page.goto(origin + "/index.html?ui=v2", wait_until="load")
                 page.wait_for_function("""() =>
                   document.querySelector('#sd-v2-count')?.textContent.includes('0 / 2') &&
                   document.querySelector('#sd-v2-task:not([disabled])')""")
                 original = page.locator("#sd-v2-title").inner_text()
                 assert original == first_actionable(page)
+                # Same-day cached tasks remain after a silent background fetch
+                # failure; V2 must not present them as successfully verified.
+                failure["state"] = True
+                page.evaluate("document.dispatchEvent(new Event('visibilitychange'))")
+                page.wait_for_function("""() =>
+                  document.querySelector('#tasks')?.dataset.stateVerified === 'false' &&
+                  document.querySelector('#sd-v2-title')?.textContent ===
+                    '目前無法確認下一項任務'
+                """, timeout=10000)
+                assert page.locator("#sd-v2-task").is_disabled()
+                assert page.locator("#sd-v2-count").inner_text() == "尚未取得可靠任務資料"
+                assert page.locator("#banner").is_hidden(), (
+                    "a silent refresh failure must be detected without an error banner")
+                assert page.locator("#tasks .task-item").count() == 2, (
+                    "cached tasks must remain visible but unverified")
+                failure["state"] = False
+                page.evaluate("document.dispatchEvent(new Event('visibilitychange'))")
+                page.wait_for_function("""() =>
+                  document.querySelector('#tasks')?.dataset.stateVerified === 'true' &&
+                  document.querySelector('#sd-v2-title')?.textContent !==
+                    '目前無法確認下一項任務'
+                """, timeout=10000)
+                assert page.locator("#sd-v2-task").is_enabled()
                 page.locator("#sd-v2-focus").click()
                 assert page.evaluate("document.activeElement.id === 'fc-main'")
                 assert not any(method == "POST" for method, _ in calls), (
@@ -242,7 +269,8 @@ try:
                 assert calls.count(("POST", "/sandbox-api/api/task/synthetic-chem")) == 1, calls
                 assert not outside, outside
                 results.append({"case": str(width) + " synthetic rejected API",
-                                "rollback": "PASS", "unverified": "PASS"})
+                                "rollback": "PASS", "unverified": "PASS",
+                                "silent_refresh_stale_then_recovers": "PASS"})
                 context.close()
         finally:
             browser.close()
