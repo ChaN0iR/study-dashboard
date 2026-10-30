@@ -1,0 +1,95 @@
+name: PR45 sd-v139 synthetic iPhone staging (BUILD ONLY)
+
+on:
+  pull_request:
+    branches:
+      - review/pr43-silent-sync-verification-v139
+    paths:
+      - "scripts/staging-v139/**"
+      - ".github/workflows/pr45-staging-synthetic.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build-only-iphone-v139:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Pinned source, isolation, and no-deploy package contracts
+        run: |
+          set -euo pipefail
+          git diff --check
+          node --check scripts/staging-v139/build-v139.mjs
+          node --check scripts/staging-v139/v139-diagnostics.js
+          node --test scripts/staging-v139/v139-staging.test.mjs
+          python -m py_compile scripts/staging-v139/v139-staging.browser.py
+          python -m py_compile docs/sw-upgrade-v139.browser.py
+      - name: Install independent Chromium, synthetic browser only
+        run: |
+          set -euo pipefail
+          python -m pip install --disable-pip-version-check 'playwright==1.56.0'
+          python -m playwright install --with-deps chromium
+      - name: Simulated installed PWA 15 checks, real offline HTTP transport cut, and negative case
+        env:
+          PR45_STAGING_EVIDENCE: ${{ runner.temp }}/pr45-staging-evidence
+        run: |
+          set -euo pipefail
+          mkdir -p "$PR45_STAGING_EVIDENCE"
+          python scripts/staging-v139/v139-staging.browser.py | tee "$RUNNER_TEMP/pr45-browser.json"
+      - name: Pinned production sd-v136 to candidate sd-v139 SW upgrade smoke
+        env:
+          PR45_UPGRADE_EVIDENCE: ${{ runner.temp }}/pr45-staging-evidence
+        run: |
+          set -euo pipefail
+          python docs/sw-upgrade-v139.browser.py | tee "$RUNNER_TEMP/pr45-upgrade.json"
+      - name: Create exact synthetic only ZIP without deploying
+        env:
+          PREVIEW_DIR: ${{ runner.temp }}/pr45-synthetic-preview
+        run: |
+          set -euo pipefail
+          node scripts/staging-v139/build-v139.mjs "$PREVIEW_DIR" | tee "$RUNNER_TEMP/pr45-build.json"
+          python - <<'PY'
+          import json, os, pathlib, hashlib, shutil, subprocess
+          root = pathlib.Path(os.environ['PREVIEW_DIR'])
+          report = json.loads((root/'BUILD-EVIDENCE.json').read_text())
+          assert report['candidate'] == 'b83c37688990fe215706ec18cc43a1965bc1c2f9'
+          assert report['cache'] == 'sd-v139'
+          assert report['sourceSWIdentical'] and report['sourceAssetsPinned']
+          assert report['demoForced'] and report['v2Forced']
+          assert report['backendEnabled'] is False
+          assert report['operations'] == {'cloudflareDeploys':0,'notionCalls':0,'workerCalls':0}
+          source = subprocess.check_output(['git','show',report['candidate']+':docs/sw.js'])
+          deployed = (root/'sw.js').read_bytes()
+          assert source == deployed
+          assert hashlib.sha256(source).hexdigest() == report['swSha256']
+          assert 'API_BASE": ""' in (root/'config.js').read_text()
+          assert 'Content-Security-Policy:' in (root/'_headers').read_text()
+          shutil.make_archive(str(root), 'zip', str(root))
+          print('EXACT_PR45_CANDIDATE_SW_SHA256='+report['swSha256'])
+          print('STAGING_ONLY_BUILD_AND_ZIP=PASS; Cloudflare deployments = 0')
+          PY
+      - name: Upload offline ZIP and synthetic regression evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pr45-v139-synthetic-staging-build-only
+          path: |
+            ${{ runner.temp }}/pr45-staging-evidence/
+            ${{ runner.temp }}/pr45-browser.json
+            ${{ runner.temp }}/pr45-upgrade.json
+            ${{ runner.temp }}/pr45-build.json
+            ${{ runner.temp }}/pr45-synthetic-preview.zip
+          if-no-files-found: warn
+          retention-days: 14
