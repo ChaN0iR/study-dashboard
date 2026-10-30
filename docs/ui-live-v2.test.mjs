@@ -35,6 +35,10 @@ test("V2 cannot inadvertently stop real focus session on navigation", () => {
 
 test("private API failures and optimistic task updates remain visibly unverified", () => {
   assert.match(bridge, /dataUnavailable = !match/);
+  assert.match(bridge, /tasks\.dataset\.stateVerified !== "true"/);
+  assert.match(app, /\$\("tasks"\)\.dataset\.stateVerified = "true"/);
+  assert.match(app, /\$\("tasks"\)\.dataset\.stateVerified = "false"/);
+  assert.match(bridge, /attributeFilter: \["aria-checked", "disabled", "data-state-verified"\]/);
   assert.match(bridge, /renderedDate\.startsWith\(taipeiDate\)/);
   assert.match(bridge, /更新中（未確認）/);
   assert.match(bridge, /同步狀態 · 未驗證/);
