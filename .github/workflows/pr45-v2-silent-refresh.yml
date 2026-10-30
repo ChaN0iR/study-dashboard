@@ -48,6 +48,17 @@ jobs:
           assert 'tasks.dataset.stateVerified !== "true"' in v2
           print('v139 fail-closed source contracts PASS')
           PY
+      - name: Install browser dependencies
+        run: |
+          set -euo pipefail
+          python -m pip install --disable-pip-version-check 'playwright==1.56.0' 'Pillow==12.0.0'
+          python -m playwright install --with-deps chromium
+          python - <<'PY'
+          from pathlib import Path
+          from playwright.sync_api import sync_playwright
+          with sync_playwright() as p: executable = p.chromium.executable_path
+          Path('/usr/local/bin/chromium').symlink_to(executable)
+          PY
       - name: Run full frontend suite including privacy and V2 contracts
         run: |
           set -euo pipefail
@@ -65,17 +76,6 @@ jobs:
           assert count('tests') >= 135 and count('pass') == count('tests')
           assert count('fail') == count('skipped') == count('cancelled') == 0
           print('FULL_FRONTEND_TESTS_PASS', count('tests'))
-          PY
-      - name: Install browser dependencies
-        run: |
-          set -euo pipefail
-          python -m pip install --disable-pip-version-check 'playwright==1.56.0' 'Pillow==12.0.0'
-          python -m playwright install --with-deps chromium
-          python - <<'PY'
-          from pathlib import Path
-          from playwright.sync_api import sync_playwright
-          with sync_playwright() as p: executable = p.chromium.executable_path
-          Path('/usr/local/bin/chromium').symlink_to(executable)
           PY
       - name: Test silent same-day background API failure and recovery in real Chromium
         env:
