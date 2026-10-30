@@ -114,7 +114,7 @@ export function build(outDirectory) {
   reject(!/href="https?:\/\//.test(html), "Unexpected external HTML link remains");
   html = replaceOnce(html, '<script src="recall-room.js?v=1"></script>',
     "<!-- STAGING ONLY: recall-room links deliberately disabled -->", "disable Recall Room external redirects");
-  const banner = '<aside id="pr45-staging-banner" role="status" style="padding:8px 14px;background:#263e36;color:#f1f7f2;font:600 12px/1.35 system-ui;flex:none;display:flex;align-items:center;justify-content:space-between;gap:8px"><span>PR #43 · STAGING ONLY · 假資料，不連正式 API</span><button type="button" id="pr45-qa-open" style="font:600 12px system-ui;padding:6px 8px;border-radius:8px;border:1px solid #bedbca;color:#fff;background:#294b3a">驗收</button></aside>';
+  const banner = '<aside id="pr45-staging-banner" role="status" style="padding:8px 14px;background:#263e36;color:#f1f7f2;font:600 12px/1.35 system-ui;flex:none;display:flex;align-items:center;justify-content:space-between;gap:8px"><span>PR #45 · STAGING ONLY · 假資料，不連正式 API</span><button type="button" id="pr45-qa-open" style="font:600 12px system-ui;padding:6px 8px;border-radius:8px;border:1px solid #bedbca;color:#fff;background:#294b3a">驗收</button></aside>';
   html = replaceOnce(html, "<body>", "<body>\n" + banner, "visible staging banner");
 
   const qa = readFileSync(new URL("./v139-diagnostics.js", import.meta.url), "utf8");
