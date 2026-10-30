@@ -20,7 +20,7 @@ from playwright.sync_api import sync_playwright
 ROOT = Path(__file__).resolve().parent.parent
 CANDIDATE = "working-tree-sd-v139"
 MAIN = "d96c45cc8008e21a1c5ca71e099e84c453586e9f"
-EVIDENCE = Path(os.getenv("CANDIDATE_STAGING_EVIDENCE", "/tmp/pr45-staging-evidence"))
+EVIDENCE = Path(os.getenv("PR45_UPGRADE_EVIDENCE", "/tmp/pr45-staging-evidence"))
 EVIDENCE.mkdir(parents=True, exist_ok=True)
 
 def original(path, commit):
@@ -43,7 +43,6 @@ def wait_for_cache_state(page, label, timeout_sec=20):
           return {
             keys,
             ready: keys.includes('sd-v139') &&
-                   !keys.includes('sd-v136') &&
                    !keys.includes('sd-v136') &&
                    keys.includes('another-app-offline-v1')
           };
@@ -119,12 +118,14 @@ with tempfile.TemporaryDirectory(prefix="pr45-upgrade-") as folder:
                 page.route("http://127.0.0.1:8765/**", lambda route: route.abort())
                 url = origin + "/?demo=1&ui=v2"
 
-                # Install actual MAIN privacy-safe sd-v136 SW first.
+                # Install actual vulnerable production sd-v136 SW first.
                 page.goto(url, wait_until="load")
                 page.evaluate("navigator.serviceWorker.ready")
                 page.reload(wait_until="load")
                 page.wait_for_function("""() => navigator.serviceWorker.controller !== null""")
-                page.wait_for_function("""async () => (await caches.keys()).includes('sd-v136')""")
+                # navigator.serviceWorker.ready has already settled. Await
+                # CacheStorage in page.evaluate, not wait_for_function(async)
+                # whose unresolved Promise may be counted as truthy.
                 before = page.evaluate("""async () => ({
                   caches: await caches.keys(),
                   controlled: Boolean(navigator.serviceWorker.controller),
