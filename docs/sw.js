@@ -1,5 +1,5 @@
-const CACHE = "sd-v138";
-const SHELL = ["icons/recall-hippocampus-256.png?v=hippocampus-1", "./", "index.html", "style.css?v=124", "task-policy.js?v=3", "app.js?v=123", "ui-live-v2.js", "ui-live-v2.css?v=1", "config.js?v=90", "recall-room.js?v=1", "recall-room.css?v=1", "manifest.webmanifest?v=stethoscope-1", "icons/icon.svg?v=stethoscope-1", "icons/icon-32.png?v=stethoscope-1", "icons/icon-180.png?v=stethoscope-1", "icons/icon-192.png?v=stethoscope-1", "icons/icon-512.png?v=stethoscope-1"];
+const CACHE = "sd-v139";
+const SHELL = ["icons/recall-hippocampus-256.png?v=hippocampus-1", "./", "index.html", "style.css?v=124", "task-policy.js?v=3", "app.js?v=124", "ui-live-v2.js", "ui-live-v2.css?v=1", "config.js?v=90", "recall-room.js?v=1", "recall-room.css?v=1", "manifest.webmanifest?v=stethoscope-1", "icons/icon.svg?v=stethoscope-1", "icons/icon-32.png?v=stethoscope-1", "icons/icon-180.png?v=stethoscope-1", "icons/icon-192.png?v=stethoscope-1", "icons/icon-512.png?v=stethoscope-1"];
 // The static shell is the only intentionally persisted response set.
 // Version rotation evicts responses cached by older, broad same-origin handlers.
 self.addEventListener("install", (e) => {
