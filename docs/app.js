@@ -884,9 +884,17 @@
         throw new Error("儀表板狀態資料不完整");
       state = incoming;
       xpVerified = !DEMO;
+      // Explicit read-only verification marker for opt-in V2. A silent background
+      // refresh failure must not make cached same-day task data look current.
+      $("tasks").dataset.stateVerified = "true";
       banner(""); renderAll();
       await loadReschedule();
-    } catch (e) { xpVerified = false; if (!silent) showError(e); renderAll(); }
+    } catch (e) {
+      xpVerified = false;
+      $("tasks").dataset.stateVerified = "false";
+      if (!silent) showError(e);
+      renderAll();
+    }
   }
 
   // Desktop-only enhancement: collapse the entire card, not just its editor.
