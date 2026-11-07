@@ -386,30 +386,80 @@ async function postNote(env, body) {
     if (!ID_RE.test(body.lessonId)) throw new HttpError(400, "lessonId invalid");
     props[P.note.lesson] = { relation: [{ id: body.lessonId }] };
   }
-  const pg = await notion(env, "/pages", "POST", { parent: { database_id: DB.notes }, properties: props });
-  const pagesIn = Array.isArray(body.pages) ? body.pages : [{ photos: body.photos }];
-  const blocks = [];
-  let count = 0;
+
+  const pagesIn = body.pages === undefined ? [{ photos: body.photos }] : body.pages;
+  if (!Array.isArray(pagesIn)) throw new HttpError(400, "invalid note pages");
+
+  // Preflight ALL images before creating even a temporary Notion upload.
+  // A bad image in a later page must not leave a partly-created note.
+  const photos = [];
   for (let pi = 0; pi < pagesIn.length; pi++) {
-    const phs = (Array.isArray(pagesIn[pi] && pagesIn[pi].photos) ? pagesIn[pi].photos : []).slice(0, 8);
-    if (!phs.length) continue;
-    if (pagesIn.length > 1) blocks.push({ object: "block", type: "paragraph", paragraph: { rich_text: [{ type: "text", text: { content: `第 ${pi + 1} 頁` } }] } });
-    for (const ph of phs) {
-    if (++count > 8) break;
-    if (!/^image\/(jpeg|png|webp|gif)$/.test(ph.type || "") || typeof ph.data !== "string" || ph.data.length > 4_000_000) continue;
-    const up = await notion(env, "/file_uploads", "POST", { filename: String(ph.name || "photo.jpg").slice(0, 80), content_type: ph.type });
-    const bin = Uint8Array.from(atob(ph.data), (c) => c.charCodeAt(0));
-    const form = new FormData();
-    form.append("file", new Blob([bin], { type: ph.type }), String(ph.name || "photo.jpg").slice(0, 80));
-    const r = await fetch(`${NOTION}/file_uploads/${up.id}/send`, { method: "POST", headers: { authorization: `Bearer ${env.NOTION_TOKEN}`, "notion-version": NOTION_VERSION }, body: form });
-    if (!r.ok) throw new HttpError(502, `Notion upload ${r.status}`);
-    blocks.push({ object: "block", type: "image", image: { type: "file_upload", file_upload: { id: up.id } } });
+    const page = pagesIn[pi];
+    if (!page || typeof page !== "object" || Array.isArray(page)) throw new HttpError(400, "invalid note page");
+    if (page.photos != null && !Array.isArray(page.photos)) throw new HttpError(400, "invalid note photos");
+    for (const photo of page.photos || []) {
+      if (photos.length >= 8) throw new HttpError(400, "too many photos");
+      if (!photo || typeof photo !== "object" || Array.isArray(photo) ||
+          !/^image\/(jpeg|png|webp|gif)$/.test(photo.type || "") ||
+          typeof photo.data !== "string")
+        throw new HttpError(400, "invalid image data");
+      if (photo.data.length > 4_000_000) throw new HttpError(413, "image too large");
+      let bytes;
+      try {
+        bytes = Uint8Array.from(atob(photo.data), (c) => c.charCodeAt(0));
+      } catch {
+        throw new HttpError(400, "invalid image data");
+      }
+      if (!bytes.byteLength) throw new HttpError(400, "invalid image data");
+      photos.push({
+        pageIndex: pi,
+        type: photo.type,
+        filename: String(photo.name || "photo.jpg").slice(0, 80),
+        bytes,
+      });
     }
   }
-  if (blocks.length) await notion(env, `/blocks/${pg.id}/children`, "PATCH", { children: blocks });
-  return { id: pg.id, title, photos: count };
-}
 
+  // Finish file transfers before the page exists. If a later upload fails,
+  // only temporary upload objects remain; no incomplete note appears.
+  const blocks = [];
+  let lastImagePage = -1;
+  for (const photo of photos) {
+    const up = await notion(env, "/file_uploads", "POST", {
+      filename: photo.filename, content_type: photo.type,
+    });
+    const form = new FormData();
+    form.append("file", new Blob([photo.bytes], { type: photo.type }), photo.filename);
+    const sent = await fetch(NOTION + "/file_uploads/" + up.id + "/send", {
+      method: "POST",
+      headers: { authorization: "Bearer " + env.NOTION_TOKEN, "notion-version": NOTION_VERSION },
+      body: form,
+    });
+    if (!sent.ok) throw new HttpError(502, "Notion upload failed");
+
+    if (pagesIn.length > 1 && lastImagePage !== photo.pageIndex) {
+      blocks.push({
+        object: "block", type: "paragraph",
+        paragraph: { rich_text: [{ type: "text", text: { content: "第 " + (photo.pageIndex + 1) + " 頁" } }] },
+      });
+    }
+    lastImagePage = photo.pageIndex;
+    blocks.push({
+      object: "block", type: "image",
+      image: { type: "file_upload", file_upload: { id: up.id } },
+    });
+  }
+
+  // Create the page and its image blocks in ONE Notion API request. This
+  // avoids the old create-page-then-append failure leaving an empty page.
+  // Page creation itself is intentionally never retried without idempotency.
+  const pg = await notion(env, "/pages", "POST", {
+    parent: { database_id: DB.notes },
+    properties: props,
+    ...(blocks.length ? { children: blocks } : {}),
+  });
+  return { id: pg.id, title, photos: photos.length };
+}
 
 // ---------- focus timer ----------
 const F = { title: "紀錄", date: "日期", start: "開始", end: "結束", acc: "累計秒", status: "狀態", subject: "科目" };
