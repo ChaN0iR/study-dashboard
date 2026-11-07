@@ -7,6 +7,10 @@ on:
       - "docs/sw.js"
       - "docs/cache-scope.test.mjs"
       - "docs/recall-icon.test.mjs"
+      - "docs/service-worker-security.test.mjs"
+      - "docs/service-worker-privacy.browser.py"
+      - "docs/desktop-cards.test.mjs"
+      - "docs/timer-layout.test.mjs"
       - ".github/workflows/cache-scope.yml"
   workflow_dispatch:
 
@@ -46,7 +50,8 @@ jobs:
           node --check docs/app.js
           node --check docs/sw.js
           node --check docs/desktop-cards.test.mjs
-          git diff --check
+          git diff --check origin/main...HEAD
+          python -m py_compile docs/service-worker-privacy.browser.py
       - name: Cache lifecycle and real browser upgrade regression
         shell: bash
         env:
@@ -54,7 +59,7 @@ jobs:
         run: |
           mkdir -p "$RECALL_ICON_SCREENSHOTS"
           set +e
-          node --test --test-concurrency=1 docs/cache-scope.test.mjs docs/recall-icon.test.mjs > "$RUNNER_TEMP/cache-scope.tap" 2>&1
+          node --test --test-concurrency=1 docs/cache-scope.test.mjs docs/recall-icon.test.mjs docs/service-worker-security.test.mjs > "$RUNNER_TEMP/cache-scope.tap" 2>&1
           status=$?
           set -e
           cat "$RUNNER_TEMP/cache-scope.tap"
@@ -66,9 +71,13 @@ jobs:
               match = re.search(r'^[ℹ#]\s*'+key+r'\s+(\d+)\s*$', text, re.M)
               if not match: raise SystemExit('Missing TAP summary: '+key)
               return int(match.group(1))
-          if count('tests') != 7 or count('fail') or count('skipped') or count('cancelled'):
-              raise SystemExit('All 7 cache/recall tests must run and pass')
+          if count('tests') != 13 or count('fail') or count('skipped') or count('cancelled'):
+              raise SystemExit('All 13 cache/privacy/recall tests must run and pass')
           PYVERIFY
+      - name: Verify no private runtime response persists in real Chromium
+        run: |
+          set -o pipefail
+          python3 docs/service-worker-privacy.browser.py | tee "$RUNNER_TEMP/pwa-private-response.json"
       - name: Upload cache regression evidence
         if: always()
         uses: actions/upload-artifact@v4
@@ -76,6 +85,7 @@ jobs:
           name: cache-scope-evidence
           path: |
             ${{ runner.temp }}/cache-scope.tap
+            ${{ runner.temp }}/pwa-private-response.json
             ${{ runner.temp }}/cache-evidence/
           if-no-files-found: error
           retention-days: 14
