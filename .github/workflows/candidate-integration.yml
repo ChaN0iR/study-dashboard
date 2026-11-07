@@ -16,7 +16,7 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     env:
-      PWA_CANDIDATE: bd9fe2107998d693a87578906962a520327fa85e
+      RELEASE_BASE: 60134b79aae6796c7c54b71c574521f054bab8b8
       COMMON_BASE: d96c45cc8008e21a1c5ca71e099e84c453586e9f
       CURRENT_BASE: ${{ github.event.pull_request.base.sha }}
     steps:
@@ -35,15 +35,15 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          test "$CURRENT_BASE" = "$COMMON_BASE"
-          git cat-file -e "$PWA_CANDIDATE^{commit}"
-          test "$(git merge-base HEAD "$PWA_CANDIDATE")" = "$COMMON_BASE"
-          tree="$(git merge-tree --write-tree HEAD "$PWA_CANDIDATE")"
+          test "$CURRENT_BASE" = "$RELEASE_BASE"
+          git cat-file -e "$RELEASE_BASE^{commit}"
+          test "$(git merge-base HEAD "$RELEASE_BASE")" = "$COMMON_BASE"
+          tree="$(git merge-tree --write-tree HEAD "$RELEASE_BASE")"
           mkdir -p "$RUNNER_TEMP/candidate-integration" "$RUNNER_TEMP/candidate-evidence"
           git archive "$tree" | tar -x -C "$RUNNER_TEMP/candidate-integration"
           CANDIDATE_TREE="$tree" NOTE_CANDIDATE="$(git rev-parse HEAD)" python - <<'PY'
           import json, os, pathlib
-          data = {key: os.environ[key] for key in ['COMMON_BASE', 'CURRENT_BASE', 'NOTE_CANDIDATE', 'PWA_CANDIDATE', 'CANDIDATE_TREE']}
+          data = {key: os.environ[key] for key in ['COMMON_BASE', 'CURRENT_BASE', 'NOTE_CANDIDATE', 'RELEASE_BASE', 'CANDIDATE_TREE']}
           data.update(scope='ephemeral offline candidate integration', deployed=False, live_notion=False)
           path = pathlib.Path(os.environ['RUNNER_TEMP']) / 'candidate-evidence' / 'inputs.json'
           path.write_text(json.dumps(data, indent=2) + '\n')
