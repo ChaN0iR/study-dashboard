@@ -5,7 +5,7 @@ import { readFile } from "node:fs/promises";
 
 const source = await readFile(new URL("./sw.js", import.meta.url), "utf8");
 const cacheName = source.match(/^const CACHE = "([^"]+)";$/m)?.[1];
-assert.equal(cacheName, "sd-v137");
+assert.equal(cacheName, "sd-v139");
 
 function harness() {
   const origin = "https://example.test";
@@ -101,8 +101,8 @@ test("offline fallback serves only explicit static shell and dashboard entry nav
   const sw = harness();
   await sw.event("install");
   sw.offline();
-  const shell = await sw.event("fetch", sw.request("/study-dashboard/app.js?v=122"));
-  assert.equal(await shell.text(), "offline shell: app.js?v=122");
+  const shell = await sw.event("fetch", sw.request("/study-dashboard/app.js?v=124"));
+  assert.equal(await shell.text(), "offline shell: app.js?v=124");
   const navigation = await sw.event("fetch", sw.request("/study-dashboard/?demo=1", { mode: "navigate" }));
   assert.equal(await navigation.text(), "offline shell: index.html");
   const navHtml = await sw.event("fetch", sw.request("/study-dashboard/index.html?demo=1", { mode: "navigate" }));
@@ -110,6 +110,21 @@ test("offline fallback serves only explicit static shell and dashboard entry nav
   for (const path of ["/study-dashboard/app.js?v=wrong", "/study-dashboard/custom.json", "/study-dashboard/recall/"]) {
     const mode = path.endsWith("/recall/") ? "navigate" : "cors";
     assert.equal((await sw.event("fetch", sw.request(path, { mode }))).type, "error", path);
+  }
+});
+
+test("V2 optional module and stylesheet remain offline only at exact allowed URLs", async () => {
+  const sw = harness();
+  await sw.event("install");
+  sw.offline();
+  for (const resource of ["ui-live-v2.js", "ui-live-v2.css?v=1"]) {
+    const response = await sw.event("fetch", sw.request("/study-dashboard/" + resource));
+    assert.equal(response.status, 200);
+    assert.equal(await response.text(), "offline shell: " + resource);
+  }
+  for (const resource of ["ui-live-v2.js?v=2", "ui-live-v2.css?v=wrong"]) {
+    const response = await sw.event("fetch", sw.request("/study-dashboard/" + resource));
+    assert.equal(response.type, "error", "unlisted cache-bust should not silently use an older module");
   }
 });
 
