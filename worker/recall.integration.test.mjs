@@ -1,6 +1,7 @@
 import {readFile} from "node:fs/promises";
 import assert from "node:assert/strict";
 import worker from "./index.js";
+import { grade } from "./recall/worker.js";
 
 const env = {
   DB: {
@@ -68,3 +69,18 @@ assert.equal(wrongKey.headers.get("access-control-allow-origin"), "https://chan0
 console.log("recall integration routes/security: ok");
 
 assert.match(await readFile(new URL("./recall/auth.js", import.meta.url), "utf8"), /PASSWORD_ITERATIONS = 100_000/);
+
+const gradeRequest = new Request("https://dashboard.example/api/grade", {
+  method: "POST",
+  body: JSON.stringify({ question: "Q", referenceAnswer: "R", answerText: "A" }),
+});
+const originalFetch = globalThis.fetch;
+try {
+  globalThis.fetch = () => assert.fail("paused grading must never call an upstream provider");
+  const paused = await grade(gradeRequest, env);
+  assert.equal(paused.status, 503);
+  assert.deepEqual(await paused.json(), { code: "AI_GRADING_DISABLED" });
+} finally {
+  globalThis.fetch = originalFetch;
+}
+assert.match(servedHtml, /id="submitAnswerBtn" disabled>AI 批改已暫停/);

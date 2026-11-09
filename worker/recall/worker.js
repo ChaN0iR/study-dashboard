@@ -186,6 +186,10 @@ export async function grade(request, env) {
     return json({ code: "SAME_ORIGIN_ONLY" }, 403);
   }
 
+  if (env.AI_GRADING_ENABLED !== "true") {
+    return json({ code: "AI_GRADING_DISABLED" }, 503);
+  }
+
   const ip = request.headers.get("cf-connecting-ip") || "unknown";
   if (rateLimited(ip)) {
     return json({ code: "LOCAL_RATE_LIMIT" }, 429);
