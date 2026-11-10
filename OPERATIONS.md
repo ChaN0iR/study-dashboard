@@ -4,6 +4,7 @@
 
 - 前端由 GitHub Pages 從 `main` 的 `docs/` 建置。合併至 `main` 會觸發 Pages，發布前須核對合併範圍與目標。從 Actions 確認部署對應的 commit、`./docs` 建置來源、正式網址與結果。
 - 後端是 Cloudflare Worker `study-dashboard-api`，由 `worker/` 打包。先查目前承接流量的 Worker 版本，記下完整 version ID 與流量比例。核對 `DB`、`LESSON_AUTOMATION`、`ALLOWED_ORIGIN`、密鑰名稱及實際 Cron。設定檔中的 `10 16 * * *` 是 UTC 16:10（台北次日 00:10），以控制台確認實際排程。
+- 正式回想室已啟用跨執行個體限流。發布前核對 `AUTH_RATE_LIMIT_ENABLED=true`、加密的 `AUTH_RATE_LIMIT_KEY` 與 D1 限流表。使用 `wrangler deploy --keep-vars` 保留控制台變數，並在發布後核對新版本仍帶有限流旗標。詳見[登入與註冊限流](worker/recall/AUTH_RATE_LIMIT.md)。
 - AI 批改目前採預設停用。即使 `GEMINI_API_KEY` 已設定，Worker 仍須有 `AI_GRADING_ENABLED=true` 才能批改。啟用前另行取得授權並完成全站與帳號用量上限。保留既有密鑰，驗證時只查名稱及綁定狀態。
 
 [GitHub Pages 發布來源](https://docs.github.com/en/pages/getting-started-with-github-pages/configuring-a-publishing-source-for-your-github-pages-site) · [Worker 版本與部署](https://developers.cloudflare.com/workers/versions-and-deployments/)
