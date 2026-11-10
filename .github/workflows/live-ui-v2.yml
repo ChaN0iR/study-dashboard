@@ -1,18 +1,7 @@
 name: Live UI V2 opt-in regression
 
 on:
-  pull_request:
-    branches: [main]
-    paths:
-      - "docs/app.js"
-      - "docs/index.html"
-      - "docs/sw.js"
-      - "docs/ui-v2-offline.browser.py"
-      - "docs/ui-live-v2.js"
-      - "docs/ui-live-v2.css"
-      - "docs/ui-live-v2.test.mjs"
-      - "docs/ui-live-v2.browser.py"
-      - ".github/workflows/live-ui-v2.yml"
+  workflow_call:
   workflow_dispatch:
 
 permissions:

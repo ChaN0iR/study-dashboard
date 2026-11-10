@@ -1,0 +1,94 @@
+name: Dashboard PR validation
+
+on:
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  changes:
+    runs-on: ubuntu-24.04
+    outputs:
+      worker: ${{ steps.scope.outputs.worker }}
+      frontend: ${{ steps.scope.outputs.frontend }}
+      cache: ${{ steps.scope.outputs.cache }}
+      live_v2: ${{ steps.scope.outputs.live_v2 }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+          persist-credentials: false
+      - id: scope
+        shell: bash
+        run: |
+          set -euo pipefail
+          worker=false frontend=false cache=false live_v2=false
+          # Compare the PR merge commit with its base parent. Include both
+          # sides of renames so moving a file cannot hide a relevant deletion.
+          paths="$(mktemp)"
+          trap 'rm -f "$paths"' EXIT
+          git diff --no-renames --name-only -z HEAD^1 HEAD > "$paths"
+          while IFS= read -r -d '' path; do
+            case "$path" in
+              worker/*|docs/recall/*|docs/icons/recall-hippocampus-256.png|.github/workflows/worker-offline.yml) worker=true ;;
+            esac
+            case "$path" in
+              docs/*|scriptable-widget.js|scripts/production-smoke.py|.github/workflows/pr29-independent.yml) frontend=true ;;
+            esac
+            case "$path" in
+              docs/sw.js|docs/index.html|docs/app.js|docs/ui-live-v2.js|docs/ui-live-v2.css|docs/cache-scope.test.mjs|docs/recall-icon.test.mjs|docs/service-worker-security.test.mjs|docs/service-worker-privacy.browser.py|docs/desktop-cards.test.mjs|docs/timer-layout.test.mjs|.github/workflows/cache-scope.yml) cache=true ;;
+            esac
+            case "$path" in
+              docs/app.js|docs/index.html|docs/sw.js|docs/ui-v2-offline.browser.py|docs/ui-live-v2.js|docs/ui-live-v2.css|docs/ui-live-v2.test.mjs|docs/ui-live-v2.browser.py|.github/workflows/live-ui-v2.yml) live_v2=true ;;
+            esac
+            if [[ "$path" == ".github/workflows/pr-validation.yml" ]]; then
+              worker=true frontend=true cache=true live_v2=true
+            fi
+          done < "$paths"
+          printf 'worker=%s\nfrontend=%s\ncache=%s\nlive_v2=%s\n' "$worker" "$frontend" "$cache" "$live_v2" >> "$GITHUB_OUTPUT"
+
+  worker:
+    needs: changes
+    if: needs.changes.outputs.worker == 'true'
+    uses: ./.github/workflows/worker-offline.yml
+
+  frontend:
+    needs: changes
+    if: needs.changes.outputs.frontend == 'true'
+    uses: ./.github/workflows/pr29-independent.yml
+
+  cache:
+    needs: changes
+    if: needs.changes.outputs.cache == 'true'
+    uses: ./.github/workflows/cache-scope.yml
+
+  live-v2:
+    needs: changes
+    if: needs.changes.outputs.live_v2 == 'true'
+    uses: ./.github/workflows/live-ui-v2.yml
+
+  gate:
+    name: Dashboard merge checks
+    if: always()
+    needs: [changes, worker, frontend, cache, live-v2]
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Require successful results for applicable checks
+        shell: bash
+        env:
+          SCOPE_RESULT: ${{ needs.changes.result }}
+          WORKER: ${{ needs.changes.outputs.worker }}:${{ needs.worker.result }}
+          FRONTEND: ${{ needs.changes.outputs.frontend }}:${{ needs.frontend.result }}
+          CACHE: ${{ needs.changes.outputs.cache }}:${{ needs.cache.result }}
+          LIVE_V2: ${{ needs.changes.outputs.live_v2 }}:${{ needs.live-v2.result }}
+        run: |
+          set -euo pipefail
+          test "$SCOPE_RESULT" = success
+          for job in WORKER FRONTEND CACHE LIVE_V2; do
+            case "${!job}" in
+              true:success|false:skipped) ;;
+              *) echo "Unexpected $job result: ${!job}" >&2; exit 1 ;;
+            esac
+          done
