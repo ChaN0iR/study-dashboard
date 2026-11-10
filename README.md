@@ -13,6 +13,9 @@ phone (PWA) --`X-App-Key`--> Cloudflare Worker --`NOTION_TOKEN`--> Notion API (v
 Endpoints: `GET /api/state`, `POST /api/task/:id {done|skip}`, `POST /api/record {hours,minutes,心得,重點,心情}`, `POST /api/lesson/:id {done|review}`, `POST /api/note {title,subject,points,chapter,lessonId}`.
 
 ## Deploy steps
+
+For an existing installation, use the [production release and rollback runbook](OPERATIONS.md). The steps below are for initial setup.
+
 1. **Notion integration**: notion.so/profile/integrations > New integration (internal) > copy the secret. Then, for each of 今日任務, 每日紀錄, 課程進度(我的課程), 筆記: open the DB as a full page > `…` > Connections > add the integration.
 2. **Check `worker/config.js`**: DB IDs were taken from the DB page URLs. If you get "Could not find database", copy the 32-char ID from the DB's own URL and replace it.
 3. **Cloudflare**:
