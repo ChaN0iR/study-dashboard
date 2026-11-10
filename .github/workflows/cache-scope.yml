@@ -1,21 +1,7 @@
 name: Dashboard cache ownership regression
 
 on:
-  pull_request:
-    branches: [main]
-    paths:
-      - "docs/sw.js"
-      - "docs/index.html"
-      - "docs/app.js"
-      - "docs/ui-live-v2.js"
-      - "docs/ui-live-v2.css"
-      - "docs/cache-scope.test.mjs"
-      - "docs/recall-icon.test.mjs"
-      - "docs/service-worker-security.test.mjs"
-      - "docs/service-worker-privacy.browser.py"
-      - "docs/desktop-cards.test.mjs"
-      - "docs/timer-layout.test.mjs"
-      - ".github/workflows/cache-scope.yml"
+  workflow_call:
   workflow_dispatch:
 
 permissions:

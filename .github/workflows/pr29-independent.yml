@@ -3,13 +3,7 @@ name: Dashboard docs and browser validation
 on:
   push:
     branches: [main]
-  pull_request:
-    branches: [main]
-    paths:
-      - "docs/**"
-      - "scriptable-widget.js"
-      - "scripts/production-smoke.py"
-      - ".github/workflows/pr29-independent.yml"
+  workflow_call:
   workflow_dispatch:
 
 permissions:
