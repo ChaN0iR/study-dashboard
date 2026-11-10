@@ -1,3 +1,5 @@
+import { authRateLimited } from "./auth-rate-limit.js";
+
 const SESSION_TTL_MS = 30 * 24 * 60 * 60 * 1000;
 const COOKIE_NAME = "rr_session";
 const PASSWORD_ITERATIONS = 100_000;
@@ -40,6 +42,12 @@ function limited(ip) {
     }
   }
   return entry.count > MAX_AUTH_ATTEMPTS;
+}
+
+function authAttemptLimited(request, env) {
+  return env.AUTH_RATE_LIMIT_ENABLED === "true"
+    ? authRateLimited(request, env)
+    : limited(request.headers.get("cf-connecting-ip") || "unknown");
 }
 
 async function readJson(request, maxBytes = MAX_REQUEST_BYTES) {
@@ -153,7 +161,7 @@ async function authenticatedUser(env, request) {
 async function authRegister(request, env) {
   if (request.method !== "POST") return json({ code: "METHOD_NOT_ALLOWED" }, 405);
   if (!sameOrigin(request)) return json({ code: "SAME_ORIGIN_ONLY" }, 403);
-  if (limited(request.headers.get("cf-connecting-ip") || "unknown")) return json({ code: "AUTH_RATE_LIMIT" }, 429);
+  if (await authAttemptLimited(request, env)) return json({ code: "AUTH_RATE_LIMIT" }, 429);
   const parsed = await readJson(request, 8_000);
   if (parsed.error) return json({ code: parsed.error }, parsed.error === "REQUEST_TOO_LARGE" ? 413 : 400);
   const email = typeof parsed.value.email === "string" ? parsed.value.email.trim().toLowerCase() : "";
@@ -182,7 +190,7 @@ async function authRegister(request, env) {
 async function authLogin(request, env) {
   if (request.method !== "POST") return json({ code: "METHOD_NOT_ALLOWED" }, 405);
   if (!sameOrigin(request)) return json({ code: "SAME_ORIGIN_ONLY" }, 403);
-  if (limited(request.headers.get("cf-connecting-ip") || "unknown")) return json({ code: "AUTH_RATE_LIMIT" }, 429);
+  if (await authAttemptLimited(request, env)) return json({ code: "AUTH_RATE_LIMIT" }, 429);
   const parsed = await readJson(request, 8_000);
   if (parsed.error) return json({ code: parsed.error }, parsed.error === "REQUEST_TOO_LARGE" ? 413 : 400);
   const email = typeof parsed.value.email === "string" ? parsed.value.email.trim().toLowerCase() : "";
