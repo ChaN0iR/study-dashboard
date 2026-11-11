@@ -4,7 +4,8 @@ compatibility_date = "2026-01-01"
 
 [triggers]
 # Cloudflare Cron uses UTC: 16:10 UTC = next day 00:10 Asia/Taipei.
-# Enabled only after durable tests and independent review pass.
+# Cron is declared below, but this file cannot confirm the live Cloudflare schedule.
+# Deploying this configuration may activate scheduled writes; verify and review first.
 crons = ["10 16 * * *"]
 
 [[durable_objects.bindings]]
