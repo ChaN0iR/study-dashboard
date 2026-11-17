@@ -1,3 +1,5 @@
+import { readLimitedText, BodyTooLarge } from "../request-body.js";
+
 const WINDOW_MS = 60 * 60 * 1000;
 const MAX_REQUESTS_PER_IP = 20;
 const rateWindows = new Map();
@@ -195,15 +197,12 @@ export async function grade(request, env) {
     return json({ code: "LOCAL_RATE_LIMIT" }, 429);
   }
 
-  const length = Number(request.headers.get("content-length") || 0);
-  if (length > 650_000) return json({ code: "REQUEST_TOO_LARGE" }, 413);
-
   let payload;
   try {
-    const raw = await request.text();
-    if (raw.length > 650_000) return json({ code: "REQUEST_TOO_LARGE" }, 413);
+    const raw = await readLimitedText(request, 650_000);
     payload = JSON.parse(raw);
-  } catch {
+  } catch (error) {
+    if (error instanceof BodyTooLarge) return json({ code: "REQUEST_TOO_LARGE" }, 413);
     return json({ code: "INVALID_JSON" }, 400);
   }
 
