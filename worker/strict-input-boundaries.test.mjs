@@ -55,7 +55,7 @@ test("unknown focus action is rejected without Notion reads", async () => {
   }
 });
 
-test("oversized login stream returns 413 and cancels before DB access", async () => {
+test("oversized login stream returns 413 without user-table access in memory-limiter mode", async () => {
   const oversized = oversizedRequest("/api/auth/login", "POST", 8_001);
   let queries = 0;
   const response = await authApi(oversized.request, {
@@ -81,4 +81,39 @@ test("opt-in AI grading also rejects oversized streamed input without network", 
   } finally {
     globalThis.fetch = originalFetch;
   }
+});
+
+
+test("persistent login limiter counts an oversized attempt before 413", async () => {
+  // Unlike the memory-limiter path above, the production persistent limiter
+  // intentionally updates its D1 counter before reading the request body.
+  const oversized = oversizedRequest("/api/auth/login", "POST", 8_001);
+  let counterStatements = 0;
+  let cleanupStatements = 0;
+  const db = {
+    prepare(sql) {
+      if (sql.includes("INSERT INTO auth_attempt_windows")) {
+        counterStatements++;
+        return {
+          bind() { return this; },
+          async first() { return { attempts: 1, expires_at: Date.now() + 3_600_000 }; },
+        };
+      }
+      if (sql.includes("DELETE FROM auth_attempt_windows")) {
+        cleanupStatements++;
+        return { bind() { return this; }, async run() { return { success: true }; } };
+      }
+      throw new Error("user-table access is not expected");
+    },
+  };
+  const response = await authApi(oversized.request, {
+    DB: db,
+    AUTH_RATE_LIMIT_ENABLED: "true",
+    AUTH_RATE_LIMIT_KEY: "test-only-in-memory-secret-not-for-production-1234",
+  }, "/api/auth/login");
+  assert.equal(response.status, 413);
+  assert.deepEqual(await response.json(), { code: "REQUEST_TOO_LARGE" });
+  assert.equal(oversized.wasCancelled(), true);
+  assert.equal(counterStatements, 1);
+  assert.equal(cleanupStatements, 1);
 });
