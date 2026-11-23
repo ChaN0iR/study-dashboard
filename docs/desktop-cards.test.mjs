@@ -8,15 +8,15 @@ const sw = readFileSync(new URL('./sw.js', import.meta.url), 'utf8');
 const shell = JSON.parse(sw.match(/^const SHELL = (\[[^\n]+\]);$/m)[1]);
 
 test('index.html references the updated desktop card assets exactly once', () => {
-  assert.deepEqual([...html.matchAll(/<script\b[^>]*\bsrc="(app\.js[^\"]*)"/g)].map(m => m[1]), ['app.js?v=124']);
-  assert.deepEqual([...html.matchAll(/<link\b[^>]*\bhref="(style\.css[^\"]*)"/g)].map(m => m[1]), ['style.css?v=124']);
+  assert.deepEqual([...html.matchAll(/<script\b[^>]*\bsrc="(app\.js[^\"]*)"/g)].map(m => m[1]), ['app.js?v=125']);
+  assert.deepEqual([...html.matchAll(/<link\b[^>]*\bhref="(style\.css[^\"]*)"/g)].map(m => m[1]), ['style.css?v=125']);
 });
 
 test('SW cache and shell match the index.html static asset references', () => {
-  assert.match(sw, /^const CACHE = "sd-v139";$/m);
+  assert.match(sw, /^const CACHE = "sd-v140";$/m);
   assert.equal(new Set(shell).size, shell.length, 'shell has no duplicate entries');
-  for (const entry of ['./', 'index.html', 'app.js?v=124', 'style.css?v=124']) assert.ok(shell.includes(entry), entry);
-  assert.deepEqual(shell.filter(entry => /^(app\.js|style\.css)(\?|$)/.test(entry)), ['style.css?v=124', 'app.js?v=124']);
+  for (const entry of ['./', 'index.html', 'app.js?v=125', 'style.css?v=125']) assert.ok(shell.includes(entry), entry);
+  assert.deepEqual(shell.filter(entry => /^(app\.js|style\.css)(\?|$)/.test(entry)), ['style.css?v=125', 'app.js?v=125']);
   const references = [...html.matchAll(/<(?:script|link)\b[^>]*\b(?:src|href)="([^\"]+)"/g)].map(m => m[1]);
   for (const reference of references) assert.ok(shell.includes(reference), `shell includes ${reference}`);
   for (const entry of shell) assert.ok(existsSync(new URL(entry.split('?')[0], import.meta.url)), `shell file exists: ${entry}`);
@@ -51,6 +51,60 @@ with tempfile.TemporaryDirectory(prefix='desktop-cards-') as temp:
     origin = 'http://127.0.0.1:' + str(server.server_port)
     with sync_playwright() as p:
         browser = p.chromium.launch(executable_path=shutil.which('chromium'), headless=True, args=['--no-sandbox','--disable-gpu','--disable-lcd-text','--font-render-hinting=none'])
+        # Run with native prompts disabled and route every API call to a test fixture.
+        context = browser.new_context(viewport={'width':390,'height':844}, service_workers='block')
+        context.add_init_script("window.prompt = () => { throw new Error('prompt() is not supported'); };")
+        page = context.new_page()
+        page_errors = []
+        page.on('pageerror', lambda error: page_errors.append(str(error)))
+        backend = origin + '/synthetic'
+        site = origin + '/candidate/docs/'
+        received = []
+        def connection_route(route):
+            request = route.request
+            if request.url.startswith(backend + '/api/'):
+                path = request.url.split('/api/')[-1]
+                token = request.headers.get('x-app-key')
+                received.append((request.method, path, token))
+                if token != 'synthetic-key':
+                    route.fulfill(status=401)
+                elif path == 'state':
+                    route.fulfill(json={'today':'2026-11-23','tasks':[],'lessons':[]})
+                else:
+                    route.fulfill(json={'now':0,'todayDoneSec':0})
+            elif request.url.startswith(origin + '/'):
+                route.continue_()
+            else:
+                route.abort()
+        page.route('**/*', connection_route)
+        page.goto(site + '?api=' + backend)
+        dialog = page.get_by_role('dialog', name='設定儀表板連線')
+        expect(dialog).to_be_visible()
+        assert page.locator('#connection-key').get_attribute('type') == 'password'
+        dialog.get_by_role('button', name='取消').click()
+        expect(dialog).to_be_hidden()
+        assert not received
+        page.get_by_role('button', name='設定連線').click()
+        dialog.get_by_label('APP_KEY').fill('incorrect')
+        dialog.get_by_role('button', name='連線', exact=True).click()
+        expect(dialog.get_by_role('status')).to_have_text('APP_KEY 錯誤，請重新輸入。')
+        assert page.evaluate("localStorage.getItem('appKey')") is None
+        dialog.get_by_label('APP_KEY').fill('synthetic-key')
+        dialog.get_by_role('button', name='連線', exact=True).click()
+        page.wait_for_url(site)
+        expect(page.locator('#tasks')).to_have_attribute('data-state-verified', 'true')
+        expect(dialog).to_be_hidden()
+        page.get_by_role('button', name='筆記', exact=True).click()
+        page.get_by_role('link', name='重設連線').click()
+        expect(dialog).to_be_visible()
+        expect(dialog.get_by_label('APP_KEY')).to_have_value('')
+        dialog.get_by_role('button', name='取消').click()
+        page.reload()
+        expect(page.locator('#tasks')).to_have_attribute('data-state-verified', 'true')
+        expect(dialog).to_be_hidden()
+        assert all(method == 'GET' for method, _, _ in received), received
+        assert not page_errors, page_errors
+        context.close()
         def open_page(width, height, variant='candidate', theme='light', saved_collapsed=False):
             context = browser.new_context(viewport={'width':width,'height':height}, color_scheme=theme,
                 reduced_motion='reduce', service_workers='block', timezone_id='Asia/Taipei', has_touch=width < 900)
