@@ -815,7 +815,7 @@
   };
   function openConnection(message = "") {
     const dialog = $("connection-dialog");
-    if (dialog.open) return;
+    if (!dialog || dialog.open) return;
     $("connection-url").value = apiBase();
     $("connection-key").value = "";
     $("connection-error").textContent = message;
@@ -837,6 +837,8 @@
 
   function initConnectionForm() {
     const dialog = $("connection-dialog");
+    // An older cached HTML shell may load this script before its service worker updates.
+    if (!dialog) return;
     const form = $("connection-form");
     const url = $("connection-url");
     const key = $("connection-key");
