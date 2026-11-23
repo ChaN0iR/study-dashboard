@@ -5,7 +5,7 @@ import { readFile } from "node:fs/promises";
 
 const source = await readFile(new URL("./sw.js", import.meta.url), "utf8");
 const cacheName = source.match(/^const CACHE = "([^"]+)";$/m)?.[1];
-assert.equal(cacheName, "sd-v141");
+assert.equal(cacheName, "sd-v142");
 
 function harness() {
   const origin = "https://example.test";
@@ -101,8 +101,8 @@ test("offline fallback serves only explicit static shell and dashboard entry nav
   const sw = harness();
   await sw.event("install");
   sw.offline();
-  const shell = await sw.event("fetch", sw.request("/study-dashboard/app.js?v=126"));
-  assert.equal(await shell.text(), "offline shell: app.js?v=126");
+  const shell = await sw.event("fetch", sw.request("/study-dashboard/app.js?v=127"));
+  assert.equal(await shell.text(), "offline shell: app.js?v=127");
   const navigation = await sw.event("fetch", sw.request("/study-dashboard/?demo=1", { mode: "navigate" }));
   assert.equal(await navigation.text(), "offline shell: index.html");
   const navHtml = await sw.event("fetch", sw.request("/study-dashboard/index.html?demo=1", { mode: "navigate" }));

@@ -110,12 +110,10 @@ with sync_playwright() as p:
     expect(course).to_be_focused()
     assert page.writes[-1]==['/api/lesson/lesson-1',{'done':False}]
     expect(page.locator('#achievement-xp-content .achievement-metric strong')).to_have_text('10 XP')
-    # Preserve existing desktop-only record/note behavior.
     if width>=900 and height>=560:
-      rec=page.get_by_role('button',name='今日進度',exact=True); note=page.get_by_role('button',name='快速筆記',exact=True)
-      rec.click(); assert rec.get_attribute('aria-expanded')=='true'
-      assert note.get_attribute('aria-expanded')=='false'
-      note.click(); assert rec.get_attribute('aria-expanded')=='false' and note.get_attribute('aria-expanded')=='true'
+      note=page.get_by_role('button',name='快速筆記',exact=True)
+      note.click(); assert note.get_attribute('aria-expanded')=='false'
+      note.click(); assert note.get_attribute('aria-expanded')=='true'
     assert page.locator('body').evaluate('(e)=>e.scrollWidth<=e.clientWidth')
     assert not page.errors, page.errors
     results.append([width,height]); ctx.close()

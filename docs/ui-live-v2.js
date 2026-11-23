@@ -89,7 +89,7 @@ export function mountLiveV2() {
       title.textContent = "目前無法確認下一項任務";
       description.textContent = "請檢查原本的連線提示；不會用舊資料假裝已同步。";
     } else if (next) {
-      const source = next.querySelector(".task-subject-suffix")?.dataset.subject || "今日任務";
+      const source = next.querySelector(".task-subject-suffix")?.dataset.subject || "推薦任務";
       const text = next.querySelector(".task-activity")?.textContent.trim() || "未命名任務";
       subject.textContent = source + " · 依現有排序選出";
       title.textContent = text;
@@ -99,7 +99,7 @@ export function mountLiveV2() {
     } else {
       const note = document.querySelector("#task-policy-note");
       const blocked = rows.some((row) => !isComplete(row));
-      subject.textContent = note && !note.hidden ? "依目前排程政策" : "今日任務";
+      subject.textContent = note && !note.hidden ? "依目前排程政策" : "推薦任務";
       title.textContent = pending ? "任務更新仍在同步" :
         note && !note.hidden ? "目前以原有排程為準" :
         blocked ? "尚有待解鎖或同步中的任務" :
@@ -137,7 +137,7 @@ export function mountLiveV2() {
   });
 
   $("#sd-v2-focus").addEventListener("click", () => {
-    document.querySelector('#tabs button[data-t="record"]')?.click();
+    document.querySelector('#tabs button[data-t="focus"]')?.click();
     // Important: clicking #fc-main can STOP a running session.
     // We only navigate/focus; the user acts through the existing control.
     const timer = document.querySelector("#fc-main");

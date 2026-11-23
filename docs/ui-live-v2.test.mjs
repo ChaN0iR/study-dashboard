@@ -26,7 +26,7 @@ test("V2 bridges existing tasks instead of storing or writing duplicate state", 
 });
 
 test("V2 cannot inadvertently stop real focus session on navigation", () => {
-  assert.match(bridge, /button\[data-t="record"\]/);
+  assert.match(bridge, /button\[data-t="focus"\]/);
   assert.match(bridge, /querySelector\("#fc-main"\)/);
   assert.match(bridge, /timer\?\.focus\(/);
   assert.doesNotMatch(bridge, /timer\?\.click\(|#fc-main"\)\.click\(/);

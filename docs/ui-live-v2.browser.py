@@ -139,31 +139,16 @@ try:
                     assert not outside, outside
                     page.screenshot(path=str(EVIDENCE / (str(width) + "-" + theme + ".png")),
                                     full_page=True)
-                    # Reproduce a task which is not done but temporarily
-                    # disabled (optimistic API write). The hero and its CTA
-                    # must agree on the *same* next actionable task.
-                    page.evaluate("""() => {
-                      const first = [...document.querySelectorAll('#tasks .task-item')]
-                        .find(r => !r.classList.contains('done') &&
-                          !r.classList.contains('blocked') &&
-                          r.querySelector('.chk:not([disabled])'));
-                      first.querySelector('.chk').disabled = true;
-                    }""")
-                    page.wait_for_function("""previous => {
-                      const title = document.querySelector('#sd-v2-title')?.textContent;
-                      return title && title !== previous &&
-                        !document.querySelector('#sd-v2-task').disabled;
-                    }""", arg=first)
-                    second = first_actionable(page)
+                    # With one recommendation, a pending write never exposes a second task.
+                    page.evaluate("document.querySelector('#tasks .task-item .chk').disabled = true")
+                    page.wait_for_function("document.querySelector('#sd-v2-title').textContent === '任務更新仍在同步'")
+                    assert page.locator("#sd-v2-task").is_disabled()
+                    assert page.locator("#tasks .task-item").count() == 1
+                    page.evaluate("document.querySelector('#tasks .task-item .chk').disabled = false")
+                    page.wait_for_function("previous => document.querySelector('#sd-v2-title').textContent === previous", arg=first)
                     page.locator("#sd-v2-task").click()
                     assert page.evaluate("document.activeElement.classList.contains('task-activity')")
-                    assert page.evaluate("document.activeElement.textContent.trim()") == second
-                    page.evaluate("""() => {
-                      document.querySelector('#tasks .task-item .chk').disabled = false;
-                    }""")
-                    page.wait_for_function("""previous =>
-                      document.querySelector('#sd-v2-title')?.textContent === previous
-                    """, arg=first)
+                    assert page.evaluate("document.activeElement.textContent.trim()") == first
 
                     # Focus shortcut only navigates and focuses the existing focus
                     # control. It must never click it, which could end a session.
@@ -221,7 +206,7 @@ try:
                 outside, calls, failure = install_route(page, mock_api=True)
                 page.goto(origin + "/index.html?ui=v2", wait_until="load")
                 page.wait_for_function("""() =>
-                  document.querySelector('#sd-v2-count')?.textContent.includes('0 / 2') &&
+                  document.querySelector('#sd-v2-count')?.textContent.includes('0 / 1') &&
                   document.querySelector('#sd-v2-task:not([disabled])')""")
                 original = page.locator("#sd-v2-title").inner_text()
                 assert original == first_actionable(page)
@@ -238,8 +223,8 @@ try:
                 assert page.locator("#sd-v2-count").inner_text() == "尚未取得可靠任務資料"
                 assert page.locator("#banner").is_hidden(), (
                     "a silent refresh failure must be detected without an error banner")
-                assert page.locator("#tasks .task-item").count() == 2, (
-                    "cached tasks must remain visible but unverified")
+                assert page.locator("#tasks .task-item").count() == 1, (
+                    "the cached recommendation must remain visible but unverified")
                 failure["state"] = False
                 page.evaluate("document.dispatchEvent(new Event('visibilitychange'))")
                 page.wait_for_function("""() =>

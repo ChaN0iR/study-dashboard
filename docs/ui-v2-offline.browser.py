@@ -69,13 +69,13 @@ try:
                 """)
                 cache_state = page.evaluate("""async () => {
                     const names = await caches.keys();
-                    const cache = await caches.open('sd-v141');
+                    const cache = await caches.open('sd-v142');
                     const keys = (await cache.keys()).map(item => new URL(item.url).pathname +
                         new URL(item.url).search);
                     return {names, keys};
                 }""")
-                assert "sd-v141" in cache_state["names"], cache_state
-                for asset in ["/app.js?v=126", "/ui-live-v2.js", "/ui-live-v2.css?v=1"]:
+                assert "sd-v142" in cache_state["names"], cache_state
+                for asset in ["/app.js?v=127", "/ui-live-v2.js", "/ui-live-v2.css?v=1"]:
                     assert asset in cache_state["keys"], (asset, cache_state)
 
                 context.set_offline(True)
@@ -107,5 +107,5 @@ finally:
     thread.join(timeout=5)
 
 print(json.dumps({"status": "PASS", "cases": len(results),
-                  "evidence": len(results), "cache": "sd-v141",
+                  "evidence": len(results), "cache": "sd-v142",
                   "results": results}, ensure_ascii=False))
