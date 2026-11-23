@@ -107,7 +107,7 @@
       },
     };
   }
-  async function api(path, body) {
+  async function api(path, body, connection) {
     if (DEMO) {
       if (!demoDb) demoInit();
       await new Promise((r) => setTimeout(r, 120));
@@ -157,16 +157,20 @@
       if (kind === "note") return { id: "n1", title: body.title };
       throw new Error(`DEMO_API_UNSUPPORTED:${path}`);
     }
-    const base = apiBase();
+    const base = connection?.base ?? apiBase();
     if (!base) throw new Error("NO_API");
-    let key = localStorage.getItem("appKey");
-    if (!key) { key = prompt("請輸入 APP_KEY（只需輸入一次）"); if (!key) throw new Error("NO_KEY"); localStorage.setItem("appKey", key); }
+    const key = connection?.key ?? localStorage.getItem("appKey");
+    if (!key) throw new Error("NO_KEY");
     const res = await fetch(base + path, {
       method: body ? "POST" : "GET",
       headers: { "x-app-key": key, ...(body ? { "content-type": "application/json" } : {}) },
       body: body ? JSON.stringify(body) : undefined,
+      ...(connection ? { signal: connection.signal, redirect: "error" } : {}),
     });
-    if (res.status === 401) { localStorage.removeItem("appKey"); throw new Error("APP_KEY 錯誤，請重新輸入"); }
+    if (res.status === 401) {
+      if (!connection && apiBase() === base && localStorage.getItem("appKey") === key) localStorage.removeItem("appKey");
+      throw new Error("BAD_KEY");
+    }
     const data = await res.json().catch(() => ({}));
     if (!res.ok) { const error = new Error(data.error || `HTTP ${res.status}`); error.status = res.status; throw error; }
     return data;
@@ -804,13 +808,92 @@
     try { await fn(); if (okMsg) toast(okMsg); }
     catch (e) { showError(e); if (reloadOnError) await load(true); }
   }
-  function showError(e) {
+  const connectionErrors = {
+    NO_API: "尚未設定後端位址。",
+    NO_KEY: "請輸入 APP_KEY 以連線。",
+    BAD_KEY: "APP_KEY 錯誤，請重新輸入。",
+  };
+  function openConnection(message = "") {
+    const dialog = $("connection-dialog");
+    if (dialog.open) return;
+    $("connection-url").value = apiBase();
+    $("connection-key").value = "";
+    $("connection-error").textContent = message;
+    dialog.showModal();
+  }
+  function showError(e, open = true) {
     const m = e.message;
-    if (m === "NO_API") return banner("尚未設定後端位址。請先部署 Worker，然後以 ?api=<Worker 網址> 開啟一次，或試用 ?demo=1。");
-    if (m === "NO_KEY") return banner("需要 APP_KEY 才能連線。");
+    if (Object.hasOwn(connectionErrors, m)) {
+      banner(connectionErrors[m]);
+      $("banner").append(" ", el("button", {
+        type: "button", class: "ghost connection-retry", onclick: () => openConnection(),
+      }, "設定連線"));
+      if (open) openConnection(m === "BAD_KEY" ? connectionErrors[m] : "");
+      return;
+    }
     toast(m.length > 60 ? "失敗，請重試" : m); banner(m);
   }
   function banner(msg) { const b = $("banner"); b.textContent = msg; b.hidden = !msg; }
+
+  function initConnectionForm() {
+    const dialog = $("connection-dialog");
+    const form = $("connection-form");
+    const url = $("connection-url");
+    const key = $("connection-key");
+    const status = $("connection-error");
+    const submit = $("connection-submit");
+    let attempt;
+
+    $("reset-key").onclick = (event) => { event.preventDefault(); openConnection(); };
+    $("connection-cancel").onclick = () => dialog.close();
+    dialog.addEventListener("close", () => {
+      attempt?.abort();
+      key.value = "";
+    });
+    form.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      if (attempt) return;
+      if (DEMO) {
+        status.textContent = "請離開示範模式後再設定正式連線。";
+        return;
+      }
+      const target = new URL(url.value);
+      if (!["https:", "http:"].includes(target.protocol) || target.username || target.password || target.search || target.hash) {
+        status.textContent = "請輸入不含帳密、查詢參數或片段的 Worker 網址。";
+        url.focus();
+        return;
+      }
+      const candidateKey = key.value.trim();
+      if (!candidateKey) {
+        status.textContent = connectionErrors.NO_KEY;
+        key.focus();
+        return;
+      }
+      const base = target.href.replace(/\/+$/, "");
+      attempt = new AbortController();
+      const signal = attempt.signal;
+      submit.disabled = true;
+      status.textContent = "正在連線…";
+      try {
+        await readDashboardState({ base, key: candidateKey, signal });
+        if (!dialog.open || signal.aborted) return;
+        localStorage.setItem("apiBase", base);
+        localStorage.setItem("appKey", candidateKey);
+        // The one-time URL override must not replace the newly verified address.
+        const page = new URL(location.href);
+        page.searchParams.delete("api");
+        location.replace(page.href);
+      } catch (e) {
+        if (!signal.aborted) {
+          status.textContent = e.message === "BAD_KEY" ? connectionErrors.BAD_KEY : "無法連線，請確認 Worker 網址或網路後再試。";
+          if (e.message === "BAD_KEY") key.select();
+        }
+      } finally {
+        attempt = null;
+        submit.disabled = false;
+      }
+    });
+  }
   const toggleTask = (t) => {
     t = taskWriteTarget(t);
     if (!t || pendingTaskWrites.has(t.id)) return;
@@ -877,11 +960,16 @@
   };
   const reviewLesson = (l) => guarded(async () => { l.reviews++; renderAll(); await api(`/api/lesson/${l.id}`, { review: true }); }, "已記錄複習");
 
+  async function readDashboardState(connection) {
+    const incoming = await api("/api/state", undefined, connection);
+    if (!incoming || !Array.isArray(incoming.tasks) || typeof incoming.today !== "string" || !incoming.today)
+      throw new Error("儀表板狀態資料不完整");
+    return incoming;
+  }
+
   async function load(silent) {
     try {
-      const incoming = await api("/api/state");
-      if (!incoming || !Array.isArray(incoming.tasks) || typeof incoming.today !== "string" || !incoming.today)
-        throw new Error("儀表板狀態資料不完整");
+      const incoming = await readDashboardState();
       state = incoming;
       xpVerified = !DEMO;
       // Explicit read-only verification marker for opt-in V2. A silent background
@@ -892,7 +980,7 @@
     } catch (e) {
       xpVerified = false;
       $("tasks").dataset.stateVerified = "false";
-      if (!silent) showError(e);
+      if (!silent || Object.hasOwn(connectionErrors, e.message)) showError(e, !silent);
       renderAll();
     }
   }
@@ -1001,11 +1089,7 @@
         e.currentTarget.target = "_self";
       } else if (/Android/i.test(ua)) { e.preventDefault(); location.href = "intent://#Intent;scheme=hevy;package=com.hevy;S.browser_fallback_url=" + encodeURIComponent(web) + ";end"; }
     });
-    $("reset-key").onclick = (e) => {
-      e.preventDefault();
-      const u = prompt("Worker 網址（留空保持不變）", apiBase()); if (u) localStorage.setItem("apiBase", u.trim());
-      localStorage.removeItem("appKey"); Promise.resolve(load()).finally(() => toast("重置成功"));
-    };
+    initConnectionForm();
     ["f-review", "f-workout", "f-points"].forEach((id) => $(id).addEventListener("input", recBtn));
     $("save-record").onclick = () => guarded(async () => {
       const num = (id) => ($(id).value === "" ? null : Number($(id).value));
