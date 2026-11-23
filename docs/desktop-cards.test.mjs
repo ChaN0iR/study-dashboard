@@ -8,15 +8,15 @@ const sw = readFileSync(new URL('./sw.js', import.meta.url), 'utf8');
 const shell = JSON.parse(sw.match(/^const SHELL = (\[[^\n]+\]);$/m)[1]);
 
 test('index.html references the updated desktop card assets exactly once', () => {
-  assert.deepEqual([...html.matchAll(/<script\b[^>]*\bsrc="(app\.js[^\"]*)"/g)].map(m => m[1]), ['app.js?v=125']);
-  assert.deepEqual([...html.matchAll(/<link\b[^>]*\bhref="(style\.css[^\"]*)"/g)].map(m => m[1]), ['style.css?v=125']);
+  assert.deepEqual([...html.matchAll(/<script\b[^>]*\bsrc="(app\.js[^\"]*)"/g)].map(m => m[1]), ['app.js?v=126']);
+  assert.deepEqual([...html.matchAll(/<link\b[^>]*\bhref="(style\.css[^\"]*)"/g)].map(m => m[1]), ['style.css?v=126']);
 });
 
 test('SW cache and shell match the index.html static asset references', () => {
-  assert.match(sw, /^const CACHE = "sd-v140";$/m);
+  assert.match(sw, /^const CACHE = "sd-v141";$/m);
   assert.equal(new Set(shell).size, shell.length, 'shell has no duplicate entries');
-  for (const entry of ['./', 'index.html', 'app.js?v=125', 'style.css?v=125']) assert.ok(shell.includes(entry), entry);
-  assert.deepEqual(shell.filter(entry => /^(app\.js|style\.css)(\?|$)/.test(entry)), ['style.css?v=125', 'app.js?v=125']);
+  for (const entry of ['./', 'index.html', 'app.js?v=126', 'style.css?v=126']) assert.ok(shell.includes(entry), entry);
+  assert.deepEqual(shell.filter(entry => /^(app\.js|style\.css)(\?|$)/.test(entry)), ['style.css?v=126', 'app.js?v=126']);
   const references = [...html.matchAll(/<(?:script|link)\b[^>]*\b(?:src|href)="([^\"]+)"/g)].map(m => m[1]);
   for (const reference of references) assert.ok(shell.includes(reference), `shell includes ${reference}`);
   for (const entry of shell) assert.ok(existsSync(new URL(entry.split('?')[0], import.meta.url)), `shell file exists: ${entry}`);
@@ -124,6 +124,25 @@ with tempfile.TemporaryDirectory(prefix='desktop-cards-') as temp:
             return context, page
         def shot(page, name):
             return page.screenshot(path=str(evidence / (name + '.png')) if evidence else None, animations='disabled')
+        # Compact desktop stacks achievements below the first row of cards.
+        # Wheel over a card and check the dashboard can reach the last control.
+        for width, height in [(900, 560), (988, 718), (1099, 650)]:
+            context, page = open_page(width, height)
+            main = page.locator('main')
+            assert main.evaluate('(node) => node.scrollHeight > node.clientHeight')
+            task_list = page.locator('#tasks').bounding_box()
+            page.mouse.move(task_list['x'] + 12, min(task_list['y'] + 20, height - 20))
+            page.mouse.wheel(0, 450)
+            page.wait_for_function("document.querySelector('main').scrollTop > 100")
+            page.evaluate("new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))")
+            assert main.evaluate('(node) => node.scrollTop') > 100
+            select_course = page.get_by_role('button', name='選擇課程去完成')
+            select_course.scroll_into_view_if_needed()
+            expect(select_course).to_be_in_viewport()
+            select_course.click()
+            expect(select_course).to_have_attribute('aria-expanded', 'true')
+            assert main.evaluate('(node) => node.scrollTop') > 100
+            context.close()
         for width,height in [(900,560),(1024,768),(1440,900),(1515,1008),(1920,1080)]:
             context,page = open_page(width,height)
             record = page.locator('.rec')
