@@ -18,7 +18,6 @@
   let state = { tasks: [], lessons: [], record: null, today: "" };
   const pendingTaskWrites = new Set();
   const pendingLessonWrites = new Set();
-  let mood = null;
   let xpVerified = false;
   let activeScheduleSlots = [];
   let activeScheduleSlot = null;
@@ -498,74 +497,38 @@
       t.skipped ? el("button", { class: "ghost", disabled: pending, onclick: () => skipTask(t, false) }, "恢復")
         : t.done ? null : el("button", { class: "ghost", disabled: pending, onclick: () => skipTask(t, true) }, "跳過"));
   }
-  function renderTaskGroups(tasks) {
-    return tasks.map((t) => taskItem(t));
-  }
-
+  let recommendationId = null;
   function renderTasks() {
     const schedule = taskViewNow(), slots = schedule.slots;
     const sortOptions = {
       today: state.today || schedule.now.date,
       nowMin: schedule.now.min, weekday: schedule.now.wd, slots, bedMinute: toMin(C.BED),
-      activeSlot: slots.find((s) => schedule.now.min >= toMin(s.start) && schedule.now.min < toMin(s.end)) || null, isStudyTask, isLifeTask,
-      getSlot: (task) => taskScheduleSlot(task, slots),
+      activeSlot: slots.find((slot) => schedule.now.min >= toMin(slot.start) && schedule.now.min < toMin(slot.end)) || null,
+      isStudyTask, isLifeTask, getSlot: (task) => taskScheduleSlot(task, slots),
     };
-    const real = schedule.view.tasks.filter((t) => !t.skipped).sort((a, b) => compareTaskDisplay(a, b, sortOptions));
-    const skipped = schedule.view.skipped;
+    const pending = pendingTaskWrites.has(recommendationId) ? taskWriteTarget({ id: recommendationId }) : null;
+    const candidates = schedule.view.tasks.filter((task) =>
+      task.id && !task.done && !task.skipped && !taskBlocked(task) && isStudyTask(task) && !isLifeTask(task));
+    candidates.sort((a, b) => Number(a.carryover) - Number(b.carryover) || compareTaskDisplay(a, b, sortOptions));
+    const recommended = pending || candidates[0];
+    recommendationId = recommended?.id ?? null;
+
     const note = $("task-policy-note");
     note.hidden = !schedule.view.suppression;
-    note.textContent = schedule.view.suppression === "rest" ? "週日休息日：生活與每日必做照常；睡前以外保留最近一項課程，優先可做的補做任務。也可到「成就」選課。"
-      : schedule.view.suppression === "quiet" ? "睡前時段：未完成的學習任務暫不顯示，明天再處理。" : "";
-    const done = real.filter((t) => t.done).length, pct = real.length ? Math.round(done / real.length * 100) : 0;
-    $("task-count").textContent = real.length ? `${done}/${real.length}` : "";
-    $("task-prog-i").style.width = pct + "%";
-    $("tasks").replaceChildren(...(real.length ? renderTaskGroups(real) : [el("li", { class: "empty" }, "今天沒有任務")]));
-    if (schedule.view.suppression === "rest") {
-      const courses = courseSelectionData();
-      const restRows = [];
-      if (!schedule.view.restCourse && schedule.now.min < TaskPolicy.quietStart(slots, toMin(C.BED)) && courses.lessons.length)
-        restRows.push(lessonChoiceItem(courses.lessons[0]));
-      if (!courses.tasks.length && !courses.lessons.length)
-        restRows.push(el("li", { class: "empty", role: "status" }, courses.status));
-      if (restRows.length) {
-        if (real.length) $("tasks").append(...restRows);
-        else $("tasks").replaceChildren(...restRows);
-      }
+    note.textContent = schedule.view.suppression === "rest" ? "週日可以挑一項複習或補課。其他課程可到「成就」查看。"
+      : schedule.view.suppression === "quiet" ? "睡前先休息，明天再繼續。" : "";
+    const restLesson = !recommended && schedule.view.suppression === "rest" &&
+      schedule.now.min < TaskPolicy.quietStart(slots, toMin(C.BED)) ?
+      courseSelectionData().lessons.find((lesson) => !lessonChoiceBlocked(lesson)) : null;
+    $("task-count").textContent = recommended ? (recommended.done ? "1/1" : "0/1") : "";
+    $("tasks").replaceChildren(recommended ? taskItem(recommended) : restLesson ? lessonChoiceItem(restLesson)
+      : el("li", { class: "empty", role: "status" }, "目前沒有可做的推薦任務"));
+    const skipped = $("skipped-wrap");
+    if (skipped) {
+      skipped.hidden = !schedule.view.skipped.length;
+      $("skipped").replaceChildren(...schedule.view.skipped.map(taskItem));
     }
-    $("skipped-wrap").hidden = !skipped.length;
-    updateProg();
-    $("skipped").replaceChildren(...skipped.map(taskItem));
   }
-
-  const diaryOf = (r) => { const w = r.workout ?? localStorage.getItem("sd-workout-" + (r.date || "")) ?? ""; return (r.review || "") + (w ? ((r.review ? "\n" : "") + "運動：" + w) : ""); };
-  const moodUi = (m) => (m ? ({ "不錯": "很好", "疲累": "低落" }[m] || m) : null);
-  function renderRecord() {
-    const r = state.record || {};
-    if (document.activeElement?.closest?.("#f-hours,#f-minutes,#f-review,#f-workout,#f-points") == null) {
-      $("f-hours").value = r.hours ?? ""; $("f-minutes").value = r.minutes ?? "";
-      $("f-review").value = diaryOf(r); $("f-workout").value = ""; $("f-points").value = r.points || "";
-    }
-    mood = moodUi(r.mood); renderMoods(); updateTotal();
-    updateProg(); recBtn();
-  }
-  function updateProg() {
-    const t = taskViewNow().view.tasks.filter((x) => !x.skipped), d = t.filter((x) => x.done).length, p = t.length ? Math.round(d / t.length * 100) : 0;
-    $("completion").textContent = t.length ? `${d}/${t.length}　${p}%` : "";
-    $("prog-i").style.width = p + "%";
-  }
-  function renderMoods() {
-    $("moods").replaceChildren(...C.MOODS.map((m) => el("button", {
-      role: "radio", "aria-checked": String(mood === m), type: "button",
-      onclick: () => { mood = mood === m ? null : m; renderMoods(); recBtn(); },
-    }, m)));
-  }
-  function recBtn() {
-    const r = state.record || {}, b = $("save-record");
-    const cur = [$("f-review").value, $("f-points").value, mood || ""];
-    const sav = [diaryOf(r), r.points || "", moodUi(r.mood) || ""];
-    b.disabled = cur.every((v, i) => v === sav[i]);
-  }
-  function updateTotal() { $("ypt").textContent = fmtYpt($("f-hours").value, $("f-minutes").value); }
 
   function achievementData() {
     const lessons = Array.isArray(state.lessons) ? state.lessons : [];
@@ -800,7 +763,7 @@
 
   function renderAll() {
     { const dt = state.today || taipeiNow().date, wd = String(taipeiNow().wd || ""), w1 = ({Mon:"一",Tue:"二",Wed:"三",Thu:"四",Fri:"五",Sat:"六",Sun:"日"})[wd.slice(0, 3)] || wd.replace("星期", "").replace("週", "").slice(0, 1); $("date").replaceChildren(Object.assign(document.createElement("span"), { className: "dl", textContent: `${dt}　${wd}` }), Object.assign(document.createElement("span"), { className: "ds", textContent: `${dt.slice(5).replace("-", "/")} 週${w1}` })); }
-    renderNow(); renderTasks(); renderRecord(); renderReschedule(); renderLessons();
+    renderNow(); renderTasks(); renderReschedule(); renderLessons();
   }
 
   // ---------- actions (optimistic) ----------
@@ -987,70 +950,43 @@
     }
   }
 
-  // Desktop-only enhancement: collapse the entire card, not just its editor.
-  // Restore the original heading/DOM when leaving the desktop breakpoint.
-  function initDesktopCardToggles() {
+  function initDesktopNoteToggle() {
     const media = matchMedia("(min-width:900px) and (min-height:560px)");
-    const cards = [
-      { card: document.querySelector(".rec"), content: document.querySelector(".rec-content"), id: "record-card-content", controls: "record-card-content save-record", storageKey: "sd-desktop-record-collapsed", collapsed: true },
-      { card: document.querySelector(".note-card"), content: document.querySelector(".note-content"), id: "note-card-content", controls: "note-card-content save-note", storageKey: "sd-desktop-note-collapsed", collapsed: false },
-    ].map((item) => ({ ...item, heading: item.card.querySelector("h2") }));
-    const persist = () => cards.forEach((item) => {
-      try { localStorage.setItem(item.storageKey, String(item.collapsed)); } catch (_) { /* Session-only fallback. */ }
+    const card = document.querySelector(".note-card");
+    const heading = card.querySelector("h2");
+    const content = card.querySelector(".note-content");
+    if (!content) return;
+    const original = [...heading.childNodes];
+    const storageKey = "sd-desktop-note-collapsed";
+    let collapsed = false;
+    try { collapsed = localStorage.getItem(storageKey) === "true"; } catch (_) { /* Session-only fallback. */ }
+    const toggle = el("button", { type: "button", class: "desktop-card-toggle",
+      "aria-controls": "note-card-content save-note", onclick: () => {
+        collapsed = !collapsed;
+        try { localStorage.setItem(storageKey, String(collapsed)); } catch (_) { /* Session-only fallback. */ }
+        sync();
+      },
     });
-    const sync = () => {
-      if (!media.matches) {
-        cards.forEach((item) => {
-          if (item.button) {
-            item.heading.replaceChildren(...item.originalHeading);
-            item.content.removeAttribute("id");
-            item.button = null;
-          }
-          item.card.classList.remove("desktop-collapsed");
-        });
-        return;
-      }
-      cards.forEach((item) => {
-        if (!item.button) {
-          if (!item.initialized) {
-            // Missing/invalid/blocked storage keeps this card's desktop default.
-            try {
-              const saved = localStorage.getItem(item.storageKey);
-              if (saved === "true" || saved === "false") item.collapsed = saved === "true";
-            } catch (_) { /* Keep the toggle usable without persistent storage. */ }
-            item.initialized = true;
-          }
-          item.originalHeading = [...item.heading.childNodes];
-          item.content.id = item.id;
-          item.button = el("button", { type: "button", class: "desktop-card-toggle", "aria-controls": item.controls },
-            ...item.originalHeading);
-          item.button.addEventListener("click", () => {
-            if (item.collapsed) cards.forEach((other) => { other.collapsed = other !== item; });
-            else item.collapsed = true;
-            persist();
-            sync();
-          });
-          item.heading.replaceChildren(item.button);
+    function sync() {
+      card.classList.toggle("desktop-collapsed", media.matches && collapsed);
+      if (media.matches) {
+        content.id = "note-card-content";
+        if (!heading.contains(toggle)) {
+          toggle.replaceChildren(...original);
+          heading.replaceChildren(toggle);
         }
-      });
-      const expanded = cards.filter((item) => !item.collapsed);
-      if (expanded.length > 1) {
-        // Older independent preferences may reopen both cards; keep the notes default.
-        const keep = expanded.find((item) => item.card.matches(".note-card")) || expanded[0];
-        cards.forEach((item) => { item.collapsed = item !== keep; });
-        persist();
+        toggle.setAttribute("aria-expanded", String(!collapsed));
+      } else {
+        if (heading.contains(toggle)) heading.replaceChildren(...original);
+        content.removeAttribute("id");
       }
-      cards.forEach((item) => {
-        item.button.setAttribute("aria-expanded", String(!item.collapsed));
-        item.card.classList.toggle("desktop-collapsed", item.collapsed);
-      });
-    };
+    }
     sync();
     media.addEventListener("change", sync);
   }
   // ---------- init ----------
   function init() {
-    initDesktopCardToggles();
+    initDesktopNoteToggle();
     $("n-subject").append(...C.SUBJECTS.map((s) => el("option", { value: s }, s)));
     $("mode").textContent = DEMO ? "示範模式" : "";
     const taskDetailDialog = $("task-detail-dialog");
@@ -1060,7 +996,6 @@
       const trigger = taskDetailReturnFocus; taskDetailReturnFocus = null;
       if (trigger?.isConnected) trigger.focus({ preventScroll: true });
     });
-    ["f-hours", "f-minutes"].forEach((id) => $(id).addEventListener("input", updateTotal));
     (function () {
       const el2 = $("countdown"); if (!el2 || !C.EXAM_DATE) return;
       const d = new Date(C.EXAM_DATE + "T00:00:00"), n = new Date(); n.setHours(0, 0, 0, 0);
@@ -1092,16 +1027,6 @@
       } else if (/Android/i.test(ua)) { e.preventDefault(); location.href = "intent://#Intent;scheme=hevy;package=com.hevy;S.browser_fallback_url=" + encodeURIComponent(web) + ";end"; }
     });
     initConnectionForm();
-    ["f-review", "f-workout", "f-points"].forEach((id) => $(id).addEventListener("input", recBtn));
-    $("save-record").onclick = () => guarded(async () => {
-      const num = (id) => ($(id).value === "" ? null : Number($(id).value));
-      state.record = await api("/api/record", {
-        hours: num("f-hours"), minutes: num("f-minutes"),
-        "心得": $("f-review").value, "運動": "", "重點": $("f-points").value, "心情": mood || "",
-      });
-      renderRecord();
-      await loadReschedule();
-    }, "已儲存");
     // ---------- note draft ----------
     const nd = (() => { try { return JSON.parse(localStorage.getItem("sd-note-draft") || "null") || {}; } catch (e) { return {}; } })();
     // pages: [{v, imgs:[dataurl]}]; cur = photos for the page currently in the input; sel = chosen page index or -1
@@ -1316,7 +1241,7 @@
       const t = fc.st?.todayDoneSec || 0; if (fc.st?.active || (!t && !force)) return;
       const h = Math.floor(t / 3600), m = Math.round((t % 3600) / 60);
       if (state.record && state.record.hours === h && state.record.minutes === m) return;
-      try { state.record = await api("/api/record", { hours: h, minutes: m }); renderRecord(); } catch (e) {}
+      try { state.record = await api("/api/record", { hours: h, minutes: m }); } catch (e) {}
     }
     function fcHistory() {
       const st = fc.st || { days: [], history: [] };
@@ -1383,12 +1308,12 @@
     $("fc-close").onclick = () => $("fc-dialog").close();
     $("fc-dialog").addEventListener("click", (e) => { if (e.target === $("fc-dialog")) $("fc-dialog").close(); });
     // mobile: lock scrolling when a tab's content fits; otherwise let it scroll and bounce back
-    const lockFit = () => document.querySelectorAll("main .rec,main [data-tab=notes]").forEach((n) => { if (!n.offsetHeight) return; n.style.overflowY = n.scrollHeight > n.clientHeight + 1 ? "auto" : "hidden"; });
+    const lockFit = () => document.querySelectorAll("main [data-tab=notes]").forEach((n) => { if (!n.offsetHeight) return; n.style.overflowY = n.scrollHeight > n.clientHeight + 1 ? "auto" : "hidden"; });
     new ResizeObserver(lockFit).observe(document.querySelector("main"));
     new MutationObserver(lockFit).observe(document.body, { attributes: true, attributeFilter: ["data-tab"] });
     addEventListener("resize", lockFit); setInterval(lockFit, 1500);
     const fcMq = matchMedia("(min-width:900px) and (min-height:560px)");
-    const fcPlace = () => { const f = $("focus"); if (fcMq.matches) document.querySelector(".top > div").after(f); else { const r = document.querySelector(".rec"); r.querySelector(".prog").after(f); } };
+    const fcPlace = () => { const f = $("focus"); if (fcMq.matches) document.querySelector(".top > div").after(f); else $("now").after(f); };
     fcPlace(); fcMq.addEventListener("change", fcPlace);
     fcLoad(); setInterval(fcRender, 1000); setInterval(fcLoad, 8000);
     document.addEventListener("visibilitychange", () => { if (!document.hidden) fcLoad(); });

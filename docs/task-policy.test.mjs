@@ -421,51 +421,35 @@ function renderHarness(tasks, time = "16:00") {
 const titleOf = (row) => row.children.find((child) => child?.className === "t task-copy")?.children[0]?.children[0]?.textContent;
 const currentRows = (h) => h.nodes.get("tasks").children.filter((row) => row.className.includes("is-current"));
 
-test("整欄 render：當前光效與第一列一致，主欄／跳過欄／計數共用同 ID 去重資料", () => {
+test("整欄 render：只推薦一項、保留當前光效及去重的已跳過任務", () => {
   const oldDuplicate = study("current", "舊日同 ID", { date: "2026-10-16", makeup: true, skipped: true, carryover: false });
   const current = study("current", "物理第02堂", { date: "2026-10-17", order: 99 });
   const overdue = study("overdue", "物理第01堂", { date: "2026-10-16", makeup: true, carryover: false, order: 1 });
   const skipped = study("skipped", "今日已跳過", { date: "2026-10-17", skipped: true });
   const h = renderHarness([oldDuplicate, overdue, current, skipped, { ...skipped }]);
-  assert.deepEqual(h.nodes.get("tasks").children.map(titleOf), ["02堂", "01堂"]);
+  assert.deepEqual(h.nodes.get("tasks").children.map(titleOf), ["02堂"]);
   assert.equal(currentRows(h).length, 1);
   assert.equal(currentRows(h)[0], h.nodes.get("tasks").children[0]);
   assert.equal(h.nodes.get("skipped").children.length, 1);
-  assert.equal(h.nodes.get("task-count").textContent, "0/2");
-  assert.equal(h.nodes.get("completion").textContent, "0/2　0%");
+  assert.equal(h.nodes.get("task-count").textContent, "0/1");
   assert.equal(h.nodes.get("tasks").children[0].children[0].disabled, false);
   h.ctx.renderTest.pendingTaskWrites.add(current.id);
   h.rerender();
   assert.equal(h.nodes.get("tasks").children[0].children[0].disabled, true);
 });
 
-for (const [time, dinnerFirst] of [["17:29", false], ["17:30", true], ["18:59", true], ["19:00", false]]) {
-  test(`整欄 render 晚餐 ${time}：第一列、光效與睡前事項順序`, () => {
-    const old = study("old", "物理第01堂", { date: "2026-10-16", carryover: true, makeup: true, order: 99 });
-    const dinner = { id: "dinner", title: "晚餐＋蛋白粉", type: "生活", date: "2026-10-17", done: false, order: 1 };
-    const bed = { id: "bed", title: "睡前整理", type: "生活", date: "2026-10-17", done: false, order: 2 };
-    const h = renderHarness([bed, old, dinner], time);
-    const titles = h.nodes.get("tasks").children.map(titleOf);
-    assert.deepEqual(titles, dinnerFirst ? ["晚餐＋蛋白粉", "01堂", "睡前整理"] : ["01堂", "晚餐＋蛋白粉", "睡前整理"]);
-    assert.equal(currentRows(h).length, dinnerFirst ? 1 : 0);
-    if (dinnerFirst) assert.equal(currentRows(h)[0], h.nodes.get("tasks").children[0]);
-  });
-}
-
-test("整欄 render：未完成／已略過／缺失前置停用，已完成 blocked 可取消", () => {
-  for (const parent of [null, { id: "parent", done: false }, { id: "parent", done: true, skipped: true }]) {
-    const child = study("child", "物理第02堂", { date: "2026-10-17", prerequisiteTaskIds: ["parent"] });
-    const completed = { ...child, id: "completed", done: true };
-    const h = renderHarness([...(parent ? [parent] : []), child, completed]);
-    const rows = h.nodes.get("tasks").children;
-    const childRow = rows.find((row) => titleOf(row) === "02堂" && !row.className.includes(" done"));
-    const completedRow = rows.find((row) => row.className.includes(" done"));
-    assert.equal(childRow.children[0].disabled, true);
-    assert.equal(completedRow.children[0].disabled, false);
-    assert.equal(currentRows(h).length, 0);
-  }
+test("只有今日推薦不可做時，選一項可執行的學習補做", () => {
+  const backlog = study("old", "物理第01堂", { date: "2026-10-16", carryover: true, makeup: true });
+  const today = study("today", "物理第03堂", { date: "2026-10-17", order: 9 });
+  const blocked = study("child", "物理第04堂", { date: "2026-10-17", prerequisiteTaskIds: ["missing"] });
+  const dinner = { id: "dinner", title: "晚餐＋蛋白粉", type: "生活", date: "2026-10-17" };
+  const chosen = renderHarness([blocked, backlog, today, dinner], "17:30");
+  assert.deepEqual(chosen.nodes.get("tasks").children.map(titleOf), ["03堂"]);
+  const fallback = renderHarness([blocked, backlog, { ...today, done: true }, dinner], "17:30");
+  assert.deepEqual(fallback.nodes.get("tasks").children.map(titleOf), ["01堂"]);
+  const empty = renderHarness([blocked, { ...today, skipped: true }, dinner]);
+  assert.equal(empty.nodes.get("tasks").textContent, "目前沒有可做的推薦任務");
 });
-
 
 test("手機 checkbox 命中區僅增加透明範圍，無科目標籤時不拓寬攔截文字", async () => {
   const css = await readFile(new URL("./style.css", import.meta.url), "utf8");

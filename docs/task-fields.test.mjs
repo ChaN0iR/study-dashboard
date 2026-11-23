@@ -133,8 +133,9 @@ test('補做和略過清單保留欄位及未配時資訊，排序仍可用', ()
   const sorted = [prior, current].sort((a, b) => h.api.compareTaskDisplay(a, b, options(h)));
   assert.deepEqual(sorted.map(t => t.id), ['current', 'prior']);
   h.api.renderTasks();
-  assert.match(h.nodes.get('tasks').textContent, /補做.*回想室.*未配時/);
-  assert.match(h.nodes.get('skipped').textContent, /回想室.*未配時/);
+  assert.equal(h.nodes.get('tasks').children.length, 1);
+  assert.match(h.api.taskItem(prior).textContent, /補做.*回想室.*未配時/);
+  assert.match(h.api.taskItem(skipped).textContent, /回想室.*未配時/);
 });
 
 test('回想室僅新增標籤；分類、Anki、每日必做、前置、完成與 XP 逐筆不變', () => {

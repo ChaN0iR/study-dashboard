@@ -14,9 +14,9 @@ test('static PWA shell references and CSS cache-bust', async () => {
   const refs = [...html.matchAll(/<(?:link|script)\b[^>]*\b(?:href|src)="([^"]+)"/g)]
     .map(match => match[1]);
   const cssRefs = refs.filter(ref => /^style\.css(?:\?|$)/.test(ref));
-  assert.deepEqual(cssRefs, ['style.css?v=126']);
+  assert.deepEqual(cssRefs, ['style.css?v=127']);
   assert.deepEqual(shell.filter(ref => /^style\.css(?:\?|$)/.test(ref)), cssRefs);
-  assert.equal(cache, 'sd-v141');
+  assert.equal(cache, 'sd-v142');
   assert.equal(new Set(shell).size, shell.length, 'duplicate shell reference');
   assert.ok(!sw.includes('style.css?v=119') && !html.includes('style.css?v=119'), 'stale CSS URL');
   for (const ref of refs) assert.ok(shell.includes(ref), `index reference missing from shell: ${ref}`);
@@ -212,12 +212,12 @@ const cssChecks = String.raw`
       goalDisplay:style($('fc-goal')).display, trackHeight:box($('fc-prog-i').parentElement).height});
   };
   // Reproduce only app.js responsive placement; never load or execute app.js.
-  document.body.dataset.tab = 'record';
+  document.body.dataset.tab = 'focus';
   $('date').textContent = '2026-10-18　Sun';
   $('countdown').textContent = '倒數 153 天';
   $('fc-goal-t').textContent = '目標 3.5 時　0%';
   if (desktop) document.querySelector('.top > div').after(focus);
-  else document.querySelector('.rec-content > .prog').after(focus);
+  else $('now').after(focus);
   window.__timerTestState = state => assertState(state);
   try {
     assertState('idle'); assertState('running');

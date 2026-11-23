@@ -63,6 +63,7 @@ while True:
 hashes = {path: hashlib.sha256(content).hexdigest() for path, content in actual_assets.items()}
 sw = actual_assets['sw.js'].decode()
 require_sibling_preservation = not args.allow_legacy_cleanup
+single_recommendation = b'id="save-record"' not in actual_assets['index.html']
 cache_name = re.search(r'const CACHE = "([^"]+)";', sw).group(1)
 shell = json.loads(re.search(r'const SHELL = (\[[^\n]+\]);', sw).group(1))
 app_ref = next(entry for entry in shell if entry.startswith('app.js?'))
@@ -132,25 +133,39 @@ with sync_playwright() as p:
     else:
         report['sibling_cache_preserved_on_production'] = 'KNOWN_PRE_FIX_RELEASE_EXPLICIT_COMPATIBILITY_MODE'
 
-    record = page.get_by_role('button', name='今日進度', exact=True)
     note = page.get_by_role('button', name='快速筆記', exact=True)
     expect(note).to_have_attribute('aria-expanded', 'true')
     page.locator('#n-title').fill('smoke unsent draft')
-    record.focus()
-    page.keyboard.press('Enter')
-    expect(record).to_have_attribute('aria-expanded', 'true')
-    expect(note).to_have_attribute('aria-expanded', 'false')
-    note.click()
-    expect(record).to_have_attribute('aria-expanded', 'false')
-    expect(page.locator('#n-title')).to_have_value('smoke unsent draft')
-    note.click()
-    expect(record).to_have_attribute('aria-expanded', 'false')
-    expect(note).to_have_attribute('aria-expanded', 'false')
-    page.reload(wait_until='networkidle')
-    expect(record).to_have_attribute('aria-expanded', 'false')
-    expect(note).to_have_attribute('aria-expanded', 'false')
-    note.click()
-    report['desktop_exclusive_keyboard_draft_persistence'] = 'PASS'
+    if single_recommendation:
+        expect(page.get_by_role('heading', name='推薦任務', exact=True)).to_be_visible()
+        # Taipei bedtime can intentionally leave the recommendation empty.
+        expect(page.locator('#tasks > li')).to_have_count(1)
+        expect(page.locator('.rec')).to_have_count(0)
+        note.focus()
+        page.keyboard.press('Space')
+        expect(note).to_have_attribute('aria-expanded', 'false')
+        page.reload(wait_until='networkidle')
+        expect(note).to_have_attribute('aria-expanded', 'false')
+        note.click()
+        expect(page.locator('#n-title')).to_have_value('smoke unsent draft')
+        report['single_recommendation_and_note_draft'] = 'PASS'
+    else:
+        record = page.get_by_role('button', name='今日進度', exact=True)
+        record.focus()
+        page.keyboard.press('Enter')
+        expect(record).to_have_attribute('aria-expanded', 'true')
+        expect(note).to_have_attribute('aria-expanded', 'false')
+        note.click()
+        expect(record).to_have_attribute('aria-expanded', 'false')
+        expect(page.locator('#n-title')).to_have_value('smoke unsent draft')
+        note.click()
+        expect(record).to_have_attribute('aria-expanded', 'false')
+        expect(note).to_have_attribute('aria-expanded', 'false')
+        page.reload(wait_until='networkidle')
+        expect(record).to_have_attribute('aria-expanded', 'false')
+        expect(note).to_have_attribute('aria-expanded', 'false')
+        note.click()
+        report['desktop_exclusive_keyboard_draft_persistence'] = 'PASS'
 
     context.set_offline(True)
     for width, height in [(1440, 900), (390, 844)]:
@@ -161,16 +176,21 @@ with sync_playwright() as p:
             expect(page.locator('#recall-room-shortcut')).to_be_visible()
             if width < 900:
                 expect(page.locator('.desktop-card-toggle')).to_have_count(0)
-                page.get_by_role('button', name='進度', exact=True).click()
-                expect(page.locator('#f-review')).to_be_visible()
+                focus_label = '專注' if single_recommendation else '進度'
+                focus_target = '#fc-main' if single_recommendation else '#f-review'
+                page.get_by_role('button', name=focus_label, exact=True).click()
+                expect(page.locator(focus_target)).to_be_visible()
                 page.get_by_role('button', name='筆記', exact=True).click()
                 expect(page.locator('#n-title')).to_be_visible()
             else:
                 expect(note).to_be_visible()
-                record.click()
-                expect(record).to_have_attribute('aria-expanded', 'true')
-                expect(note).to_have_attribute('aria-expanded', 'false')
-                note.click()
+                if single_recommendation:
+                    expect(page.locator('.top > #focus')).to_be_visible()
+                else:
+                    record.click()
+                    expect(record).to_have_attribute('aria-expanded', 'true')
+                    expect(note).to_have_attribute('aria-expanded', 'false')
+                    note.click()
             assert page.locator('body').evaluate('(body) => body.scrollWidth <= body.clientWidth')
             page.screenshot(path=str(output / f'{width}x{height}-offline-{theme}.png'))
             report['cases'].append({'viewport': [width, height], 'theme': theme, 'offline': 'PASS'})
