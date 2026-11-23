@@ -692,7 +692,10 @@ button:active,a.icon-btn:active,.chk:active,.fc-hist:active{box-shadow:0 0 0 1px
   .top-actions{grid-template-columns:repeat(5,40px)!important;gap:6px!important;margin:0 12px 0 4px!important}
   .top-actions .icon-btn{width:40px!important;min-width:40px!important;height:40px!important;min-height:40px!important}
   .top-actions svg{width:20px!important;height:20px!important}
-  main{grid-template-columns:repeat(2,minmax(0,1fr));grid-template-rows:none;grid-auto-rows:minmax(min-content,auto);align-content:start;overflow-x:hidden;overflow-y:auto!important}
+  main{grid-template-columns:repeat(2,minmax(0,1fr));grid-template-rows:none;grid-auto-rows:minmax(min-content,auto);align-content:start;overflow-x:hidden;overflow-y:auto!important;scrollbar-width:thin!important}
+  body main::-webkit-scrollbar{display:block!important;width:8px!important}
+  body main::-webkit-scrollbar-thumb{background:var(--line);border-radius:8px}
+  main #tasks,main .achievement-content,main .rec-content,main .note-content{overscroll-behavior-y:auto}
   #now{grid-column:1;grid-row:1}
   .tasks-card{grid-column:1;grid-row:2}
   .rec{grid-column:2;grid-row:1}
