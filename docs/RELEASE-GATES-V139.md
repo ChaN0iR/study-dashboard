@@ -1,6 +1,8 @@
 # Study Dashboard｜PWA 隱私＋V2 完整候選（sd-v139）發布門檻
 
-本文件對應 **PR #45**，其 base 是 `main`。目前 **Draft，不是已授權發布**。
+> **歷史文件／請勿當作目前待合併清單（2026-11-17 核對）**：PR #45 已於 2026-11-09 合併至 `main`；目前 `main/docs/sw.js` 為 `sd-v139`。下方「Draft／尚未授權發布／待勾選」記錄的是當時候選階段的檢查，不表示 #45 現在仍開啟，也**不證明**正式 GitHub Pages 已發布對應 commit 或既有 iPhone Installed PWA 已完成 `sd-v139` 實機驗收。現行發布、回復與正式環境核對以 [OPERATIONS.md](../OPERATIONS.md) 為準；每次新版本只核對其精確 SHA 與尚未具備的證據。PR #46 是針對當時固定 v139 候選建立的 build-only 合成測試包，不代表已有公開 HTTPS staging 或手機驗收通過。
+
+**以下為 2026-10-30 當時的歷史候選快照（非現況）：**本文件對應 **PR #45**，當時以 `main` 為 base，仍為 **Draft、未授權發布**。
 
 ## 版本、範圍與證據
 
